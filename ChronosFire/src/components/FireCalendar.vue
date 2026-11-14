@@ -1,12 +1,28 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useCalendar, format } from '@/composables/useCalendar'
 import { useColorRamp, type RampId } from '@/composables/useColorRamp'
+
+const props = defineProps<{
+  selectedMonth: { year: number; month: number } | null
+  id?: string
+}>()
+
+const emit = defineEmits<{
+  (e: 'update:selectedMonth', value: { year: number; month: number } | null): void
+}>()
 
 const { years, cellMeta, monthShort, monthName, annualTotal } = useCalendar()
 const { rampId, color, textOn, label } = useColorRamp()
 
-const selected = ref<{ year: number; month: number } | null>(null)
+const sectionId = props.id ?? 'calendario'
+const titleId = `${sectionId}-title`
+
+/** Mes seleccionado, compartido con quien usa el componente (v-model:selected-month). */
+const selected = computed<{ year: number; month: number } | null>({
+  get: () => props.selectedMonth,
+  set: (value) => emit('update:selectedMonth', value),
+})
 
 const ramps: { id: RampId; desc: string }[] = [
   { id: 'anomaly', desc: 'Resalta meses por encima de lo normal' },
@@ -47,9 +63,9 @@ function selectCell(year: number, month: number) {
 </script>
 
 <template>
-  <section class="panel" id="calendario" aria-labelledby="cal-title">
+  <section class="panel" :id="sectionId" :aria-labelledby="titleId">
     <header class="panel-head">
-      <h2 id="cal-title" class="panel-title">Hotspots por mes y año</h2>
+      <h2 :id="titleId" class="panel-title">Hotspots por mes y año</h2>
       <span class="head-note">Haz clic en una celda para ver el detalle · los meses con borde naranja superan la mediana</span>
     </header>
 

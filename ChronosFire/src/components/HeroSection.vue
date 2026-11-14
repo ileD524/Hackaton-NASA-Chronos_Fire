@@ -3,6 +3,10 @@ defineProps<{
   region?: string
   rangeLabel?: string
 }>()
+
+const emit = defineEmits<{
+  (e: 'open-calendar'): void
+}>()
 </script>
 
 <template>
@@ -21,6 +25,26 @@ defineProps<{
     <p v-if="region" class="hero-context">
       Área de interés: <strong>{{ region }}</strong> · {{ rangeLabel }}
     </p>
+
+    <div class="hero-actions">
+      <button type="button" class="hero-cta" @click="emit('open-calendar')">
+        <svg
+          class="hero-cta-ico"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 9h18M8 3v4M16 3v4" />
+        </svg>
+        Abrir el calendario
+      </button>
+      <a class="hero-link" href="#mapa">Ver el mapa en vivo</a>
+    </div>
   </section>
 </template>
 
@@ -68,5 +92,58 @@ defineProps<{
 
 .hero-context strong {
   color: var(--white);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--warm-lime);
+  color: var(--blue-900);
+  font: 800 16px var(--font-body);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+
+.hero-cta:hover {
+  background: #f4ff5e;
+  transform: translateY(-1px);
+}
+
+.hero-cta:active {
+  transform: translateY(0);
+}
+
+.hero-cta-ico {
+  width: 20px;
+  height: 20px;
+}
+
+.hero-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 4px;
+  font: 700 16px var(--font-body);
+  color: var(--white);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.hero-link:hover {
+  color: var(--warm-lime);
 }
 </style>

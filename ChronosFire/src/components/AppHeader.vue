@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const navItems = [
+  { label: 'Mapa', target: '#mapa' },
   { label: 'Calendario', target: '#calendario' },
   { label: 'Metodología', target: '#metodologia' },
   { label: 'Datos FIRMS', target: '#datos' },
