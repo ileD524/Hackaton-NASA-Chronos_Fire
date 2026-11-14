@@ -4,7 +4,7 @@
 **Objetivo:** armonizar las detecciones MODIS y VIIRS lo suficiente para construir un calendario de actividad de fuego comparable, reproducible y defendible.  
 **Base:** PostgreSQL 17, `chronos_fire`  
 **Cobertura:** Argentina, 2000–2026  
-**Estado:** planificación. No implementado todavía.
+**Estado:** implementación parcial. 6.2 (SP/NRT) y 6.3 (máscara industrial) implementados en PostgreSQL.
 
 ---
 
@@ -188,35 +188,72 @@ WHERE d.source = 'SP'
 
 **Problema:** el NRT no trae `type`, así que `fire_type` es `NULL` y `is_vegetation` también. Sin máscara, una antorcha industrial puede marcar `fire_day` y generar alertas.
 
-**Solución:**
+**Solución implementada:**
 
-1. Construir una máscara desde SP, donde sí hay `type`.
+1. Construir la máscara desde SP, usando **solo `type = 2`**. `type = 3` (barcos/plataformas) queda fuera de alcance.
 2. Agregar por celda de 0,01° (~1 km):
-   - `n_detections` con `type IN (2,3)`.
-   - años distintos con presencia.
+   - `n_industrial` con `type = 2`.
+   - `n_total` con todas las detecciones SP de la celda.
+   - años distintos con presencia de `type = 2`.
 3. Conservar celdas con:
-   - `n_detections >= 10`
+   - `n_industrial >= 10`
    - `n_years >= 3`
-4. Opcional: dilatación de 1 celda (3×3) para cubrir el footprint del complejo industrial.
+   - `industrial_ratio = n_industrial / n_total >= 0,5`
+4. **Sin dilatación.**
 5. Aplicar a NRT:
    - Si la detección cae en la máscara, marcar `industrial_mask = true`.
    - Excluirla de `fire_day` y de alertas.
-   - No excluir toda la celda de 0,05°, solo la detección NRT.
+   - No borrar la detección y no excluir toda la celda de 0,05°.
 
-**Tabla propuesta:**
+**Tabla implementada:**
 
 ```sql
 CREATE TABLE industrial_cells (
-    cell_lat     DOUBLE PRECISION NOT NULL,
-    cell_lon     DOUBLE PRECISION NOT NULL,
-    n_detections INTEGER NOT NULL,
-    n_years      INTEGER NOT NULL,
-    last_seen    DATE,
-    PRIMARY KEY (cell_lat, cell_lon)
+    cell_lat_idx     INTEGER NOT NULL,
+    cell_lon_idx     INTEGER NOT NULL,
+    cell_lat         DOUBLE PRECISION NOT NULL,
+    cell_lon         DOUBLE PRECISION NOT NULL,
+    n_industrial     INTEGER NOT NULL,
+    n_total          INTEGER NOT NULL,
+    industrial_ratio REAL NOT NULL,
+    n_years          INTEGER NOT NULL,
+    first_seen       DATE,
+    last_seen        DATE,
+    types            SMALLINT[],
+    mask_version     TEXT NOT NULL DEFAULT 'v1',
+    built_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cell_lat_idx, cell_lon_idx)
 );
 ```
 
-**Estado:** 🟡 pendiente.
+Se creó la vista `v_detections_analysis`:
+
+```sql
+SELECT d.*,
+       (d.source = 'NRT' AND ic.cell_lat_idx IS NOT NULL) AS industrial_mask,
+       CASE WHEN d.source = 'NRT' AND ic.cell_lat_idx IS NOT NULL
+            THEN FALSE ELSE d.is_vegetation END AS is_vegetation_effective
+FROM v_detections_canonical d
+LEFT JOIN industrial_cells ic
+  ON ic.cell_lat_idx = round(d.latitude / 0.01)::int
+ AND ic.cell_lon_idx = round(d.longitude / 0.01)::int;
+```
+
+**Resultado:**
+
+- **885 celdas** industriales.
+- **4.041 detecciones NRT (2,8%)** marcadas como industriales.
+- **108 celdas borderline** con ratio 0,5–0,7, para revisión.
+- Focos conocidos cubiertos: San Nicolás, Zárate, La Plata, Neuquén y Olavarría.
+- `grid_daily` y `calendar_weekly` reconstruidos desde `v_detections_analysis`.
+- `v_latest_nrt` y `v_vegetation_detections` excluyen NRT industrial.
+- Impacto: `fire_day` bajó de 1.829.790 a 1.828.769 (−1.021); FRP acumulado −0,19%; alertas NRT −398.
+- `n_detections` sigue contando todas las detecciones; solo `fire_day` y el FRP excluyen industriales.
+
+**Estado:** ✅ implementado en PostgreSQL.
+
+**Script reproducible:** `backend/db/build_industrial_mask.sql`.  
+**ETL:** `etl/load_pg.py --aggregates` reconstruye `industrial_cells` antes de `grid_daily`.
 
 ---
 
@@ -412,9 +449,9 @@ Si `expected` es muy bajo, no mostrar anomalía.
 ### H1 — Armonización operativa (1–2 días)
 
 1. ✅ Crear `v_detections_canonical` (hecho).
-2. Construir `industrial_cells` desde SP.
-3. Aplicar la máscara a NRT.
-4. Reconstruir `grid_daily` y `calendar_weekly` desde la vista canónica.
+2. ✅ Construir `industrial_cells` desde SP (hecho: 885 celdas).
+3. ✅ Aplicar la máscara a NRT vía `v_detections_analysis` (hecho).
+4. ✅ Reconstruir `grid_daily` y `calendar_weekly` desde la vista (hecho).
 5. Completar las 53 semanas.
 6. Agregar `n_years` y `reliable`.
 
@@ -453,8 +490,8 @@ Si `expected` es muy bajo, no mostrar anomalía.
 - [ ] No hay duplicados exactos.
 - [ ] No hay solapamiento SP/NRT sin resolver.
 - [x] `v_detections_canonical` devuelve una sola fuente por sensor/fecha.
-- [ ] `industrial_cells` cubre los focos industriales conocidos.
-- [ ] NRT industrial no marca `fire_day`.
+- [x] `industrial_cells` cubre los focos industriales conocidos.
+- [x] NRT industrial no marca `fire_day`.
 - [ ] `calendar_weekly` tiene 53 semanas por celda (con `NULL` donde falta).
 - [ ] `fire_day_prob` y `n_years` son consistentes.
 - [ ] Los eventos 2020, 2022, 2013 y 2017 aparecen en el calendario.

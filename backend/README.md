@@ -55,9 +55,18 @@ implementar.
 
 ## Base de datos y ETL
 
-- Esquema: `../db/schema.sql`
+- Esquema: `db/ChronosFireDB.sql`
+- Máscara industrial: `db/build_industrial_mask.sql`
 - Carga con DuckDB: `../etl/load_pg.py`
-- Documentación de la base: `../db/README.md`
+- Plan del backend: `PLAN_BACKEND.md`
+- Plan de armonización: `PLAN_ARMONIZACION.md`
 
-El backend solo consultaría la base; la carga sigue siendo responsabilidad del
+Orden recomendado:
+
+1. Aplicar `ChronosFireDB.sql`.
+2. Cargar detecciones con `etl/load_pg.py`.
+3. Construir `industrial_cells` con `build_industrial_mask.sql`.
+4. Reconstruir agregados con `etl/load_pg.py --aggregates`.
+
+El backend solo consulta la base; la carga sigue siendo responsabilidad del
 ETL con DuckDB.

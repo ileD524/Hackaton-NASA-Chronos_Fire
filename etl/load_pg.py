@@ -132,8 +132,51 @@ def load(con, key, path, reader, sensor, source, has_type):
     return n
 
 
+def build_industrial_mask(con):
+    t0 = time.time()
+    print("Construyendo industrial_cells (type=2, 0.01 grados)...")
+    con.execute("TRUNCATE pg.industrial_cells")
+    con.execute("""
+    INSERT INTO pg.industrial_cells (
+        cell_lat_idx, cell_lon_idx, cell_lat, cell_lon,
+        n_industrial, n_total, industrial_ratio, n_years,
+        first_seen, last_seen, types, mask_version, built_at
+    )
+    WITH base AS (
+        SELECT
+            round(latitude / 0.01)::int  AS cell_lat_idx,
+            round(longitude / 0.01)::int AS cell_lon_idx,
+            round(latitude / 0.01)::int * 0.01  AS cell_lat,
+            round(longitude / 0.01)::int * 0.01 AS cell_lon,
+            count(*) FILTER (WHERE fire_type = 2) AS n_industrial,
+            count(*) AS n_total,
+            count(DISTINCT extract(year FROM acq_date))
+                FILTER (WHERE fire_type = 2) AS n_years,
+            min(acq_date) FILTER (WHERE fire_type = 2) AS first_seen,
+            max(acq_date) FILTER (WHERE fire_type = 2) AS last_seen,
+            array_agg(DISTINCT fire_type)
+                FILTER (WHERE fire_type = 2) AS types
+        FROM pg.detections
+        WHERE source = 'SP'
+        GROUP BY 1, 2, 3, 4
+    )
+    SELECT
+        cell_lat_idx, cell_lon_idx, cell_lat, cell_lon,
+        n_industrial, n_total,
+        n_industrial::real / NULLIF(n_total, 0) AS industrial_ratio,
+        n_years, first_seen, last_seen, types, 'v1', now()
+    FROM base
+    WHERE n_industrial >= 10
+      AND n_years >= 3
+      AND n_industrial::real / NULLIF(n_total, 0) >= 0.5
+    """)
+    n = con.execute("SELECT count(*) FROM pg.industrial_cells").fetchone()[0]
+    print(f"  industrial_cells: {n:,} filas ({time.time()-t0:.1f}s)")
+
+
 def aggregates(con):
     t0 = time.time()
+    build_industrial_mask(con)
     print("Construyendo grid_daily (0.05 grados)...")
     con.execute("TRUNCATE pg.grid_daily")
     con.execute("""
@@ -148,9 +191,9 @@ def aggregates(con):
         sensor,
         frp_mw,
         confidence_norm,
-        (is_vegetation IS TRUE OR is_vegetation IS NULL) AS veg_ok,
+        (is_vegetation_effective IS TRUE OR is_vegetation_effective IS NULL) AS veg_ok,
         confidence_class IN ('nominal','high') AS conf_ok
-      FROM pg.detections
+      FROM pg.v_detections_analysis
     )
     SELECT
       grid_id, cell_lat, cell_lon, day,

@@ -65,6 +65,37 @@ CREATE INDEX IF NOT EXISTS detections_acquired_brin   ON detections USING BRIN (
 -- Indice de apoyo para la politica SP/NRT (vista v_detections_canonical)
 CREATE INDEX IF NOT EXISTS detections_sensor_source_date_idx ON detections (sensor, source, acq_date);
 
+-- ----------------------------------------------------------------------------
+-- 1b. Mascara de celdas industriales (para NRT sin type)
+--     Celdas 0.01 grados con fuentes type=2 persistentes.
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS industrial_cells (
+    cell_lat_idx     INTEGER NOT NULL,
+    cell_lon_idx     INTEGER NOT NULL,
+    cell_lat         DOUBLE PRECISION NOT NULL,
+    cell_lon         DOUBLE PRECISION NOT NULL,
+    n_industrial     INTEGER NOT NULL,
+    n_total          INTEGER NOT NULL,
+    industrial_ratio REAL NOT NULL,
+    n_years          INTEGER NOT NULL,
+    first_seen       DATE,
+    last_seen        DATE,
+    types            SMALLINT[],
+    mask_version     TEXT NOT NULL DEFAULT 'v1',
+    built_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cell_lat_idx, cell_lon_idx)
+);
+
+CREATE INDEX IF NOT EXISTS industrial_cells_latlon_idx
+    ON industrial_cells (cell_lat, cell_lon);
+
+COMMENT ON TABLE industrial_cells IS
+    'Celdas 0.01 grados con fuentes industriales persistentes (type=2), usadas para marcar NRT.';
+COMMENT ON COLUMN industrial_cells.cell_lat_idx IS
+    'round(latitude / 0.01)::int; indice entero para join espacial.';
+COMMENT ON COLUMN industrial_cells.cell_lon_idx IS
+    'round(longitude / 0.01)::int; indice entero para join espacial.';
+
 -- Opcional si se instala PostGIS:
 -- CREATE EXTENSION IF NOT EXISTS postgis;
 -- ALTER TABLE detections ADD COLUMN IF NOT EXISTS geom geometry(Point, 4326)
@@ -134,23 +165,6 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
 -- ----------------------------------------------------------------------------
 -- 5. Vistas de consumo
 -- ----------------------------------------------------------------------------
-CREATE OR REPLACE VIEW v_latest_nrt AS
-SELECT *
-FROM detections
-WHERE source = 'NRT'
-  AND acquired_at >= now() - INTERVAL '7 days'
-  AND confidence_class IN ('nominal', 'high')
-  AND (is_vegetation IS NULL OR is_vegetation);
-
-COMMENT ON VIEW v_latest_nrt IS 'Alertas NRT de los ultimos 7 dias, sin focos industriales conocidos.';
-
-CREATE OR REPLACE VIEW v_vegetation_detections AS
-SELECT *
-FROM detections
-WHERE (is_vegetation IS TRUE OR (is_vegetation IS NULL AND confidence_class IN ('nominal', 'high')));
-
-COMMENT ON VIEW v_vegetation_detections IS 'Detecciones aptas para analisis de vegetacion (incluye NRT con confianza nominal/alta).';
-
 -- Politica SP/NRT: para cada sensor + fecha, SP si existe; NRT si no existe SP.
 CREATE OR REPLACE VIEW v_detections_canonical AS
 SELECT d.*
@@ -165,5 +179,42 @@ WHERE d.source = 'SP'
    );
 
 COMMENT ON VIEW v_detections_canonical IS 'Politica SP/NRT: SP si existe para sensor/fecha; NRT si no existe SP.';
+
+CREATE OR REPLACE VIEW v_detections_analysis AS
+SELECT
+    d.*,
+    (d.source = 'NRT' AND ic.cell_lat_idx IS NOT NULL) AS industrial_mask,
+    CASE
+        WHEN d.source = 'NRT' AND ic.cell_lat_idx IS NOT NULL THEN FALSE
+        ELSE d.is_vegetation
+    END AS is_vegetation_effective
+FROM v_detections_canonical d
+LEFT JOIN industrial_cells ic
+  ON ic.cell_lat_idx = round(d.latitude / 0.01)::int
+ AND ic.cell_lon_idx = round(d.longitude / 0.01)::int;
+
+COMMENT ON VIEW v_detections_analysis IS
+    'Detecciones canonicas (SP/NRT) con industrial_mask e is_vegetation_effective.';
+
+CREATE OR REPLACE VIEW v_latest_nrt AS
+SELECT d.*
+FROM v_detections_analysis d
+WHERE d.source = 'NRT'
+  AND d.acquired_at >= now() - INTERVAL '7 days'
+  AND NOT d.industrial_mask
+  AND d.confidence_class IN ('nominal', 'high')
+  AND (d.is_vegetation_effective IS NULL OR d.is_vegetation_effective);
+
+COMMENT ON VIEW v_latest_nrt IS 'Alertas NRT de los ultimos 7 dias, sin focos industriales conocidos.';
+
+CREATE OR REPLACE VIEW v_vegetation_detections AS
+SELECT d.*
+FROM v_detections_analysis d
+WHERE NOT d.industrial_mask
+  AND (d.is_vegetation_effective IS TRUE
+       OR (d.is_vegetation_effective IS NULL
+           AND d.confidence_class IN ('nominal', 'high')));
+
+COMMENT ON VIEW v_vegetation_detections IS 'Detecciones aptas para analisis de vegetacion (incluye NRT con confianza nominal/alta).';
 
 COMMIT;

@@ -32,6 +32,8 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `grid_daily` | Construida (~2,1 M de filas) |
 | `calendar_weekly` | Construida (~0,78 M de filas) |
 | `v_detections_canonical` | Creada en PostgreSQL (política SP/NRT) |
+| `industrial_cells` | Creada (885 celdas, type=2) |
+| `v_detections_analysis` | Creada (canónica + máscara industrial) |
 | Backend Java | No implementado |
 | `application.properties` | Existe y apunta a `chronos_fire` |
 | ETL DuckDB | `etl/load_pg.py` |
@@ -47,6 +49,7 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `v_latest_nrt` | Detecciones NRT de 7 días | Alertas |
 | `v_vegetation_detections` | Detecciones de vegetación | Análisis |
 | `v_detections_canonical` | SP si existe; NRT si no | Detalle y alertas del MVP |
+| `v_detections_analysis` | Canónica + `industrial_mask` | Detalle y alertas del MVP |
 
 ---
 
@@ -102,9 +105,9 @@ WHERE d.source = 'SP'
 
 Uso:
 
-- `/api/detections` consulta `v_detections_canonical` por defecto.
-- `/api/alerts` consulta `v_detections_canonical` y filtra `source = 'NRT'`: así muestra solo lo que todavía no fue reemplazado por SP.
-- `grid_daily` y `calendar_weekly` deben reconstruirse desde `v_detections_canonical` cuando SP empiece a solaparse con NRT. Hoy los rangos son disjuntos, así que los agregados actuales son válidos.
+- `/api/detections` consulta `v_detections_analysis` por defecto.
+- `/api/alerts` consulta `v_detections_analysis` y filtra `source = 'NRT'`: así muestra solo lo que todavía no fue reemplazado por SP y excluye focos industriales.
+- `grid_daily` y `calendar_weekly` se reconstruyen desde `v_detections_analysis` cuando SP empiece a solaparse con NRT. Hoy los rangos son disjuntos, así que los agregados actuales son válidos.
 
 **Caveat:** la política es por sensor/fecha, no por píxel. Si el SP cubre solo parte de un día, se oculta todo el NRT de ese sensor/día. Es una simplificación aceptable para el MVP; se documenta en la API.
 
@@ -163,6 +166,8 @@ Spring Boot (Java 21)
 PostgreSQL 17 (chronos_fire)
    ├─ detections
    ├─ v_detections_canonical
+   ├─ industrial_cells
+   ├─ v_detections_analysis
    ├─ grid_daily
    ├─ calendar_weekly
    └─ v_latest_nrt
@@ -225,15 +230,15 @@ backend/
 | GET | `/api/calendar/weekly` | `grid_daily` + `calendar_weekly` | Alta |
 | GET | `/api/calendar/daily` | `grid_daily` | Alta |
 | GET | `/api/calendar/heatmap` | `grid_daily` | Alta |
-| GET | `/api/alerts` | `v_detections_canonical` (NRT) | Alta |
-| GET | `/api/alerts/geojson` | `v_detections_canonical` (NRT) | Alta |
-| GET | `/api/detections` | `v_detections_canonical` | Media |
-| GET | `/api/detections/geojson` | `v_detections_canonical` | Media |
+| GET | `/api/alerts` | `v_detections_analysis` (NRT) | Alta |
+| GET | `/api/alerts/geojson` | `v_detections_analysis` (NRT) | Alta |
+| GET | `/api/detections` | `v_detections_analysis` | Media |
+| GET | `/api/detections/geojson` | `v_detections_analysis` | Media |
 
 ### Fuente de datos y política SP/NRT
 
-- `/api/detections` y `/api/detections/geojson` consultan `v_detections_canonical`.
-- `/api/alerts` consulta `v_detections_canonical` y filtra `source = 'NRT'`.
+- `/api/detections` y `/api/detections/geojson` consultan `v_detections_analysis`.
+- `/api/alerts` consulta `v_detections_analysis` y filtra `source = 'NRT'`.
 - `/api/calendar/*` usan `grid_daily` y `calendar_weekly`.
 - Si se necesita depurar, se puede pedir `source=SP` o `source=NRT` explícitamente.
 
@@ -331,13 +336,14 @@ Los umbrales son configurables y deben ajustarse con la demo. No son una probabi
 ```sql
 WITH recent AS (
     SELECT *
-    FROM v_detections_canonical
+    FROM v_detections_analysis
     WHERE source = 'NRT'
+      AND NOT industrial_mask
       AND acquired_at >= now() - make_interval(days => :days)
       AND latitude BETWEEN :minLat AND :maxLat
       AND longitude BETWEEN :minLon AND :maxLon
       AND confidence_class IN ('nominal', 'high')
-      AND (is_vegetation IS NULL OR is_vegetation)
+      AND (is_vegetation_effective IS NULL OR is_vegetation_effective)
 )
 SELECT
     round(latitude / 0.05) * 0.05  AS cell_lat,
@@ -412,7 +418,7 @@ La anomalía se calcula comparando la actividad reciente de la celda con `calend
   1. **Weekly**: `grid_daily` + `calendar_weekly`, agrupado por semana.
   2. **Daily**: `grid_daily` agrupado por día.
   3. **Heatmap**: `grid_daily` agrupado por celda.
-- Los agregados se usan tal como están. Si se reconstruyen, deben generarse desde `v_detections_canonical` para respetar la política SP/NRT.
+- Los agregados se usan tal como están. Si se reconstruyen, deben generarse desde `v_detections_analysis` para respetar la política SP/NRT y la máscara industrial.
 - `CalendarService`:
   - Defaults de fechas.
   - Validación de bbox.
@@ -430,7 +436,7 @@ La anomalía se calcula comparando la actividad reciente de la celda con `calend
 
 ### Fase 4 — Detecciones y GeoJSON (3–4 h)
 
-- `DetectionRepository` con SQL dinámico y parámetros nombrados, sobre `v_detections_canonical`.
+- `DetectionRepository` con SQL dinámico y parámetros nombrados, sobre `v_detections_analysis`.
 - Filtros: bbox, fechas, sensor, confidence, type, source, vegetation.
 - Paginación:
   ```text
@@ -453,7 +459,7 @@ Incluidas en el MVP, no como opcionales.
 
 - `AlertRepository`:
   - Consulta base de la sección 5, agrupada por celda de 0,05°.
-  - Solo `source = 'NRT'` de `v_detections_canonical`.
+  - Solo `source = 'NRT'` de `v_detections_analysis`.
   - Ventana `days` (default 7, máximo 30).
   - Filtros: bbox, confianza nominal/alta, vegetación.
 - `AlertService`:
@@ -465,14 +471,14 @@ Incluidas en el MVP, no como opcionales.
 - `AlertController`:
   - `GET /api/alerts?days=7&bbox=...&limit=...`
   - `GET /api/alerts/geojson?days=7&bbox=...` (un `Point` por celda agrupada)
-- Aplicar la máscara industrial cuando exista; mientras tanto, documentar el riesgo.
+- Usar `v_detections_analysis` y `NOT industrial_mask`. La máscara ya está implementada con 885 celdas.
 - No hay push: el frontend consulta por polling.
 
 **Criterio de aceptación:**
 - Devuelve alertas agrupadas, no miles de puntos.
 - Cada alerta tiene nivel y última detección.
 - No muestra NRT cuando ya existe SP para ese sensor/fecha.
-- No muestra focos industriales cuando la máscara esté lista.
+- No muestra focos industriales (máscara v1 implementada).
 - Tiempo de respuesta < 1 s para un AOI típico y 7 días.
 
 ---
@@ -556,7 +562,7 @@ Implementación:
    - `/api/detections` consulta la vista canónica.
    - `/api/alerts` consulta la vista canónica y filtra `source = 'NRT'`: muestra solo lo aún no archivado.
 3. **Agregados**:
-   - `grid_daily` y `calendar_weekly` deben reconstruirse desde `v_detections_canonical` cuando SP empiece a cubrir fechas que hoy son NRT.
+   - `grid_daily` y `calendar_weekly` deben reconstruirse desde `v_detections_analysis` cuando SP empiece a cubrir fechas que hoy son NRT.
    - Hoy los rangos son disjuntos, así que los agregados actuales son válidos.
 4. **Monitoreo**:
    ```sql
@@ -590,7 +596,7 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 | Semanas faltantes | Devolver `null` y explicar en la UI |
 | Clave en el repo | `DB_PASSWORD` por entorno |
 | Bbox enorme | Limitar área o pedir confirmación |
-| NRT industrial | Máscara industrial pendiente |
+| NRT industrial | Máscara v1 implementada; revisar 108 celdas borderline |
 | Cobertura incompleta | `/api/meta` muestra rangos; la UI debe avisar |
 
 ---
@@ -601,12 +607,15 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 - [ ] `/api/health` devuelve `database: true`.
 - [ ] `/api/meta` devuelve cobertura por sensor/fuente.
 - [x] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
+- [x] `industrial_cells` existe (885 celdas) y cubre los focos conocidos.
+- [x] `v_detections_analysis` existe y marca `industrial_mask`.
 - [ ] `/api/calendar/weekly` devuelve calendario + anomalía.
 - [ ] `/api/calendar/daily` devuelve serie diaria.
 - [ ] `/api/calendar/heatmap` devuelve celdas.
 - [ ] `/api/alerts` devuelve alertas agrupadas por celda, con nivel y última detección.
 - [ ] `/api/alerts` no muestra NRT si ya existe SP para ese sensor/fecha.
-- [ ] `/api/detections` pagina, filtra y usa la vista canónica.
+- [ ] `/api/alerts` no muestra focos industriales.
+- [ ] `/api/detections` pagina, filtra y usa `v_detections_analysis`.
 - [ ] Consultas de calendario < 1 s para un AOI típico con ~2,1 M de filas en `grid_daily`.
 - [ ] `/api/detections/geojson` es válido.
 - [ ] Errores 400/500 controlados.
@@ -634,13 +643,14 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 ## 12. Próximo paso inmediato
 
 1. Confirmar que `grid_daily` (~2,1 M) y `calendar_weekly` (~0,78 M) tienen datos.
-2. Validar `v_detections_canonical` (ya creada) y la política SP/NRT.
+2. Validar `v_detections_analysis` (canónica + máscara industrial) y la política SP/NRT.
 3. Crear el rol `chronos_reader`.
 4. Crear el esqueleto Maven + `ChronosFireApplication`.
 5. Implementar `/api/health` y `/api/meta`.
 6. Implementar calendario.
 7. Implementar alertas tempranas agrupadas por celda.
 8. Implementar detecciones y GeoJSON.
+9. Exponer `industrialMask` en `/api/detections` y excluir industriales en `/api/alerts`.
 
 ---
 
@@ -651,7 +661,7 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 - Autenticación de usuarios.
 - Frontend.
 - PostGIS y geometrías.
-- Máscara industrial completa.
+- Máscara industrial avanzada (actualización automática o por píxel). La máscara v1 ya está implementada.
 - Notificaciones push/email/Telegram (las alertas son pull).
 - Persistencia de alertas vistas/confirmadas.
 
