@@ -1,7 +1,7 @@
-# Plan de harmonización de datos — Chronos Fire
+# Plan de armonización de datos — Chronos Fire
 
 **Proyecto:** Hackaton NASA Chronos Fire  
-**Objetivo:** harmonizar las detecciones MODIS y VIIRS lo suficiente para construir un calendario de actividad de fuego comparable, reproducible y defendible.  
+**Objetivo:** armonizar las detecciones MODIS y VIIRS lo suficiente para construir un calendario de actividad de fuego comparable, reproducible y defendible.  
 **Base:** PostgreSQL 17, `chronos_fire`  
 **Cobertura:** Argentina, 2000–2026  
 **Estado:** planificación. No implementado todavía.
@@ -33,13 +33,13 @@
 - Validación con reportes oficiales.
 - Escala global.
 
-La harmonización propuesta es **operativa**, no científica completa. Alcanza para el calendario y las alertas, y documenta explícitamente lo que no resuelve.
+La armonización propuesta es **operativa**, no científica completa. Alcanza para el calendario y las alertas, y documenta explícitamente lo que no resuelve.
 
 ---
 
 ## 2. Qué significa “suficiente para el calendario”
 
-Una harmonización es suficiente si permite afirmar:
+Una armonización es suficiente si permite afirmar:
 
 1. Todos los sensores usan el mismo esquema, unidades y zona horaria.
 2. La confianza se puede filtrar de forma equivalente.
@@ -90,7 +90,7 @@ satellite, instrument, version
 
 ---
 
-## 4. Principios de harmonización
+## 4. Principios de armonización
 
 1. **No sumar conteos entre sensores.** VIIRS detecta ~3–3,6× más que MODIS.
 2. **Usar `fire_day` binario** por celda/día como unidad del calendario.
@@ -137,7 +137,7 @@ API / Vue 3
 
 ---
 
-## 6. Componentes de la harmonización
+## 6. Componentes de la armonización
 
 ### 6.1 Estructural (ya implementado)
 
@@ -220,7 +220,7 @@ CREATE TABLE industrial_cells (
 
 ---
 
-### 6.4 Harmonización espacial
+### 6.4 Armonización espacial
 
 **Grilla:** 0,05° (~5 km).
 
@@ -244,7 +244,7 @@ cell_lon = round(lon/0.05) * 0.05
 
 ---
 
-### 6.5 Harmonización temporal
+### 6.5 Armonización temporal
 
 - Día UTC (`acq_date`).
 - Semana ISO (`extract(week from day)`).
@@ -289,7 +289,7 @@ LEFT JOIN observed o
 
 ---
 
-### 6.6 Harmonización de intensidad
+### 6.6 Armonización de intensidad
 
 - **No sumar FRP entre sensores.**
 - Usar `frp_density_wm2 = frp_mw / pixel_area_km2` como indicador secundario.
@@ -369,7 +369,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
   - ranking de semanas,
   - correlación de Spearman,
   - diferencias en `fire_day_prob`.
-- Si las tres versiones coinciden en los períodos críticos, la harmonización es robusta para el calendario.
+- Si las tres versiones coinciden en los períodos críticos, la armonización es robusta para el calendario.
 
 #### Coincidencia espacial
 
@@ -409,7 +409,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 - Confirmar `detections`, `grid_daily`, `calendar_weekly`.
 - Revisar duplicados y solapamiento SP/NRT.
 
-### H1 — Harmonización operativa (1–2 días)
+### H1 — Armonización operativa (1–2 días)
 
 1. Crear `v_detections_canonical`.
 2. Construir `industrial_cells` desde SP.
@@ -496,7 +496,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 | Saturación de `brightness` | Bajo | Alta | No usar como intensidad |
 | Vista canónica lenta | Medio | Media | Índice `(sensor, source, acq_date)` o materializar |
 | Máscara industrial borra fuegos cercanos | Medio | Media | Umbral conservador; 0,01°; revisar casos |
-| Sobreafirmar “harmonización completa” | Alto | Media | Documentar alcance y limitaciones |
+| Sobreafirmar “armonización completa” | Alto | Media | Documentar alcance y limitaciones |
 
 ---
 
@@ -526,9 +526,9 @@ Si `expected` es muy bajo, no mostrar anomalía.
 
 ## 13. Conclusión
 
-La harmonización suficiente para el calendario es **factible** con los datos actuales y un esfuerzo de **2–4 días** para H1–H2.
+La armonización suficiente para el calendario es **factible** con los datos actuales y un esfuerzo de **2–4 días** para H1–H2.
 
-No es una harmonización científica completa:
+No es una armonización científica completa:
 
 - no calibra eficiencia de detección,
 - no calibra FRP,
@@ -545,4 +545,4 @@ Pero sí permite:
 
 La frase correcta para la demo es:
 
-> “Harmonizamos estructural y operativamente: esquema único, confianza homologada, grilla común, `fire_day` sensor-agnóstico, política SP/NRT, máscara industrial y validación con eventos conocidos. La calibración física queda como trabajo futuro.”
+> “Armonizamos estructural y operativamente: esquema único, confianza homologada, grilla común, `fire_day` sensor-agnóstico, política SP/NRT, máscara industrial y validación con eventos conocidos. La calibración física queda como trabajo futuro.”
