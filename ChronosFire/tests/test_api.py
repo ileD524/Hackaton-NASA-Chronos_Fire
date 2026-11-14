@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -9,7 +10,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server'))
 import api
-BASE='http://127.0.0.1:8765'
+BASE=os.environ.get('CHRONOS_TEST_URL','http://127.0.0.1:8765')
 
 def get(route,**args):
     with urlopen(BASE+route+'?'+urlencode(args),timeout=30) as r:return json.load(r)

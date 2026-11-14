@@ -2,7 +2,7 @@
 
 Adaptación de la demo Vue de la rama `Nati` del repositorio [Hackaton-NASA-Chronos_Fire](https://github.com/ileD524/Hackaton-NASA-Chronos_Fire/tree/Nati/ChronosFire). Base: `cd3f3051d5f3c1e0a400abc4c30fc53f225b2dba`.
 
-Para instalarla en otra computadora y conocer todas sus funciones, ver [docs/FUNCIONALIDAD.md](docs/FUNCIONALIDAD.md). Los datos procesados necesarios no están incluidos en este repositorio.
+Para instalarla en otra computadora y conocer todas sus funciones, ver [docs/FUNCIONALIDAD.md](docs/FUNCIONALIDAD.md). Los datos procesados se descargan desde R2 durante la primera ejecución y quedan en caché local.
 
 ## Abrir
 
@@ -11,11 +11,11 @@ Para instalarla en otra computadora y conocer todas sus funciones, ver [docs/FUN
 En la computadora donde se preparó la demo, para iniciar el servidor:
 
 ```bash
-cd /home/matir/Descargas/DSv2/chronosfire-local/ChronosFire
+cd /ruta/al/repositorio/ChronosFire
 ./run-local.sh
 ```
 
-`Ctrl+C` en su terminal detiene el servidor. El script compila la aplicación y utiliza el Python de `../../armonizacion/.venv`. Escucha exclusivamente en `127.0.0.1`.
+`Ctrl+C` en su terminal detiene el servidor. El script descarga los datos necesarios, compila la aplicación y utiliza por defecto `.venv/bin/python`. Escucha exclusivamente en `127.0.0.1`. Ver la guía de instalación para preparar el entorno.
 
 ## Qué se puede explorar
 
@@ -33,7 +33,7 @@ La selección inicial muestra MODIS observado entre 2012 y 2025 y abre agosto de
 
 Se usa **DuckDB sobre los Parquet originales**, en modo de consulta; no se importan millones de registros al navegador ni se duplican los datasets dentro del proyecto.
 
-Ruta predeterminada: `/home/matir/Descargas/DSv2/armonizacion`.
+Ruta predeterminada: `.data/armonizacion`, descargada automáticamente desde R2 y verificada con SHA-256.
 
 Entradas utilizadas:
 
@@ -53,7 +53,7 @@ Para usar otra ubicación:
 CHRONOS_DATA_DIR=/ruta/armonizacion CHRONOS_PYTHON=/ruta/venv/bin/python ./run-local.sh
 ```
 
-En otro entorno, instalar `server/requirements-local.txt` en un entorno Python y las dependencias web con `npm ci`. No se requiere clave FIRMS. Fuentes tipográficas y cartografía se sirven localmente; la aplicación funciona sin conexión después de la instalación. Los enlaces de referencia externos sí requieren conexión.
+Instalar `server/requirements-local.txt` en un entorno Python y las dependencias web con `npm ci`. No se requiere clave FIRMS. Fuentes tipográficas y cartografía se sirven localmente; la aplicación funciona sin conexión después de descargar los datos. Los enlaces de referencia externos sí requieren conexión.
 
 ## Interpretación de los valores
 
@@ -67,13 +67,13 @@ El mapa muestra observaciones, incluso cuando se selecciona la calibración. Agr
 
 Cero significa cero registros seleccionados, no ausencia confirmada de fuego. Un guion significa que la serie no tiene dato. El asterisco identifica meses parciales. Las sumas mensuales calibradas pueden omitir días por interrupciones; no deben compararse directamente con meses completos. La comparación de barras usa fechas pareadas para evitar ese problema.
 
-La aplicación informa que los intervalos nominales del 90% obtuvieron una cobertura del 82,8% en la prueba 2023–2025. La calibración no se aplica a provincias ni a puntos individuales. El informe científico completo está en `../../armonizacion/calibracion/INFORME.md`.
+La aplicación informa que los intervalos nominales del 90% obtuvieron una cobertura del 82,8% en la prueba 2023–2025. La calibración no se aplica a provincias ni a puntos individuales. El informe científico completo está en la carpeta de calibración original, fuera de este repositorio.
 
 ## Desarrollo y pruebas
 
 ```bash
 # Terminal 1: API y archivos compilados
-../../armonizacion/.venv/bin/python server/api.py
+.venv/bin/python server/api.py
 
 # Terminal 2: Vue con recarga automática y proxy a la API
 npm run dev
@@ -82,7 +82,7 @@ npm run dev
 npm run build
 
 # Pruebas contra el servidor local activo
-../../armonizacion/.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
+.venv/bin/python -m unittest discover -s tests -p 'test_*.py' -v
 npm run test:browser
 ```
 

@@ -4,7 +4,7 @@ Esta demo explora detecciones MODIS y VIIRS de DSv2 entre 2003 y 2025. El navega
 
 ## Instalar en otra computadora
 
-Se necesitan Git, Node.js 22.18 o superior dentro de la rama 22, o 24.12 o superior; Python con soporte para DuckDB 2.0.0; y los archivos procesados de DSv2. Ejemplo para Linux o macOS (en Windows se puede usar WSL):
+Se necesitan Git, Node.js 22.18 o superior dentro de la rama 22, o 24.12 o superior; Python con soporte para DuckDB 2.0.0; y acceso a Internet para la primera descarga. Ejemplo para Linux o macOS (en Windows se puede usar WSL):
 
 ```bash
 git clone --branch mattt https://github.com/ileD524/Hackaton-NASA-Chronos_Fire.git
@@ -12,8 +12,6 @@ cd Hackaton-NASA-Chronos_Fire/ChronosFire
 python3 -m venv .venv
 .venv/bin/python -m pip install -r server/requirements-local.txt
 npm ci
-export CHRONOS_DATA_DIR="/ruta/absoluta/a/armonizacion"
-export CHRONOS_PYTHON="$PWD/.venv/bin/python"
 ./run-local.sh
 ```
 
@@ -21,7 +19,7 @@ Abrir <http://127.0.0.1:8765>. El proceso sigue activo hasta pulsar Ctrl+C. Se p
 
 ### Datos necesarios
 
-Los siguientes archivos deben copiarse desde la carpeta `armonizacion` de la computadora original, conservando la estructura. **No se incluyen en Git** y los ZIP originales por sí solos no permiten ejecutar esta versión: primero hay que generar los resultados armonizados y calibrados con el proceso correspondiente, que tampoco está incluido en este repositorio.
+La primera ejecución descarga automáticamente desde el bucket público de Cloudflare R2 los cinco archivos siguientes a `.data/armonizacion/` y verifica su tamaño y SHA-256 contra el manifiesto versionado en `server/data-manifest.json`. Las siguientes ejecuciones reutilizan la copia verificada. La descarga inicial es de aproximadamente 284 MiB; se necesita espacio libre en disco. Ninguna credencial es necesaria para leerlos.
 
 ```text
 armonizacion/
@@ -34,7 +32,7 @@ armonizacion/
     resumen_calibracion.json
 ```
 
-El Parquet ocupa aproximadamente 283 MiB; los demás archivos son pequeños. Se puede compartir esta carpeta por un servicio de archivos y apuntar `CHRONOS_DATA_DIR` a la copia. Conviene compartir el mismo conjunto de archivos y verificar su integridad para obtener los mismos resultados. Un clon sin esos datos no puede iniciar la API. GitHub bloquea archivos individuales superiores a 100 MiB en Git normal; para versionarlos allí habría que evaluar Git LFS y sus cuotas, o usar almacenamiento externo. Las fuentes de letras y el mapa base sí están incluidos.
+Para usar un conjunto ya existente, indicar `CHRONOS_DATA_DIR=/ruta/absoluta/a/armonizacion ./run-local.sh`. En ese caso se omite la descarga automática y se usan los archivos de esa carpeta. `CHRONOS_PYTHON` permite indicar otro intérprete con DuckDB instalado. Los datos se alojan en R2, pero se guardan localmente en caché para que DuckDB pueda consultarlos; no se incluyen en Git. La URL pública `r2.dev` está pensada por Cloudflare para desarrollo y tiene límites variables; para producción conviene configurar un dominio propio y una estrategia de distribución adecuada. El bucket contiene datos públicos, no credenciales.
 
 ## Uso de la demo
 
