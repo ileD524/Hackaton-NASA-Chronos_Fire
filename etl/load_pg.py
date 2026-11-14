@@ -46,7 +46,7 @@ SOURCES = [
 COLUMNS = """sensor, source, product_version, satellite, instrument, acquired_at, acq_date,
 acq_time_utc, latitude, longitude, brightness, bright_t31, scan_km, track_km,
 pixel_area_km2, frp_mw, frp_density_wm2, confidence_raw, confidence_norm,
-confidence_class, daynight, fire_type, is_vegetation, quality_flags, harmonization_ver"""
+confidence_class, daynight, fire_type, is_vegetation, quality_flags, harmonization_ver, ingested_at"""
 
 
 def build_select(path, reader, sensor, source, has_type):
@@ -104,7 +104,8 @@ def build_select(path, reader, sensor, source, has_type):
         CASE WHEN {type_expr} IN (2,3) THEN 'industrial_or_offshore' END,
         CASE WHEN CAST(scan AS REAL) * CAST(track AS REAL) = 0 THEN 'bad_geometry' END
       ), '') AS quality_flags,
-      'v1' AS harmonization_ver
+      'v1' AS harmonization_ver,
+      now() AS ingested_at
     FROM {from_clause}
     """
 
