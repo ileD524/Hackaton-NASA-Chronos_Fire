@@ -176,8 +176,8 @@ function applyRange() {
 }
 
 .field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
@@ -192,6 +192,7 @@ label {
 
 input {
   width: 100%;
+  min-width: 0;
   box-sizing: border-box;
   min-height: 44px;
   border-radius: var(--radius-sm);

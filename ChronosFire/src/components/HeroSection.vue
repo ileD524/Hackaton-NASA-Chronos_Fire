@@ -11,9 +11,12 @@ defineProps<{
     <h1 id="hero-title" class="hero-title">
       Calendario de<br />actividad de incendios
     </h1>
-    <p class="hero-sub">
+    <!--p class="hero-sub">
       <strong class="accent">Más de dos décadas de hotspots,</strong>
       una sola serie. ¿Cómo está este mes frente a la historia?
+    </p-->
+    <p class="hero-sub">
+      Recupera datos de <strong class="accent">más de dos décadas de historia</strong>.
     </p>
     <p v-if="region" class="hero-context">
       Área de interés: <strong>{{ region }}</strong> · {{ rangeLabel }}
