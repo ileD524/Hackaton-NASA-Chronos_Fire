@@ -14,7 +14,8 @@ Construir una API de **solo lectura** sobre la base `chronos_fire` para:
 - Consultar el calendario histórico de actividad de fuego por AOI.
 - Comparar la actividad observada contra la climatología.
 - Detectar períodos críticos y condiciones inusuales.
-- Exponer alertas tempranas basadas en NRT.
+- Exponer alertas tempranas basadas en NRT, incluidas en el MVP.
+- Aplicar la política SP/NRT: SP si está disponible; NRT mientras no lo esté.
 - Devolver detecciones y celdas en formato JSON y GeoJSON para el frontend.
 
 El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con DuckDB (`etl/load_pg.py`).
@@ -27,9 +28,10 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 |---|---|
 | Base `chronos_fire` | Creada en PostgreSQL 17 (5432) |
 | Esquema `ChronosFireDB.sql` | Aplicado |
-| `detections` | Cargada casi en su totalidad; verificar cobertura |
-| `grid_daily` | Verificar que esté construida |
-| `calendar_weekly` | Verificar que esté construida |
+| `detections` | Cargada casi en su totalidad (~7,08 M de filas); verificar cobertura |
+| `grid_daily` | Construida (~2,1 M de filas) |
+| `calendar_weekly` | Construida (~0,78 M de filas) |
+| `v_detections_canonical` | Pendiente de crear: política SP/NRT |
 | Backend Java | No implementado |
 | `application.properties` | Existe y apunta a `chronos_fire` |
 | ETL DuckDB | `etl/load_pg.py` |
@@ -44,6 +46,7 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `ingest_runs` | Ejecución de carga | Auditoría (no se expone en el MVP) |
 | `v_latest_nrt` | Detecciones NRT de 7 días | Alertas |
 | `v_vegetation_detections` | Detecciones de vegetación | Análisis |
+| `v_detections_canonical` (a crear) | SP si existe; NRT si no | Detalle y alertas del MVP |
 
 ---
 
@@ -73,6 +76,53 @@ SELECT * FROM calendar_weekly LIMIT 5;
 - Si `grid_daily` o `calendar_weekly` están vacíos, primero hay que reconstruir los agregados.
 - Si falta una fuente (por ejemplo, NOAA-20 archive), el backend puede funcionar, pero los resultados estarán incompletos.
 - Si hay solapamiento SP/NRT, definirlo antes de automatizar: ver sección 8.
+
+### Política SP/NRT del MVP
+
+Regla adoptada:
+
+> Para cada **sensor + fecha**, si existe al menos una detección **SP**, se usa **SP**.  
+> Si no existe SP para ese sensor/fecha, se usa **NRT** hasta que el archive SP esté disponible.
+
+Esto se implementa con una vista canónica:
+
+```sql
+CREATE OR REPLACE VIEW v_detections_canonical AS
+SELECT d.*
+FROM detections d
+WHERE d.source = 'SP'
+   OR NOT EXISTS (
+       SELECT 1
+       FROM detections s
+       WHERE s.sensor  = d.sensor
+         AND s.source  = 'SP'
+         AND s.acq_date = d.acq_date
+   );
+```
+
+Uso:
+
+- `/api/detections` consulta `v_detections_canonical` por defecto.
+- `/api/alerts` consulta `v_detections_canonical` y filtra `source = 'NRT'`: así muestra solo lo que todavía no fue reemplazado por SP.
+- `grid_daily` y `calendar_weekly` deben reconstruirse desde `v_detections_canonical` cuando SP empiece a solaparse con NRT. Hoy los rangos son disjuntos, así que los agregados actuales son válidos.
+
+**Caveat:** la política es por sensor/fecha, no por píxel. Si el SP cubre solo parte de un día, se oculta todo el NRT de ese sensor/día. Es una simplificación aceptable para el MVP; se documenta en la API.
+
+### Volúmenes y performance
+
+| Tabla | Filas aproximadas | Uso |
+|---|---:|---|
+| `detections` | ~7.080.000 | Detalle y filtros |
+| `grid_daily` | ~2.100.000 | Calendario diario, heatmap |
+| `calendar_weekly` | ~780.000 | Climatología y anomalías |
+
+Con estos volúmenes:
+
+- Las consultas de calendario por AOI/año deben resolverse con los índices existentes.
+- Conviene revisar `EXPLAIN ANALYZE` de las tres consultas del calendario.
+- Cachear `weekly` por `(bbox, year)` si el frontend repite consultas.
+- Limitar siempre el `heatmap` y el GeoJSON.
+- La vista canónica usa `NOT EXISTS`; verificar `EXPLAIN ANALYZE`. Si resulta lenta, materializarla o agregar un índice `(sensor, source, acq_date)`.
 
 ### Rol de solo lectura
 
@@ -112,6 +162,7 @@ Spring Boot (Java 21)
    ▼
 PostgreSQL 17 (chronos_fire)
    ├─ detections
+   ├─ v_detections_canonical
    ├─ grid_daily
    ├─ calendar_weekly
    └─ v_latest_nrt
@@ -139,6 +190,7 @@ backend/
 │  ├─ repository/
 │  │  ├─ DetectionRepository.java
 │  │  ├─ CalendarRepository.java
+│  │  ├─ AlertRepository.java
 │  │  └─ MetaRepository.java
 │  ├─ dto/
 │  │  ├─ Bbox.java
@@ -149,6 +201,8 @@ backend/
 │  │  ├─ HeatmapCell.java
 │  │  ├─ SensorSummary.java
 │  │  ├─ MetaResponse.java
+│  │  ├─ AlertCell.java
+│  │  ├─ AlertResponse.java
 │  │  └─ GeoJsonFeatureCollection.java
 │  └─ web/
 │     └─ ApiExceptionHandler.java
@@ -171,9 +225,17 @@ backend/
 | GET | `/api/calendar/weekly` | `grid_daily` + `calendar_weekly` | Alta |
 | GET | `/api/calendar/daily` | `grid_daily` | Alta |
 | GET | `/api/calendar/heatmap` | `grid_daily` | Alta |
-| GET | `/api/alerts` | `detections` NRT | Alta |
-| GET | `/api/detections` | `detections` | Media |
-| GET | `/api/detections/geojson` | `detections` | Media |
+| GET | `/api/alerts` | `v_detections_canonical` (NRT) | Alta |
+| GET | `/api/alerts/geojson` | `v_detections_canonical` (NRT) | Alta |
+| GET | `/api/detections` | `v_detections_canonical` | Media |
+| GET | `/api/detections/geojson` | `v_detections_canonical` | Media |
+
+### Fuente de datos y política SP/NRT
+
+- `/api/detections` y `/api/detections/geojson` consultan `v_detections_canonical`.
+- `/api/alerts` consulta `v_detections_canonical` y filtra `source = 'NRT'`.
+- `/api/calendar/*` usan `grid_daily` y `calendar_weekly`.
+- Si se necesita depurar, se puede pedir `source=SP` o `source=NRT` explícitamente.
 
 ### Parámetros comunes
 
@@ -223,9 +285,90 @@ reliable          = n_years >= 5
 
 Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y `reliable = false`.
 
+### Respuesta de alertas tempranas
+
+`/api/alerts` devuelve alertas **agrupadas por celda de 0,05°**, no una fila por detección. Así el frontend puede mostrar un panel manejable.
+
+```json
+{
+  "generatedAt": "2026-11-14T18:00:00Z",
+  "days": 7,
+  "aoi": {
+    "minLon": -60.5,
+    "minLat": -33.5,
+    "maxLon": -59.5,
+    "maxLat": -32.8
+  },
+  "count": 2,
+  "alerts": [
+    {
+      "cellLat": -33.0,
+      "cellLon": -60.25,
+      "lastDetection": "2026-11-14T17:40:00Z",
+      "detections": 14,
+      "frpMaxMw": 52.3,
+      "sensors": ["VIIRS_SNPP", "VIIRS_NOAA20"],
+      "confidenceMax": "high",
+      "anomalyRatio": 1.8,
+      "level": "warning"
+    }
+  ]
+}
+```
+
+### Niveles de alerta (MVP)
+
+| Nivel | Regla sugerida |
+|---|---|
+| `info` | 1–2 detecciones en la celda, sin anomalía |
+| `watch` | ≥ 3 detecciones o `anomalyRatio ≥ 1.5` |
+| `warning` | ≥ 10 detecciones o `anomalyRatio ≥ 2.0` o `frpMaxMw` alto |
+
+Los umbrales son configurables y deben ajustarse con la demo. No son una probabilidad.
+
+### Consulta base de alertas
+
+```sql
+WITH recent AS (
+    SELECT *
+    FROM v_detections_canonical
+    WHERE source = 'NRT'
+      AND acquired_at >= now() - make_interval(days => :days)
+      AND latitude BETWEEN :minLat AND :maxLat
+      AND longitude BETWEEN :minLon AND :maxLon
+      AND confidence_class IN ('nominal', 'high')
+      AND (is_vegetation IS NULL OR is_vegetation)
+)
+SELECT
+    round(latitude / 0.05) * 0.05  AS cell_lat,
+    round(longitude / 0.05) * 0.05 AS cell_lon,
+    max(acquired_at)               AS last_detection,
+    count(*)                       AS detections,
+    max(frp_mw)                    AS frp_max_mw,
+    array_agg(DISTINCT sensor)     AS sensors,
+    max(confidence_norm)           AS confidence_max
+FROM recent
+GROUP BY 1, 2
+ORDER BY detections DESC
+LIMIT :limit;
+```
+
+La anomalía se calcula comparando la actividad reciente de la celda con `calendar_weekly` para la semana actual. Si `n_years < 5`, devolver `anomalyRatio = null`.
+
 ---
 
 ## 6. Fases de implementación
+
+### Fase 0 — Vista canónica SP/NRT (1 h)
+
+- Crear `v_detections_canonical` (SQL de la sección 3).
+- Verificar que devuelva una sola fuente por sensor/fecha cuando haya solapamiento.
+- Confirmar que los agregados actuales siguen siendo válidos (hoy SP y NRT son disjuntos).
+- Documentar que `grid_daily` y `calendar_weekly` deben reconstruirse desde la vista cuando SP empiece a solaparse.
+
+**Criterio de aceptación:** la vista existe, el backend puede consultarla y el chequeo de solapamiento no muestra duplicados inesperados.
+
+---
 
 ### Fase 1 — Esqueleto del proyecto (2–3 h)
 
@@ -269,6 +412,7 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
   1. **Weekly**: `grid_daily` + `calendar_weekly`, agrupado por semana.
   2. **Daily**: `grid_daily` agrupado por día.
   3. **Heatmap**: `grid_daily` agrupado por celda.
+- Los agregados se usan tal como están. Si se reconstruyen, deben generarse desde `v_detections_canonical` para respetar la política SP/NRT.
 - `CalendarService`:
   - Defaults de fechas.
   - Validación de bbox.
@@ -286,7 +430,7 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
 
 ### Fase 4 — Detecciones y GeoJSON (3–4 h)
 
-- `DetectionRepository` con SQL dinámico y parámetros nombrados.
+- `DetectionRepository` con SQL dinámico y parámetros nombrados, sobre `v_detections_canonical`.
 - Filtros: bbox, fechas, sensor, confidence, type, source, vegetation.
 - Paginación:
   ```text
@@ -303,25 +447,33 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
 
 ---
 
-### Fase 5 — Alertas (2 h)
+### Fase 5 — Alertas tempranas (MVP, 3–4 h)
 
-- `GET /api/alerts?days=7&bbox=...`:
-  ```sql
-  SELECT *
-  FROM detections
-  WHERE source = 'NRT'
-    AND acquired_at >= now() - make_interval(days => :days)
-    AND latitude BETWEEN :minLat AND :maxLat
-    AND longitude BETWEEN :minLon AND :maxLon
-    AND confidence_class IN ('nominal', 'high')
-    AND (is_vegetation IS NULL OR is_vegetation)
-  ORDER BY acquired_at DESC
-  LIMIT :limit;
-  ```
-- `GET /api/alerts/geojson`.
-- Cuando exista la máscara industrial, aplicarla aquí.
+Incluidas en el MVP, no como opcionales.
 
-**Criterio de aceptación:** devuelve NRT reciente, sin industriales cuando la máscara esté lista.
+- `AlertRepository`:
+  - Consulta base de la sección 5, agrupada por celda de 0,05°.
+  - Solo `source = 'NRT'` de `v_detections_canonical`.
+  - Ventana `days` (default 7, máximo 30).
+  - Filtros: bbox, confianza nominal/alta, vegetación.
+- `AlertService`:
+  - Agrupa por celda.
+  - Calcula `detections`, `frpMaxMw`, `lastDetection`, `sensors`, `confidenceMax`.
+  - Calcula `anomalyRatio` contra `calendar_weekly` de la semana actual.
+  - Asigna `level`: `info`, `watch`, `warning`.
+  - Si `n_years < 5`, `anomalyRatio = null`.
+- `AlertController`:
+  - `GET /api/alerts?days=7&bbox=...&limit=...`
+  - `GET /api/alerts/geojson?days=7&bbox=...` (un `Point` por celda agrupada)
+- Aplicar la máscara industrial cuando exista; mientras tanto, documentar el riesgo.
+- No hay push: el frontend consulta por polling.
+
+**Criterio de aceptación:**
+- Devuelve alertas agrupadas, no miles de puntos.
+- Cada alerta tiene nivel y última detección.
+- No muestra NRT cuando ya existe SP para ese sensor/fecha.
+- No muestra focos industriales cuando la máscara esté lista.
+- Tiempo de respuesta < 1 s para un AOI típico y 7 días.
 
 ---
 
@@ -355,7 +507,9 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
 | Paginación | `limit`/`offset` con tope |
 | GeoJSON | `FeatureCollection` con `Point` |
 | Anomalía | Observado vs climatología; `reliable` por `n_years` |
-| SP/NRT | Exponer `source`; no sumar ambos en la misma serie |
+| SP/NRT | Vista canónica: SP si existe para sensor/fecha; NRT en caso contrario |
+| Alertas | NRT no archivado, agrupado por celda, niveles `info/watch/warning` |
+| Volúmenes | `detections` ~7,08 M; `grid_daily` ~2,1 M; `calendar_weekly` ~0,78 M |
 | Semanas sin datos | `null`, no `0` |
 | Seguridad | Rol de solo lectura; secretos por entorno |
 | CORS | Configurable por `CORS_ORIGINS` |
@@ -389,12 +543,22 @@ Impacto:
 - `calendar_weekly.frp_p50/p90` se inflan.
 - Las alertas NRT podrían mostrar datos ya reemplazados por SP.
 
-### Mitigación
+### Política adoptada para el MVP
 
-1. **Política “SP gana”:** al cargar SP, borrar NRT solapado por sensor/fecha.
-2. **Vista canónica:** consultar SP si existe, si no NRT.
-3. **No mezclar:** calendario histórico con SP; alertas con NRT.
-4. **Health check:**
+**SP si está disponible; NRT si todavía no hay SP, por sensor y fecha.**
+
+Implementación:
+
+1. **Vista canónica** `v_detections_canonical`:
+   - Devuelve SP si existe al menos una detección SP para ese `sensor` + `acq_date`.
+   - Si no, devuelve las NRT de ese `sensor` + `acq_date`.
+2. **Backend**:
+   - `/api/detections` consulta la vista canónica.
+   - `/api/alerts` consulta la vista canónica y filtra `source = 'NRT'`: muestra solo lo aún no archivado.
+3. **Agregados**:
+   - `grid_daily` y `calendar_weekly` deben reconstruirse desde `v_detections_canonical` cuando SP empiece a cubrir fechas que hoy son NRT.
+   - Hoy los rangos son disjuntos, así que los agregados actuales son válidos.
+4. **Monitoreo**:
    ```sql
    SELECT sensor, acq_date,
           count(*) FILTER (WHERE source = 'SP')  AS sp,
@@ -406,7 +570,9 @@ Impacto:
    LIMIT 20;
    ```
 
-En el backend, exponer `source` como filtro y documentar que los agregados no distinguen fuente.
+**Caveat:** la política es por sensor/fecha, no por píxel. Si SP cubre parcialmente un día, se oculta el NRT de ese sensor/día. Es una simplificación documentada para el MVP.
+
+En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitamente para depuración.
 
 ---
 
@@ -415,7 +581,10 @@ En el backend, exponer `source` como filtro y documentar que los agregados no di
 | Riesgo | Mitigación |
 |---|---|
 | `grid_daily` vacío | Reconstruir agregados antes de probar el calendario |
-| SP/NRT solapados | Vista canónica o política “SP gana” |
+| SP/NRT solapados | Vista canónica `v_detections_canonical` |
+| SP parcial oculta NRT del día | Documentar; evaluar política por píxel en el futuro |
+| Alertas con falsos positivos | Confianza nominal/alta + máscara industrial |
+| Volumen de agregados | `grid_daily` ~2,1 M y `calendar_weekly` ~0,78 M: cachear y limitar consultas |
 | Consultas lentas | Índices existentes; filtros de fecha/bbox; cache |
 | `n_years` bajo | Campo `reliable`; no mostrar anomalía |
 | Semanas faltantes | Devolver `null` y explicar en la UI |
@@ -431,11 +600,14 @@ En el backend, exponer `source` como filtro y documentar que los agregados no di
 - [ ] `mvn spring-boot:run` funciona.
 - [ ] `/api/health` devuelve `database: true`.
 - [ ] `/api/meta` devuelve cobertura por sensor/fuente.
+- [ ] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
 - [ ] `/api/calendar/weekly` devuelve calendario + anomalía.
 - [ ] `/api/calendar/daily` devuelve serie diaria.
 - [ ] `/api/calendar/heatmap` devuelve celdas.
-- [ ] `/api/alerts` devuelve NRT reciente.
-- [ ] `/api/detections` pagina y filtra.
+- [ ] `/api/alerts` devuelve alertas agrupadas por celda, con nivel y última detección.
+- [ ] `/api/alerts` no muestra NRT si ya existe SP para ese sensor/fecha.
+- [ ] `/api/detections` pagina, filtra y usa la vista canónica.
+- [ ] Consultas de calendario < 1 s para un AOI típico con ~2,1 M de filas en `grid_daily`.
 - [ ] `/api/detections/geojson` es válido.
 - [ ] Errores 400/500 controlados.
 - [ ] CORS configurado.
@@ -448,34 +620,39 @@ En el backend, exponer `source` como filtro y documentar que los agregados no di
 
 | Fase | Tiempo |
 |---|---|
+| Vista canónica SP/NRT | 1 h |
 | Esqueleto + health | 2–3 h |
 | Meta | 2 h |
 | Calendario | 4–6 h |
 | Detecciones/GeoJSON | 3–4 h |
-| Alertas | 2 h |
+| Alertas tempranas | 3–4 h |
 | Tests + hardening | 4–6 h |
-| **Total MVP** | **~1,5–2 días** |
+| **Total MVP** | **~2 días** |
 
 ---
 
 ## 12. Próximo paso inmediato
 
-1. Confirmar que `grid_daily` y `calendar_weekly` tienen datos.
-2. Crear el rol `chronos_reader`.
-3. Crear el esqueleto Maven + `ChronosFireApplication`.
-4. Implementar `/api/health` y `/api/meta`.
-5. Recién después, el calendario.
+1. Confirmar que `grid_daily` (~2,1 M) y `calendar_weekly` (~0,78 M) tienen datos.
+2. Crear `v_detections_canonical` y validar la política SP/NRT.
+3. Crear el rol `chronos_reader`.
+4. Crear el esqueleto Maven + `ChronosFireApplication`.
+5. Implementar `/api/health` y `/api/meta`.
+6. Implementar calendario.
+7. Implementar alertas tempranas agrupadas por celda.
+8. Implementar detecciones y GeoJSON.
 
 ---
 
 ## 13. Fuera de alcance del MVP
 
 - Escritura de datos desde el backend.
-- Carga incremental automática desde la API de FIRMS.
+- Carga incremental automática desde la API de FIRMS (las alertas del MVP usan los NRT ya cargados).
 - Autenticación de usuarios.
 - Frontend.
 - PostGIS y geometrías.
 - Máscara industrial completa.
-- Notificaciones por email/Telegram.
+- Notificaciones push/email/Telegram (las alertas son pull).
+- Persistencia de alertas vistas/confirmadas.
 
 Estos puntos se pueden agregar después sin cambiar el núcleo de la API.
