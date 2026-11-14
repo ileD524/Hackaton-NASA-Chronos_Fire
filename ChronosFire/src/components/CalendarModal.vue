@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import FireCalendar from '@/components/FireCalendar.vue'
 
 const props = defineProps<{
@@ -68,6 +68,7 @@ watch(
     }
   },
 )
+onBeforeUnmount(() => { document.removeEventListener('keydown', onKeydown); document.body.style.overflow = '' })
 </script>
 
 <template>
@@ -87,7 +88,7 @@ watch(
                 Calendario de actividad de incendios
               </h2>
               <p class="dialog-hint">
-                Elegí un mes y el mapa salta a esa fecha · WMS-Time de FIRMS, hasta 31 días por consulta
+                Elegí un mes para explorar sus detecciones locales y su detalle diario.
               </p>
             </div>
             <button

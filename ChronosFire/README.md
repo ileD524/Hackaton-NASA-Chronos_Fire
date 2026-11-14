@@ -40,3 +40,7 @@ npm run dev
 ```sh
 npm run build
 ```
+
+## Demo local conectada a DSv2
+
+Ver [README-LOCAL.md](README-LOCAL.md) para abrir la demo, reproducir las consultas, interpretar la calibración y revisar los cambios de marca.

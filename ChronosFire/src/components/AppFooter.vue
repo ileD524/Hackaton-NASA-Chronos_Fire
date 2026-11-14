@@ -8,14 +8,7 @@ const year = new Date().getFullYear()
       <span class="footer-credit">
         Datos: NASA Earthdata FIRMS · MODIS y VIIRS
       </span>
-      <img
-        class="footer-logo"
-        src="/logos/space-apps-motif.svg"
-        alt="Logo pequeño de NASA Space Apps Challenge"
-        width="44"
-        height="44"
-      />
-      <span class="footer-nasa">NASA Space Apps Challenge {{ year }} · ChronosFire</span>
+      <span class="footer-nasa">ChronosFire · Proyecto participante de NASA Space Apps {{ year }}</span>
     </div>
   </footer>
 </template>

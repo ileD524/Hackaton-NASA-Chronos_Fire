@@ -37,3 +37,10 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Local runtime and generated browser artifacts
+__pycache__/
+*.pyc
+artifacts/
+
+.local-tools/

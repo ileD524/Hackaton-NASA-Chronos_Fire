@@ -11,7 +11,7 @@ const emit = defineEmits<{
 
 <template>
   <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-eyebrow">Alerta temprana · MODIS + VIIRS armonizados</div>
+    <div class="hero-eyebrow">Archivo histórico · MODIS + VIIRS · datos locales</div>
     <h1 id="hero-title" class="hero-title">
       Calendario de<br />actividad de incendios
     </h1>
@@ -20,7 +20,7 @@ const emit = defineEmits<{
       una sola serie. ¿Cómo está este mes frente a la historia?
     </p-->
     <p class="hero-sub">
-      Recupera datos de <strong class="accent">más de dos décadas de historia</strong>.
+      Explorá <strong>cuándo y dónde se detectó actividad</strong>, y cómo cambia al comparar los sensores.
     </p>
     <p v-if="region" class="hero-context">
       Área de interés: <strong>{{ region }}</strong> · {{ rangeLabel }}
@@ -43,7 +43,7 @@ const emit = defineEmits<{
         </svg>
         Abrir el calendario
       </button>
-      <a class="hero-link" href="#mapa">Ver el mapa en vivo</a>
+      <a class="hero-link" href="#mapa">Explorar el mapa histórico</a>
     </div>
   </section>
 </template>
@@ -87,7 +87,7 @@ const emit = defineEmits<{
 .hero-context {
   margin-top: var(--space-4);
   font-size: 15px;
-  color: var(--blue-100);
+  color: var(--white);
 }
 
 .hero-context strong {

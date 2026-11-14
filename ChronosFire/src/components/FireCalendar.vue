@@ -1,318 +1,41 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useCalendar, format } from '@/composables/useCalendar'
+import { useChronos } from '@/composables/useChronos'
 import { useColorRamp, type RampId } from '@/composables/useColorRamp'
-
-const props = defineProps<{
-  selectedMonth: { year: number; month: number } | null
-  id?: string
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:selectedMonth', value: { year: number; month: number } | null): void
-}>()
-
-const { years, cellMeta, monthShort, monthName, annualTotal } = useCalendar()
-const { rampId, color, textOn, label } = useColorRamp()
-
-const sectionId = props.id ?? 'calendario'
-const titleId = `${sectionId}-title`
-
-/** Mes seleccionado, compartido con quien usa el componente (v-model:selected-month). */
-const selected = computed<{ year: number; month: number } | null>({
-  get: () => props.selectedMonth,
-  set: (value) => emit('update:selectedMonth', value),
-})
-
-const ramps: { id: RampId; desc: string }[] = [
-  { id: 'anomaly', desc: 'Resalta meses por encima de lo normal' },
-  { id: 'sequential', desc: 'Secuencial, seguro para daltónicos' },
-]
-
-const selectionInfo = computed(() => {
-  if (!selected.value) return null
-  const meta = cellMeta(selected.value.year, selected.value.month)
-  if (meta.value === 0) return null
-  const pct = Math.round(meta.vsMedian * 100)
-  return {
-    year: selected.value.year,
-    month: selected.value.month,
-    ...meta,
-    pct,
-  }
-})
-
-function styleCell(year: number, month: number) {
-  const meta = cellMeta(year, month)
-  const bg =
-    meta.value === 0 ? 'transparent' : color(meta.norm)
-  const fg = meta.value === 0 ? 'var(--blue-100)' : textOn(bg)
-  const isSel = selected.value?.year === year && selected.value?.month === month
-  return {
-    background: bg,
-    color: fg,
-    border: meta.value === 0 ? '1px dashed var(--blue-100)' : '1px solid transparent',
-    outline: meta.aboveMedian && meta.value > 0 ? '1px solid var(--warm-orange)' : isSel ? '2px solid #fff' : 'none',
-    outlineOffset: meta.aboveMedian ? '-1px' : '0',
-  }
+const props=defineProps<{ selectedMonth: {year:number;month:number}|null; id?:string }>()
+const emit=defineEmits<{(e:'update:selectedMonth',value:{year:number;month:number}|null):void}>()
+const {years,cellMeta,monthShort,monthName,annualTotal}=useCalendar()
+const {seriesLabel}=useChronos()
+const {rampId,color,textOn}=useColorRamp()
+const sectionId=props.id??'calendario'
+const selectionInfo=computed(()=>props.selectedMonth?{...props.selectedMonth,...cellMeta(props.selectedMonth.year,props.selectedMonth.month)}:null)
+function styleCell(year:number,month:number) {
+  const meta=cellMeta(year,month)
+  if(meta.value===null)return {}
+  const t=rampId.value==='anomaly'?(meta.vsMedian===null?.5:Math.max(0,Math.min(1,(meta.vsMedian+1)/2))):meta.norm
+  const bg=color(t)
+  return {backgroundColor:bg,color:textOn(bg)}
 }
-
-function selectCell(year: number, month: number) {
-  selected.value = { year, month }
-}
+const ramps: {id:RampId;name:string}[]=[{id:'sequential',name:'Actividad mensual'},{id:'anomaly',name:'Diferencia histórica'}]
 </script>
-
 <template>
-  <section class="panel" :id="sectionId" :aria-labelledby="titleId">
-    <header class="panel-head">
-      <h2 :id="titleId" class="panel-title">Hotspots por mes y año</h2>
-      <span class="head-note">Haz clic en una celda para ver el detalle · los meses con borde naranja superan la mediana</span>
-    </header>
-
-    <div class="ramp-tabs" role="group" aria-label="Modo de color del calendario">
-      <button
-        v-for="r in ramps"
-        :key="r.id"
-        type="button"
-        class="ramp-tab"
-        :class="{ 'is-active': rampId === r.id }"
-        :aria-pressed="rampId === r.id"
-        @click="rampId = r.id"
-      >
-        <span class="ramp-name">{{ label(r.id) }}</span>
-        <span class="ramp-desc">{{ r.desc }}</span>
-      </button>
-    </div>
-
-    <div class="cal-scroll">
-      <table class="cal" role="grid" aria-label="Calendario de actividad de incendios por mes y año">
-        <thead>
-          <tr>
-            <th class="cal-corner" scope="col"><span class="sr-only">Año</span></th>
-            <th v-for="m in 12" :key="m" class="cal-mlab" scope="col">
-              <abbr :title="`Mes ${m}`">{{ monthShort(m - 1) }}</abbr>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="year in years" :key="year">
-            <th class="cal-ylab" scope="row">
-              <span class="year-num">{{ year }}</span>
-              <span class="year-total" v-if="annualTotal(year) > 0">{{ format(annualTotal(year)) }}</span>
-            </th>
-            <td
-              v-for="m in 12"
-              :key="m"
-              class="cal-cell"
-              :style="styleCell(year, m - 1)"
-              :data-empty="cellMeta(year, m - 1).value === 0"
-              :aria-label="cellMeta(year, m - 1).label"
-              role="gridcell"
-              :tabindex="cellMeta(year, m - 1).value > 0 ? 0 : -1"
-              @click="selectCell(year, m - 1)"
-              @keydown.enter="selectCell(year, m - 1)"
-              @keydown.space.prevent="selectCell(year, m - 1)"
-            >
-              {{ cellMeta(year, m - 1).value === 0 ? '—' : format(cellMeta(year, m - 1).value) }}
-            </td>
-          </tr>
-        </tbody>
+  <section class="panel calendar-panel" :id="sectionId" :aria-labelledby="`${sectionId}-title`">
+    <header class="panel-head"><div><span class="section-kicker">LA ACTIVIDAD A TRAVÉS DEL TIEMPO</span><h2 class="panel-title" :id="`${sectionId}-title`">Calendario de actividad</h2></div><span class="series-badge">{{ seriesLabel }}</span></header>
+    <p class="small-note">Celda-días de 1 km²: una celda con detecciones durante tres días suma tres. No mide área quemada.</p>
+    <div class="ramp-tabs" role="group" aria-label="Escala del calendario"><button v-for="r in ramps" :key="r.id" class="chip" :class="{'chip--active':rampId===r.id}" :aria-pressed="rampId===r.id" @click="rampId=r.id">{{r.name}}</button></div>
+    <div class="cal-scroll" tabindex="0" aria-label="Tabla desplazable del calendario">
+      <table class="cal"><caption class="sr-only">Celda-días por mes y año; seleccioná un mes para actualizar el mapa y el detalle diario.</caption><thead><tr><th scope="col">Año / total</th><th v-for="m in 12" :key="m" scope="col"><abbr :title="monthName(m-1)">{{monthShort(m-1)}}</abbr></th></tr></thead>
+        <tbody><tr v-for="year in years" :key="year"><th scope="row"><span class="year-num">{{year}}</span><span class="year-total">{{format(annualTotal(year))}}</span></th>
+          <td v-for="m in 12" :key="m"><button class="cal-cell" :class="{'is-selected':selectedMonth?.year===year&&selectedMonth?.month===m-1,'is-missing':cellMeta(year,m-1).value===null,'is-partial':cellMeta(year,m-1).cell?.partial}" :style="styleCell(year,m-1)" :aria-label="cellMeta(year,m-1).label" :aria-pressed="selectedMonth?.year===year&&selectedMonth?.month===m-1" :disabled="cellMeta(year,m-1).value===null" :title="cellMeta(year,m-1).label" @click="emit('update:selectedMonth',{year,month:m-1})">{{cellMeta(year,m-1).value===null?'—':format(cellMeta(year,m-1).value!)}}<sup v-if="cellMeta(year,m-1).cell?.partial&&cellMeta(year,m-1).value!==null">*</sup></button></td>
+        </tr></tbody>
       </table>
     </div>
-
-    <div v-if="selectionInfo" class="detail" role="status" aria-live="polite">
-      <div class="detail-kicker">{{ selectionInfo.year }} · {{ monthName(selectionInfo.month) }}</div>
-      <div class="detail-value">{{ format(selectionInfo.value) }} hotspots</div>
-      <div class="detail-note" :class="{ 'detail-note--up': selectionInfo.pct > 0 }">
-        {{ selectionInfo.pct > 0 ? '▲' : '▼' }} {{ Math.abs(selectionInfo.pct) }}% respecto a la mediana histórica del mes
-      </div>
-    </div>
-    <p v-else class="detail-empty">Selecciona un mes para compararlo con su historia.</p>
+    <div v-if="selectionInfo" class="selection-detail" aria-live="polite"><strong>{{monthName(selectionInfo.month)}} {{selectionInfo.year}}</strong><span>{{selectionInfo.value===null?'Sin datos':`${format(selectionInfo.value)} celda-días`}}</span><span class="small-note">{{selectionInfo.cell?.available_days??0}} de {{selectionInfo.cell?.calendar_days??0}} días con valor<span v-if="selectionInfo.cell?.partial"> · período parcial*</span></span></div>
+    <p class="small-note">* Suma parcial: fechas recortadas, inicio del sensor o días no utilizables. — Sin datos para esta serie. El cero se conserva como cero registros.</p>
   </section>
 </template>
-
 <style scoped>
-.panel {
-  background: var(--surface-card);
-  border: 1px solid var(--blue-400);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
-}
-
-.panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-}
-
-.panel-title {
-  font-size: 22px;
-  font-weight: 800;
-}
-
-.head-note {
-  font-size: 13px;
-  opacity: 0.8;
-}
-
-.ramp-tabs {
-  display: inline-flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.ramp-tab {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-  font-family: var(--font-body);
-  border: 1px solid var(--blue-100);
-  background: transparent;
-  color: var(--white);
-  border-radius: var(--radius-sm);
-  padding: 8px 14px;
-  cursor: pointer;
-  min-height: 20px;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.ramp-tab.is-active {
-  background: var(--surface-input);
-  border-color: var(--warm-lime);
-}
-
-.ramp-name {
-  font-weight: 700;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.ramp-desc {
-  font-size: 12px;
-  opacity: 0.75;
-}
-
-.cal-scroll {
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-
-.cal {
-  border-collapse: collapse;
-  min-width: 760px;
-  width: 100%;
-}
-
-.cal-mlab {
-  font-weight: 700;
-  font-size: 13px;
-  text-align: center;
-  padding: 4px 2px;
-  color: var(--blue-100);
-}
-
-.cal-mlab abbr {
-  text-decoration: none;
-}
-
-.cal-ylab {
-  font-weight: 700;
-  font-size: 14px;
-  text-align: right;
-  padding-right: 10px;
-  white-space: nowrap;
-}
-
-.year-num {
-  display: block;
-  font-family: var(--font-display);
-  font-weight: 800;
-}
-
-.year-total {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--warm-lime);
-  opacity: 0.9;
-}
-
-.cal-corner {
-  width: 74px;
-}
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
-.cal-cell {
-  height: 40px;
-  min-width: 48px;
-  border-radius: 6px;
-  text-align: center;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 13px;
-  cursor: pointer;
-  transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
-}
-
-.cal-cell[data-empty='true'] {
-  cursor: default;
-}
-
-.cal-cell:not([data-empty='true']):hover {
-  transform: scale(1.06);
-  filter: brightness(1.08);
-  z-index: 2;
-}
-
-.detail {
-  margin-top: var(--space-4);
-  background: var(--surface-input);
-  border: 1px solid var(--blue-100);
-  border-radius: var(--radius-sm);
-  padding: var(--space-4);
-}
-
-.detail-kicker {
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--blue-100);
-}
-
-.detail-value {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 28px;
-  margin: 2px 0;
-}
-
-.detail-note {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--warm-orange);
-}
-
-.detail-note--up {
-  color: var(--warm-orange);
-}
-
-.detail-empty {
-  margin-top: var(--space-4);
-  font-size: 15px;
-  opacity: 0.85;
-}
+.calendar-panel{padding:24px}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.ramp-tabs{display:flex;gap:8px;margin:20px 0}.cal-scroll{overflow-x:auto;padding:5px 3px 9px}.cal{border-collapse:separate;border-spacing:4px;table-layout:fixed;width:100%;min-width:760px}.cal th{font:700 12px var(--font-body);padding:5px 0}.cal th:first-child{width:66px;text-align:left}.cal abbr{text-decoration:none}.year-num{display:block;font-weight:700;font-size:14px}.year-total{display:block;font-size:10px;font-weight:400;margin-top:4px}.cal td{padding:0}.cal-cell{border:1px solid #2E96F5;border-radius:4px;width:100%;height:39px;padding:2px;font:700 11px var(--font-body);cursor:pointer;position:relative;white-space:nowrap}.cal-cell:hover{outline:2px solid white;outline-offset:1px}.cal-cell.is-selected{outline:3px solid var(--warm-lime);outline-offset:0}.cal-cell.is-missing{background:repeating-linear-gradient(135deg,transparent,transparent 4px,#0042a6 4px,#0042a6 5px);color:white;cursor:default;border-style:dashed}.cal-cell sup{margin-left:1px}.selection-detail{display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--blue-100);padding-top:16px;margin-top:12px}.selection-detail strong{text-transform:capitalize}.series-badge{border:1px solid var(--blue-100);padding:5px 10px;border-radius:20px;font-size:12px}
+@media(max-width:720px){.calendar-panel{padding:16px}.cal{min-width:760px}}
 </style>

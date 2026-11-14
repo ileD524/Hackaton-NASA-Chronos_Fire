@@ -3,7 +3,7 @@ const navItems = [
   { label: 'Mapa', target: '#mapa' },
   { label: 'Calendario', target: '#calendario' },
   { label: 'Metodología', target: '#metodologia' },
-  { label: 'Datos FIRMS', target: '#datos' },
+  { label: 'Datos', target: '#datos' },
 ]
 </script>
 
@@ -40,7 +40,7 @@ const navItems = [
   position: sticky;
   top: 0;
   z-index: 50;
-  background: rgba(7, 23, 63, 0.82);
+  background: #07173F;
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(9, 96, 225, 0.4);
 }
@@ -78,7 +78,7 @@ const navItems = [
   font-size: 15px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--warm-lime);
+  color: var(--white);
   border-left: 1px solid rgba(46, 150, 245, 0.5);
   padding-left: 14px;
   white-space: nowrap;
