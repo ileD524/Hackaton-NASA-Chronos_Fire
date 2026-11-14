@@ -62,6 +62,8 @@ CREATE INDEX IF NOT EXISTS detections_latlon_idx      ON detections (latitude, l
 CREATE INDEX IF NOT EXISTS detections_type_idx        ON detections (fire_type);
 CREATE INDEX IF NOT EXISTS detections_conf_idx        ON detections (confidence_class);
 CREATE INDEX IF NOT EXISTS detections_acquired_brin   ON detections USING BRIN (acquired_at);
+-- Indice de apoyo para la politica SP/NRT (vista v_detections_canonical)
+CREATE INDEX IF NOT EXISTS detections_sensor_source_date_idx ON detections (sensor, source, acq_date);
 
 -- Opcional si se instala PostGIS:
 -- CREATE EXTENSION IF NOT EXISTS postgis;
@@ -148,5 +150,20 @@ FROM detections
 WHERE (is_vegetation IS TRUE OR (is_vegetation IS NULL AND confidence_class IN ('nominal', 'high')));
 
 COMMENT ON VIEW v_vegetation_detections IS 'Detecciones aptas para analisis de vegetacion (incluye NRT con confianza nominal/alta).';
+
+-- Politica SP/NRT: para cada sensor + fecha, SP si existe; NRT si no existe SP.
+CREATE OR REPLACE VIEW v_detections_canonical AS
+SELECT d.*
+FROM detections d
+WHERE d.source = 'SP'
+   OR NOT EXISTS (
+       SELECT 1
+       FROM detections s
+       WHERE s.sensor   = d.sensor
+         AND s.source   = 'SP'
+         AND s.acq_date = d.acq_date
+   );
+
+COMMENT ON VIEW v_detections_canonical IS 'Politica SP/NRT: SP si existe para sensor/fecha; NRT si no existe SP.';
 
 COMMIT;

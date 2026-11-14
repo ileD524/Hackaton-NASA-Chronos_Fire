@@ -31,7 +31,7 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `detections` | Cargada casi en su totalidad (~7,08 M de filas); verificar cobertura |
 | `grid_daily` | Construida (~2,1 M de filas) |
 | `calendar_weekly` | Construida (~0,78 M de filas) |
-| `v_detections_canonical` | Pendiente de crear: política SP/NRT |
+| `v_detections_canonical` | Creada en PostgreSQL (política SP/NRT) |
 | Backend Java | No implementado |
 | `application.properties` | Existe y apunta a `chronos_fire` |
 | ETL DuckDB | `etl/load_pg.py` |
@@ -46,7 +46,7 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `ingest_runs` | Ejecución de carga | Auditoría (no se expone en el MVP) |
 | `v_latest_nrt` | Detecciones NRT de 7 días | Alertas |
 | `v_vegetation_detections` | Detecciones de vegetación | Análisis |
-| `v_detections_canonical` (a crear) | SP si existe; NRT si no | Detalle y alertas del MVP |
+| `v_detections_canonical` | SP si existe; NRT si no | Detalle y alertas del MVP |
 
 ---
 
@@ -600,7 +600,7 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 - [ ] `mvn spring-boot:run` funciona.
 - [ ] `/api/health` devuelve `database: true`.
 - [ ] `/api/meta` devuelve cobertura por sensor/fuente.
-- [ ] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
+- [x] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
 - [ ] `/api/calendar/weekly` devuelve calendario + anomalía.
 - [ ] `/api/calendar/daily` devuelve serie diaria.
 - [ ] `/api/calendar/heatmap` devuelve celdas.
@@ -634,7 +634,7 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 ## 12. Próximo paso inmediato
 
 1. Confirmar que `grid_daily` (~2,1 M) y `calendar_weekly` (~0,78 M) tienen datos.
-2. Crear `v_detections_canonical` y validar la política SP/NRT.
+2. Validar `v_detections_canonical` (ya creada) y la política SP/NRT.
 3. Crear el rol `chronos_reader`.
 4. Crear el esqueleto Maven + `ChronosFireApplication`.
 5. Implementar `/api/health` y `/api/meta`.

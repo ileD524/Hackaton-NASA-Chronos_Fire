@@ -178,9 +178,9 @@ WHERE d.source = 'SP'
 - Alertas → filtrar `source = 'NRT'` para mostrar solo lo no archivado.
 - Agregados → reconstruir desde la vista cuando SP se solape con NRT.
 
-**Caveat:** es una política por sensor/fecha, no por píxel. Si SP cubre parcialmente un día, se oculta el NRT de ese sensor/día.
+**Caveat:** es una política por sensor/fecha, no por píxel. Si SP cubre parcialmente un día, se oculta el NRT de ese sensor/día. Para MODIS, `sensor` agrupa Terra y Aqua; si se necesita granularidad por plataforma, la política debe usar `satellite` + `acq_date`.
 
-**Estado:** 🟡 planificado, no implementado.
+**Estado:** ✅ implementado en PostgreSQL: vista `v_detections_canonical` e índice `detections_sensor_source_date_idx` creados.
 
 ---
 
@@ -411,7 +411,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 
 ### H1 — Armonización operativa (1–2 días)
 
-1. Crear `v_detections_canonical`.
+1. ✅ Crear `v_detections_canonical` (hecho).
 2. Construir `industrial_cells` desde SP.
 3. Aplicar la máscara a NRT.
 4. Reconstruir `grid_daily` y `calendar_weekly` desde la vista canónica.
@@ -452,7 +452,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 - [ ] Las 8 fuentes están presentes o su ausencia está documentada.
 - [ ] No hay duplicados exactos.
 - [ ] No hay solapamiento SP/NRT sin resolver.
-- [ ] `v_detections_canonical` devuelve una sola fuente por sensor/fecha.
+- [x] `v_detections_canonical` devuelve una sola fuente por sensor/fecha.
 - [ ] `industrial_cells` cubre los focos industriales conocidos.
 - [ ] NRT industrial no marca `fire_day`.
 - [ ] `calendar_weekly` tiene 53 semanas por celda (con `NULL` donde falta).
