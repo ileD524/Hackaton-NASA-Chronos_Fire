@@ -11,6 +11,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -26,6 +27,15 @@ public class ApiExceptionHandler {
         String message = ex.getMessage() == null ? "Solicitud invalida." : ex.getMessage();
         return ResponseEntity.badRequest()
                 .body(new ErrorResponse("bad_request", message, requestId(request)));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> notFound(NoResourceFoundException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ErrorResponse(
+                        "not_found",
+                        "Recurso no encontrado.",
+                        requestId(request)));
     }
 
     @ExceptionHandler(Exception.class)
