@@ -128,4 +128,14 @@ const navItems = [
     font-size: 13px;
   }
 }
+
+@media (max-width: 430px) {
+  .nav {
+    gap: 2px 14px;
+  }
+  .nav-link {
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+}
 </style>

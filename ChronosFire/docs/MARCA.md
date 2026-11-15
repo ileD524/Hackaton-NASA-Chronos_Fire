@@ -8,8 +8,10 @@ Referencia: [NASA Space Apps Brand Guidelines](https://www.spaceappschallenge.or
 | Fondos | Paneles Deep Blue; degradado general Electric Blue → Deep Blue. Se eliminaron las manchas radiales. |
 | Amarillo neón | Acentos y controles. Se retiró del fondo de la escala de actividad y de la marca textual del proyecto. |
 | Tipografía | Fira Sans para encabezados y Overpass para lectura, alojadas localmente. |
-| Logotipo | Se conserva sin alterar el SVG de Space Apps que traía el repositorio; no se añade la insignia NASA. |
-| Identidad del proyecto | ChronosFire se mantiene separado del logotipo. El pie lo identifica como proyecto participante. Favicon propio «CF». |
+| Logotipo | La cabecera usa el símbolo propio VII.MO (V, órbita y hotspot); el lockup oficial de Space Apps se conserva en el pie como identificación de proyecto participante. |
+| Identidad del proyecto | El proyecto se presenta como **VII.MO**, con el punto del nombre siempre en Rocket Red. El logotipo y el símbolo viven en `src/components/BrandMark.vue`, que reproduce la geometría del mockup (`public/Anatomía Órbita-V-html/`). |
+| Movimiento | El hotspot del hero orbita lentamente sobre la trayectoria; se sustituye por el punto estático cuando el sistema pide movimiento reducido. |
+| Favicon | Símbolo solo (V + órbita + hotspot) sobre Deep Blue. |
 | Contraste | Se corrigió el texto azul del encabezado y se calculó luminancia WCAG para elegir texto claro/oscuro en las celdas; todas las examinadas superan 4,5:1. |
 | Accesibilidad visual | Las escalas conservan valores numéricos; faltantes y meses parciales tienen etiquetas propias. |
 
