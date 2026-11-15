@@ -45,13 +45,16 @@ en [README-LOCAL.md](../README-LOCAL.md).
   otros años completos, con años de referencia y confianza calculados por el
   backend.
 - **Mapa:** celdas de 0,05° con hotspots del mes. El popup muestra el total y
-  el desglose por sensor. El tamaño codifica días con actividad.
+  el desglose por sensor. Doble codificación: el color indica la intensidad de
+  hotspots y el tamaño, los días con actividad.
 - **Detalle diario:** gráfico y tabla de celdas con actividad del mes.
 - **Alertas NRT:** últimas detecciones de la ventana configurada, agrupadas por
   celda, con exclusión de focos industriales.
 - **Validación:** eventos históricos conocidos con anomalía y veredicto.
 - **Descargas CSV:** calendario semanal y hotspots. El aviso indica si la
   descarga se truncó en el tope de 50.000 filas.
+- **Descargas visuales:** SVG vectorial y PNG a 2× de la vista actual del
+  calendario, con valores, colores, leyenda y nota metodológica.
 
 ## Qué miden las series
 
@@ -60,8 +63,8 @@ en [README-LOCAL.md](../README-LOCAL.md).
 - `hotspots`: detecciones de vegetación efectiva, confianza nominal/alta y
   fuera de la máscara industrial. **No es cantidad de incendios.**
 - `fireCells`: celdas distintas con actividad en el período.
-- `ALL` no es un promedio: está dominada por VIIRS. La API permite filtrar por
-  sensor; el selector en la UI es trabajo pendiente.
+- `ALL` no es un promedio: está dominada por VIIRS. La API y la UI permiten
+  elegir un sensor; los meses sin datos de ese sensor no se completan con otros.
 
 Las definiciones completas están en [docs/DECISIONES.md](../../../docs/DECISIONES.md).
 
@@ -86,6 +89,7 @@ cd ..\frontend\ChronosFire
 npm run build
 npm run test:api
 npm run test:browser   # requiere backend y frontend activos
+npm run test:png       # export SVG/PNG y contraste de rampas
 ```
 
 El backend incluye tests de controladores, servicios, contrato OpenAPI y un

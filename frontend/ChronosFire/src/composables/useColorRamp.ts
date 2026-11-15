@@ -5,16 +5,19 @@ export type RampId = 'sequential' | 'anomaly'
 const rampId = ref<RampId>('sequential')
 
 /**
- * Escala secuencial de volumen: cinco quintiles de la selección.
- * Sigue la paleta de marca: azul profundo → azul eléctrico → celeste →
- * lima neón → rojo. La leyenda muestra los cortes numéricos de cada quintil.
+ * Escala secuencial de volumen: cinco tramos de Viridis.
+ * Viridis es perceptualmente uniforme y apta para daltonismo; se reserva la
+ * paleta de marca para la interfaz. La leyenda muestra los cortes numéricos.
  */
-export const SEQUENTIAL_STOPS = ['#0A2A66', '#0960E1', '#2E96F5', '#EAFE07', '#E03000']
+export const SEQUENTIAL_STOPS = ['#440154', '#414487', '#2A788E', '#22A884', '#FDE725']
+export const SEQUENTIAL_NAME = 'Viridis'
 
 /**
  * Escala divergente de anomalía con cortes fijos en ±15% y ±50%.
- * `bg` es el fondo de la celda; `ink` es el mismo color de la banda aclarado
- * para usarse como texto sobre el panel azul profundo.
+ * Usa PuOr (púrpura ↔ azul profundo ↔ naranja): los dos extremos no dependen
+ * solo del color porque además llevan ▼/▲ y etiquetas numéricas.
+ * `bg` es el fondo de la celda; `ink` es una variante clara de la banda para
+ * usarse como texto sobre el panel azul profundo (8,5:1 a 17:1 de contraste).
  */
 export interface AnomalyBand {
   id: 'low-extreme' | 'low' | 'neutral' | 'high' | 'high-extreme'
@@ -27,11 +30,11 @@ export interface AnomalyBand {
 }
 
 export const ANOMALY_BANDS: AnomalyBand[] = [
-  { id: 'low-extreme', bg: '#1F7A57', ink: '#6EE7A8', mark: '▼', legend: '≤ −50%', extreme: true, upTo: -0.5 },
-  { id: 'low', bg: '#8FD9B6', ink: '#A7E8C8', mark: '', legend: '−50 a −15%', extreme: false, upTo: -0.15 },
+  { id: 'low-extreme', bg: '#542788', ink: '#D8CCF0', mark: '▼', legend: '≤ −50%', extreme: true, upTo: -0.5 },
+  { id: 'low', bg: '#B2ABD2', ink: '#C9B8E8', mark: '', legend: '−50 a −15%', extreme: false, upTo: -0.15 },
   { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', legend: '±15%', extreme: false, upTo: 0.15 },
-  { id: 'high', bg: '#F08A00', ink: '#FFB24D', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
-  { id: 'high-extreme', bg: '#E03000', ink: '#FF6A3D', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
+  { id: 'high', bg: '#FDB863', ink: '#FFD1A1', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
+  { id: 'high-extreme', bg: '#B35806', ink: '#FF9E64', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
 ]
 
 /** Banda de anomalía para una diferencia relativa (0,5 = +50%). */
@@ -50,7 +53,9 @@ export function contrast(a: string, b: string) { const x = luminance(a), y = lum
 /** Texto claro u oscuro según cuál tenga más contraste sobre el fondo dado. */
 export function textOn(bg: string) { return contrast(bg, '#07173F') > contrast(bg, '#FFFFFF') ? '#07173F' : '#FFFFFF' }
 
+/** Color del quintil `bucket` (0–4) en la escala secuencial. */
+export function colorAt(bucket: number) { return SEQUENTIAL_STOPS[Math.min(4, Math.max(0, Math.round(bucket)))]! }
+
 export function useColorRamp() {
-  function colorAt(bucket: number) { return SEQUENTIAL_STOPS[Math.min(4, Math.max(0, Math.round(bucket)))]! }
   return { rampId, colorAt, textOn, label: (id: RampId) => id === 'sequential' ? 'Volumen observado' : 'Diferencia frente a la mediana' }
 }

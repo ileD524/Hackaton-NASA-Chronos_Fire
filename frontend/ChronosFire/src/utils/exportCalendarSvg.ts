@@ -267,8 +267,8 @@ export function buildCalendarSvg(input: CalendarExportInput): string {
   return out.join('\n')
 }
 
-/** Nombre de archivo estable y sin acentos: chronos-fire-calendario-<área>-<desde>-<hasta>.svg */
-export function calendarSvgFilename(area: string, from: string, to: string): string {
+/** Nombre de archivo estable y sin acentos: chronos-fire-calendario-<área>-<desde>-<hasta>.<ext> */
+export function calendarExportFilename(area: string, from: string, to: string, extension: 'svg' | 'png' = 'svg'): string {
   const slug =
     area
       .normalize('NFD')
@@ -278,15 +278,15 @@ export function calendarSvgFilename(area: string, from: string, to: string): str
       .replace(/^-+|-+$/g, '')
       .slice(0, 48)
       .replace(/-+$/g, '') || 'area'
-  return `chronos-fire-calendario-${slug}-${from}-${to}.svg`
+  return `chronos-fire-calendario-${slug}-${from}-${to}.${extension}`
 }
 
-/**
- * Descarga el SVG con un Blob y un enlace temporal. Debe llamarse desde una
- * acción del usuario (click) para que el navegador permita la descarga.
- */
-export function downloadCalendarSvg(svg: string, filename: string): void {
-  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' })
+export function calendarSvgFilename(area: string, from: string, to: string): string {
+  return calendarExportFilename(area, from, to, 'svg')
+}
+
+/** Descarga un Blob con un enlace temporal (usado por SVG y PNG). */
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
@@ -297,4 +297,12 @@ export function downloadCalendarSvg(svg: string, filename: string): void {
   link.remove()
   // Dar tiempo al navegador a iniciar la descarga antes de liberar la URL.
   setTimeout(() => URL.revokeObjectURL(url), 2000)
+}
+
+/**
+ * Descarga el SVG con un Blob y un enlace temporal. Debe llamarse desde una
+ * acción del usuario (click) para que el navegador permita la descarga.
+ */
+export function downloadCalendarSvg(svg: string, filename: string): void {
+  downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), filename)
 }

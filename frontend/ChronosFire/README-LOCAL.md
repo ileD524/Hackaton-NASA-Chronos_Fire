@@ -62,10 +62,12 @@ Vite redirige `/api` a `http://127.0.0.1:8080`.
   referencia y confianza.
 - Descarga CSV del calendario y de hotspots. La UI avisa si la descarga se
   truncó en el tope de 50.000 filas.
+- Descarga del calendario en SVG vectorial o PNG a 2×, con leyenda y nota
+  metodológica.
 - Alertas NRT, AOIs y validación disponibles en la API.
 
-El calendario usa todos los sensores. El backend conserva el desglose por
-sensor en `detectionsBySensor` y en los endpoints de detalle.
+El calendario permite elegir sensor o «todos los sensores». El backend conserva
+el desglose por sensor en `detectionsBySensor` y en los endpoints de detalle.
 
 ## Datos y semántica
 
@@ -88,3 +90,4 @@ npm run build
 - El proxy de Vite apunta al backend Java en el puerto 8080.
 - Tests de contrato: `npm run test:api`.
 - Tests de navegador: `npm run test:browser` con backend y frontend activos.
+- Tests de export visual y contraste: `npm run test:png`.

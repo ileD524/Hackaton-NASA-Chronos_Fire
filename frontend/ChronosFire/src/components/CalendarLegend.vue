@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ANOMALY_BANDS, SEQUENTIAL_STOPS, textOn, useColorRamp } from '@/composables/useColorRamp'
+import { ANOMALY_BANDS, SEQUENTIAL_NAME, SEQUENTIAL_STOPS, textOn, useColorRamp } from '@/composables/useColorRamp'
 import { useCalendar, format } from '@/composables/useCalendar'
 import { useChronos } from '@/composables/useChronos'
 const { rampId } = useColorRamp()
@@ -23,8 +23,8 @@ const stepLabel = (i: number) => {
         <span v-for="band in ANOMALY_BANDS" :key="band.id" :style="{ background: band.bg, color: textOn(band.bg) }"><span v-if="band.mark" class="legend-mark" aria-hidden="true">{{ band.mark }}</span>{{ band.legend }}</span>
       </template>
     </div>
-    <small v-if="rampId === 'anomaly' && metricMode === 'cells'">Cortes fijos en ±15% y ±50%. ▼ marca los meses por debajo de −50%, ▲ los que superan +50%. Los meses parciales o sin referencia no se comparan y quedan en el tramo central.</small>
-    <small v-else>Cinco quintiles de los meses con valor en la selección: cada tramo agrupa un 20% de los meses y la leyenda muestra sus cortes exactos. El número de cada celda es siempre el valor real de {{ metricLabel }}.</small>
+    <small v-if="rampId === 'anomaly' && metricMode === 'cells'">Cortes fijos en ±15% y ±50%. Rampa púrpura–naranja (PuOr) apta para daltonismo; ▼ y ▲ no dependen del color. Los meses parciales o sin referencia no se comparan y quedan en el tramo central.</small>
+    <small v-else>Cinco quintiles de los meses con valor en la selección: cada tramo agrupa un 20% de los meses y la leyenda muestra sus cortes exactos. Rampa {{ SEQUENTIAL_NAME }}, perceptualmente uniforme y apta para daltonismo. El número de cada celda es siempre el valor real de {{ metricLabel }}.</small>
   </div>
 </template>
 <style scoped>

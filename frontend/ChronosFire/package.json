@@ -11,7 +11,8 @@
     "type-check": "vue-tsc --build",
     "start": "bash run-local.sh",
     "test:api": "node tests/api-contract.mjs",
-    "test:browser": "node tests/browser.mjs"
+    "test:browser": "node tests/browser.mjs",
+    "test:png": "node tests/export-png.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

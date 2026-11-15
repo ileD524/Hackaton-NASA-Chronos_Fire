@@ -4,15 +4,16 @@ Calendario de actividad de fuego para Argentina: MODIS + VIIRS armonizados,
 backend Java/Spring Boot y frontend Vue 3.
 
 Grilla de **0,05° (~5 km)**, calendario mensual, hotspots por sensor,
-comparación contra la mediana multianual y exportación CSV con aviso de
-truncamiento.
+comparación contra la mediana multianual, exportación CSV con aviso de
+truncamiento y descarga SVG/PNG del calendario.
 
 ## Estado
 
 - 15 endpoints de solo lectura sobre PostgreSQL 17.
 - 7.082.474 detecciones armonizadas, 8 pares sensor/fuente.
-- Rango de datos: 2000-11-01 a 2026-11-14; la UI trabaja desde 2003.
-- Calendario, mapa, alertas NRT, validación de eventos y dos exportaciones CSV.
+- Rango de datos: 2000-11-01 a 2026-11-14; la UI carga el archivo disponible.
+- Calendario, mapa, alertas NRT, validación de eventos, dos exportaciones CSV y
+  descarga SVG/PNG del calendario.
 - 48 tests backend (controladores, servicios, OpenAPI y smoke SQL) y pruebas de
   contrato/navegador en el frontend.
 - La base se usa en modo lectura: el backend no crea ni modifica tablas.
@@ -133,6 +134,7 @@ cd frontend\ChronosFire
 npm run build
 npm run test:api
 npm run test:browser   # requiere backend y frontend activos
+npm run test:png       # descarga SVG/PNG y valida contraste; requiere backend y frontend
 ```
 
 ## Métricas y límites
@@ -141,8 +143,9 @@ npm run test:browser   # requiere backend y frontend activos
   fuera de la máscara industrial. No es un incendio único.
 - **Celda con actividad (`fire_day`)**: celda de 0,05° con al menos un hotspot
   armonizado en un día UTC.
-- **`ALL` no es un promedio**: la serie está dominada por VIIRS. La API permite
-  filtrar por sensor; la UI todavía usa todos los sensores.
+- **`ALL` no es un promedio**: la serie está dominada por VIIRS. La UI permite
+  elegir un sensor o «todos los sensores»; el calendario, el mapa y el detalle
+  diario se recalculan.
 - **Sin calibración física** de eficiencia de detección ni de FRP.
 - **Sin datos no es sin fuego**: `coverage_daily` está vacía.
 - **CSV**: máximo 50.000 filas; las detecciones aceptan hasta 10.000 días. La
