@@ -1,0 +1,7 @@
+- Communicates in Spanish; prefers responses in Spanish. Confidence: 0.95
+- Frontend for the ChronosFire project (NASA Space Apps Challenge 2026, fire-activity calendar) is Vue 3 + Vite + TypeScript — user explicitly stated the project will use Vue in the frontend. Confidence: 0.8
+- Wants design assets actually used by the app kept inside tracked project folders (e.g., `public/`) rather than in gitignored reference folders, so the project stays self-contained and version-controlled. Confidence: 0.7
+- For frontend design, explicitly seeks an innovative, attractive, and genuinely useful result rather than a plain/basic layout. Confidence: 0.6
+- Wants implementations documented as they are built ("ayúdame también a documentar las implementaciones que vamos haciendo"), explicitly tracking which external resources/APIs are used and how (e.g., which NASA datasets/endpoints and in what role). Confidence: 0.7
+- Before implementing, wants to talk through and weigh the options/architecture trade-offs first ("hablemos", "ayúdame a analizar estas opciones antes de tomar una decisión y tocar código") rather than jumping straight to code changes. Confidence: 0.8
+- Cares about app responsiveness/snappiness as a first-class quality: flags slowness and asks for "más agilidad", so latency, loading feedback, and render smoothness should be measured and addressed, not assumed. Confidence: 0.6

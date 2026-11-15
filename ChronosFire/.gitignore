@@ -44,3 +44,7 @@ __pycache__/
 artifacts/
 
 .local-tools/
+
+# Downloaded DSv2 snapshot
+.data/
+.venv/

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BrandMark from '@/components/BrandMark.vue'
+
 const navItems = [
   { label: 'Mapa', target: '#mapa' },
   { label: 'Calendario', target: '#calendario' },
@@ -10,15 +12,8 @@ const navItems = [
 <template>
   <header class="app-header">
     <div class="container header-inner">
-      <a class="brand" href="#calendario" aria-label="ChronosFire · volver al inicio">
-        <img
-          class="brand-logo"
-          src="/logos/space-apps-lockup.svg"
-          alt="NASA Space Apps Challenge · logo oficial"
-          width="220"
-          height="86"
-        />
-        <span class="brand-name">ChronosFire</span>
+      <a class="brand" href="#calendario" aria-label="VII.MO · ir al calendario">
+        <BrandMark :size="40" />
       </a>
 
       <nav class="nav" aria-label="Navegación principal">
@@ -40,9 +35,22 @@ const navItems = [
   position: sticky;
   top: 0;
   z-index: 50;
-  background: #07173F;
+  background: rgba(7, 23, 63, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(9, 96, 225, 0.4);
+}
+
+.app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--blue-100) 0%,
+    var(--warm-lime) 58%,
+    var(--warm-orange) 100%
+  );
 }
 
 .container {
@@ -62,26 +70,20 @@ const navItems = [
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
   text-decoration: none;
+  border-radius: var(--radius-sm);
 }
 
-.brand-logo {
-  height: 44px;
-  width: auto;
-  display: block;
+.brand :deep(.brand-symbol) {
+  transition: transform 0.2s ease;
 }
 
-.brand-name {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--white);
-  border-left: 1px solid rgba(46, 150, 245, 0.5);
-  padding-left: 14px;
-  white-space: nowrap;
+.brand:hover :deep(.brand-symbol) {
+  transform: scale(1.03);
+}
+
+.brand:hover :deep(.brand-hotspot) {
+  filter: drop-shadow(0 0 6px var(--warm-orange));
 }
 
 .nav {
@@ -115,17 +117,15 @@ const navItems = [
 
 @media (max-width: 720px) {
   .container {
-    padding: 12px 20px;
-  }
-  .brand-name {
-    display: none;
-  }
-  .brand-logo {
-    height: 34px;
+    padding: 10px 20px;
   }
   .nav {
     margin-left: 0;
     width: 100%;
+    gap: 4px 18px;
+  }
+  .nav-link {
+    font-size: 13px;
   }
 }
 </style>

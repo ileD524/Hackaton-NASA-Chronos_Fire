@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, urlparse
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA = Path(os.environ.get('CHRONOS_DATA_DIR', ROOT.parents[1] / 'armonizacion')).resolve()
+DATA = Path(os.environ.get('CHRONOS_DATA_DIR', ROOT / '.data' / 'armonizacion')).resolve()
 FIRST, LAST = '2003-01-01', '2025-12-31'
 VIIRS_FIRST = '2012-01-20'
 

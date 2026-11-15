@@ -1,0 +1,22 @@
+{
+  "resultados/vegetacion_nominal_alta.parquet": {
+    "size": 296585968,
+    "sha256": "c43fa3588902564943e1a77862d9f561296701d967bc8d0e85059aeb5ccc1691"
+  },
+  "resultados/calendario_diario.csv": {
+    "size": 383413,
+    "sha256": "40c428438b4b3b1bd63152efb91a82b9ea366c1a76153e0428c35080ef4f7f75"
+  },
+  "resultados/control_calidad.json": {
+    "size": 793,
+    "sha256": "9558fc78342e903631f763a26a329b27edee926762babbc87427a40b83da44fe"
+  },
+  "calibracion/serie_calibrada_2012_2025.csv": {
+    "size": 1359012,
+    "sha256": "6341be47a5bf372dc9c9c10bbc81cd185ce60a0bc7b27b0e7d033551dce86391"
+  },
+  "calibracion/resumen_calibracion.json": {
+    "size": 3132,
+    "sha256": "9619176946ffc9a6039464ec55fc8981915312e8640f160e22fcaf36ed7498fc"
+  }
+}
