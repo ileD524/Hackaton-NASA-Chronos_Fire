@@ -52,7 +52,7 @@ const provisionalLabel = computed(() => {
   <p class="use-case"><strong>Caso de validación semanal:</strong> Delta del Paraná, semana 40 de 2020: 6,6× la mediana (66 celdas con actividad frente a 10 de referencia).</p>
   <p class="small-note">Herramienta descriptiva: los niveles info/watch/warning priorizan el triage; no son predicción ni alerta oficial.</p>
 </div>
-<details><summary>Límites de la comparación</summary><p>La confianza se homologa a baja, nominal y alta. El baseline usa la mediana multianual por AOI y la era de cada sensor.</p><p>No hay calibración física de eficiencia de detección ni de FRP. La ausencia de registros no confirma ausencia de fuego: la cobertura real por nubosidad y overpass no está disponible.</p><p><template v-if="provisionalLabel">{{ provisionalLabel }} es NRT provisional y queda fuera del baseline. </template>Una celda de 0,05° no representa superficie quemada.</p></details>
+<details><summary>Límites de la comparación</summary><p>La confianza se homologa a baja, nominal y alta. El baseline usa la mediana multianual por AOI y la era de cada sensor.</p><p>No hay calibración física de eficiencia de detección ni de FRP. La cobertura se aproxima con los días con detecciones (`coverage_daily`); no descuenta nubosidad ni overpass. La ausencia de registros no confirma ausencia de fuego.</p><p><template v-if="provisionalLabel">{{ provisionalLabel }} es NRT provisional y queda fuera del baseline. </template>Una celda de 0,05° no representa superficie quemada.</p></details>
 <a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Conocer NASA FIRMS ↗</a>
 </section>
 </template>

@@ -106,7 +106,14 @@ public class CalendarService {
         }
 
         boolean provisional = flags.hasNrt() || year >= 2026;
-        String dataStatus = flags.rows() == 0 || selected == null ? "unknown" : "observed";
+        boolean coverageKnown = repository.coverageKnown();
+        boolean covered = repository.hasCoverage(year, week, plan.observedSensor());
+        String dataStatus = selected != null || covered
+                ? "observed"
+                : (coverageKnown ? "no_data" : "unknown");
+        Integer nDataYears = coverageKnown
+                ? repository.nDataYears(week, plan.observedSensor())
+                : null;
 
         return new WeeklyResponse(
                 responseBbox,
@@ -123,7 +130,7 @@ public class CalendarService {
                 confidence,
                 provisional,
                 dataStatus,
-                null,
+                nDataYears,
                 fireCellsBySensor,
                 detectionsBySensor,
                 frpBySensor,
@@ -250,6 +257,11 @@ public class CalendarService {
                     .put(row.sensor(), row.hotspots());
         }
 
+        boolean coverageKnown = repository.coverageKnown();
+        Set<String> coveredMonths = coverageKnown
+                ? repository.coverageMonths(from, to, sensor)
+                : Set.of();
+
         List<MonthlyCell> result = new ArrayList<>();
         YearMonth cursor = YearMonth.from(from);
         YearMonth end = YearMonth.from(to);
@@ -263,7 +275,11 @@ public class CalendarService {
             int nDetections = bySensor.values().stream().mapToInt(Integer::intValue).sum();
             int hotspots = hotspotsBySensor.values().stream().mapToInt(Integer::intValue).sum();
             boolean partial = cursor.atDay(1).isBefore(from) || cursor.atEndOfMonth().isAfter(to);
-            String dataStatus = fire == null && bySensor.isEmpty() ? "unknown" : "observed";
+            boolean observed = fire != null
+                    || !bySensor.isEmpty()
+                    || !hotspotsBySensor.isEmpty()
+                    || coveredMonths.contains(key);
+            String dataStatus = observed ? "observed" : (coverageKnown ? "no_data" : "unknown");
             result.add(new MonthlyCell(
                     year,
                     month,

@@ -1,27 +1,26 @@
 -- ============================================================================
--- Chronos Fire - Cobertura diaria (denominador del riesgo estadistico)
+-- Chronos Fire - Cobertura diaria (proxy documentado)
 -- Fase 0 de PLAN_RIESGO_ESTADISTICO.md
 -- Base: chronos_fire
--- Requiere: coverage_daily (ya existe, ver migraciones/fix_calendar.sql)
 -- Idempotente: se puede correr despues de cada carga del ETL.
 --
--- Que hace:
---   Marca un dia como cubierto si el sensor registro al menos una deteccion en
---   la region. Es un proxy regional (coverage_type = 'proxy'), no prueba de
---   ausencia de nubes: el riesgo calculado con este denominador es una cota
---   inferior.
+-- No hay data_availability oficial de FIRMS en el repositorio. Como proxy se
+-- usa cada combinacion sensor/fuente/fecha con al menos una deteccion. Es una
+-- cota inferior: un dia sin detecciones queda como "sin cobertura", no como
+-- "sin fuego". El tipo queda identificado en coverage_type = 'proxy'.
 --
--- Nota de volumen: la PK es (region, sensor, source, acq_date), asi que el
--- total esperado es el numero de combinaciones distintas
--- (sensor, source, acq_date) de `detections`, hoy ~19.260 filas, no 200.000.
--- Ver backend/db/README.md, seccion "Desvios respecto del plan".
+-- Volumen esperado: la PK es (region, sensor, source, acq_date), asi que el
+-- total son las combinaciones distintas de `detections` (~19.260 filas), no
+-- una fila por dia y sensor. Ver backend/db/README.md.
 -- ============================================================================
-
 BEGIN;
 
+CREATE INDEX IF NOT EXISTS coverage_daily_sensor_date_idx
+    ON coverage_daily (sensor, acq_date);
+
 INSERT INTO coverage_daily (region, sensor, source, acq_date, has_data, coverage_type)
-SELECT 'AR', d.sensor, d.source, d.acq_date, true, 'proxy'
-FROM (SELECT DISTINCT sensor, source, acq_date FROM detections) d
+SELECT DISTINCT 'AR', sensor, source, acq_date, true, 'proxy'
+FROM detections
 ON CONFLICT (region, sensor, source, acq_date) DO NOTHING;
 
 COMMIT;

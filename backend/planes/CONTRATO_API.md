@@ -59,7 +59,7 @@ Reglas:
 - `baselineFireCells` es la mediana leave-one-out.
 - `anomaly` solo se calcula con `nRefYears >= 7`, `baseline >= 3` y `observed >= 3`.
 - `provisional = true` para 2026 o semanas con NRT.
-- `nDataYears` queda `null` porque `coverage_daily` esta vacia.
+- `nDataYears` cuenta anios con cobertura proxy (`coverage_daily`) para esa semana ISO y sensor; no es la cantidad de anios de referencia del baseline.
 - `fireCellsBySensor`, `detectionsBySensor` y `frpBySensor` incluyen todos los sensores presentes.
 - `fireDayRateGivenDetection = fireDays / detectionCellDays`.
 
@@ -80,7 +80,7 @@ Ejemplo verificado (Delta 2020, semana 40):
   "confidence": "high",
   "provisional": false,
   "dataStatus": "observed",
-  "nDataYears": null,
+  "nDataYears": 15,
   "fireCellsBySensor": { "MODIS": 36, "VIIRS_SNPP": 66, "VIIRS_NOAA20": 67 },
   "detectionsBySensor": { "MODIS": 258, "VIIRS_SNPP": 1242, "VIIRS_NOAA20": 855 },
   "fireDayRateGivenDetection": 0.865
@@ -371,7 +371,7 @@ y no forma parte del producto actual.
 - `baselineFireCells`: mediana multianual por AOI, leave-one-out.
 - `confidence`: `high`, `low` o `insufficient`.
 - `dataStatus`: `observed`, `no_data` o `unknown`.
-- `nDataYears`: `null` porque `coverage_daily` esta vacia.
+- `nDataYears`: anios con cobertura proxy para la semana ISO y sensor.
 - `provisional`: `true` para 2026/NRT.
 - `null` no es `0`.
 - No sumar FRP ni detecciones entre sensores.
@@ -382,8 +382,8 @@ y no forma parte del producto actual.
 
 | Limitacion | Efecto en la API |
 |---|---|
-| `coverage_daily` vacia | `nDataYears = null`, `dataStatus = unknown` |
-| `n_data_years` NULL | No usar como confianza |
+| `coverage_daily` es un proxy por dias con detecciones | `nDataYears` y `dataStatus` no equivalen a cobertura real por nubosidad/overpass |
+| `n_data_years` derivado de ese proxy | No usar como cobertura fisica ni como confianza |
 | `frp_p50/p90` NULL | No exponer percentiles |
 | Sin calibracion | No hay `calibrated` |
 | Grilla 0,05° | No hay celdas de 1 km² |

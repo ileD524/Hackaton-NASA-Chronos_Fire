@@ -13,6 +13,49 @@ const meta = await get('/api/meta')
 if (!Array.isArray(meta.sensors) || meta.sensors.length !== 8) throw new Error('meta.sensors != 8')
 
 const bbox = '-61,-34,-59.5,-32.5'
+
+// F-10: titular semanal Delta 2020-W40 (AUTO resuelve a VIIRS SNPP).
+const weekly = await get(`/api/calendar/weekly?bbox=${bbox}&year=2020&week=40&sensor=AUTO`)
+if (weekly.observedFireCells !== 66) throw new Error(`weekly observedFireCells ${weekly.observedFireCells} != 66`)
+if (weekly.baselineFireCells !== 10) throw new Error(`weekly baselineFireCells ${weekly.baselineFireCells} != 10`)
+if (Math.abs(weekly.anomaly - 6.6) > 1e-9) throw new Error(`weekly anomaly ${weekly.anomaly} != 6.6`)
+if (weekly.referenceYears !== 12) throw new Error(`weekly referenceYears ${weekly.referenceYears} != 12`)
+if (weekly.confidence !== 'high') throw new Error(`weekly confidence ${weekly.confidence} != high`)
+if (weekly.fireCellsBySensor?.VIIRS_SNPP !== 66) {
+  throw new Error(`weekly fireCellsBySensor.VIIRS_SNPP ${weekly.fireCellsBySensor?.VIIRS_SNPP} != 66`)
+}
+if (weekly.dataStatus !== 'observed') throw new Error(`weekly dataStatus ${weekly.dataStatus} != observed`)
+if (typeof weekly.nDataYears !== 'number' || weekly.nDataYears <= 0) {
+  throw new Error(`weekly nDataYears invalido: ${weekly.nDataYears}`)
+}
+
+// D-01: una semana previa a la era del sensor no debe mostrarse como "sin fuego".
+const weeklyNoData = await get(`/api/calendar/weekly?bbox=${bbox}&year=2000&week=1&sensor=VIIRS_SNPP`)
+if (weeklyNoData.dataStatus !== 'no_data') {
+  throw new Error(`weekly pre-SNPP dataStatus ${weeklyNoData.dataStatus} != no_data`)
+}
+if (typeof weeklyNoData.nDataYears !== 'number') {
+  throw new Error(`weekly pre-SNPP nDataYears invalido: ${weeklyNoData.nDataYears}`)
+}
+
+// F-10: tendencia anual 2019-2020 con anomalia calculable.
+const trend = await get(`/api/calendar/trend?bbox=${bbox}&from=2019-01-01&to=2020-12-31&sensor=AUTO`)
+if (trend.length !== 2) throw new Error(`trend != 2 anios: ${trend.length}`)
+const trendByYear = new Map(trend.map((row) => [row.year, row]))
+for (const year of [2019, 2020]) {
+  const row = trendByYear.get(year)
+  if (!row) throw new Error(`trend sin ${year}`)
+  for (const field of ['fireCells', 'baselineFireCells', 'anomaly', 'referenceYears', 'confidence']) {
+    if (!(field in row)) throw new Error(`trend ${year} sin ${field}`)
+  }
+  if (row.anomaly === null || row.confidence === 'insufficient') {
+    throw new Error(`trend ${year} sin anomalia calculable`)
+  }
+}
+if (!(trendByYear.get(2020).anomaly > trendByYear.get(2019).anomaly)) {
+  throw new Error('trend 2020 no supera la anomalia de 2019')
+}
+
 const monthly = await get(`/api/calendar/monthly?bbox=${bbox}&from=2020-01-01&to=2020-03-31&sensor=ALL`)
 if (monthly.length !== 3) throw new Error('monthly != 3 meses')
 for (const field of ['hotspots', 'hotspotsBySensor', 'baselineFireCells', 'anomaly', 'referenceYears', 'confidence']) {
@@ -23,6 +66,34 @@ const monthlyAnomaly = await get(`/api/calendar/monthly?bbox=${bbox}&from=2013-0
 const september2020 = monthlyAnomaly.find((m) => m.year === 2020 && m.month === 8)
 if (!september2020 || september2020.anomaly === null || september2020.confidence === 'insufficient') {
   throw new Error('monthly sin anomalia calculable para Delta 2020-09')
+}
+
+// F-10: el filtro por sensor cambia los valores del mismo mes.
+const septemberAll = await get(`/api/calendar/monthly?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL`)
+const septemberSnpp = await get(`/api/calendar/monthly?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=VIIRS_SNPP`)
+if (septemberAll.length !== 1 || septemberSnpp.length !== 1) {
+  throw new Error(`monthly 2020-09 != 1 fila: ALL ${septemberAll.length}, SNPP ${septemberSnpp.length}`)
+}
+const allMonth = septemberAll[0]
+const snppMonth = septemberSnpp[0]
+if (allMonth.fireCells !== 189) throw new Error(`monthly ALL fireCells ${allMonth.fireCells} != 189`)
+if (allMonth.hotspots !== 6628) throw new Error(`monthly ALL hotspots ${allMonth.hotspots} != 6628`)
+if (snppMonth.fireCells !== 154) throw new Error(`monthly SNPP fireCells ${snppMonth.fireCells} != 154`)
+if (snppMonth.hotspots !== 3313) throw new Error(`monthly SNPP hotspots ${snppMonth.hotspots} != 3313`)
+if (allMonth.fireCells === snppMonth.fireCells && allMonth.hotspots === snppMonth.hotspots) {
+  throw new Error('monthly ALL y SNPP devuelven los mismos valores')
+}
+for (const row of [allMonth, snppMonth]) {
+  for (const field of ['hotspots', 'hotspotsBySensor', 'detectionsBySensor']) {
+    if (!(field in row)) throw new Error(`monthly 2020-09 sin ${field}`)
+  }
+}
+
+// D-01: un mes previo a la era del sensor debe quedar como no_data, no como cero.
+const monthlyNoData = await get(
+  `/api/calendar/monthly?bbox=${bbox}&from=2000-01-01&to=2000-01-31&sensor=VIIRS_NOAA21`)
+if (monthlyNoData.length !== 1 || monthlyNoData[0].dataStatus !== 'no_data') {
+  throw new Error(`monthly pre-NOAA21 dataStatus ${monthlyNoData[0]?.dataStatus} != no_data`)
 }
 
 const daily = await get(`/api/calendar/daily?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`)
@@ -127,6 +198,17 @@ console.log(JSON.stringify({
   health: health.status,
   sensors: meta.sensors.length,
   months: monthly.length,
+  weekly: {
+    fireCells: weekly.observedFireCells,
+    baseline: weekly.baselineFireCells,
+    anomaly: weekly.anomaly,
+    nDataYears: weekly.nDataYears,
+    dataStatus: weekly.dataStatus,
+  },
+  weeklyNoData: weeklyNoData.dataStatus,
+  trendYears: trend.map((row) => row.year),
+  monthlySeptember: { allHotspots: allMonth.hotspots, snppHotspots: snppMonth.hotspots },
+  monthlyNoData: monthlyNoData[0].dataStatus,
   anomaly2020: september2020.anomaly,
   anomalyConfidence: september2020.confidence,
   dailyRows: daily.length,

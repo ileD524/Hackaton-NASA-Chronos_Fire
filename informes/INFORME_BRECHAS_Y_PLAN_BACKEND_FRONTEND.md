@@ -532,6 +532,12 @@ hotspots → "hotspots detectados"
 - El calendario incluye 2003–2011 sin acción adicional.
 - La consulta nacional sigue siendo usable con cache.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** el calendario inicia en 2000-11-01 (la alternativa permitida por el plan) usando `dateRange` de `/api/meta`; los inputs toman `min`/`max` del archivo y el enlace “Ver todo el archivo 2000–2026” carga el rango completo. La serie 2003–2011 queda visible sin acción adicional.
+
+**Nota:** no se agregó un aviso específico “2000–2002: cobertura parcial”; el bloque de límites metodológicos cubre la ausencia de cobertura real.
+
 ---
 
 ### F-07. Público objetivo y caso de uso
@@ -551,6 +557,10 @@ Para quién
 
 **Aceptación:** el bloque es visible sin abrir un modal y no promete predicción ni riesgo.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `MethodologyPanel.vue` incluye el bloque “Para quién” con los tres perfiles, el caso de validación Delta 2020 (6,6× la mediana de la semana 40) y la aclaración de que la herramienta es descriptiva y no predice eventos ni asigna riesgo. Se muestra en la página principal (`App.vue`), sin modal.
+
 ---
 
 ### F-08. Etiquetas del mapa y coherencia de métricas
@@ -565,6 +575,10 @@ Para quién
 
 **Aceptación:** ningún total cross-sensor aparece sin la aclaración.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `FireMap.vue` muestra “X celdas con actividad · Y hotspots (todas las fuentes)”, el sensor activo (`Serie: ...`) y un tooltip que aclara que las detecciones de distintos sensores no se suman. El popup conserva el desglose por sensor y el pie explica la doble codificación color/tamaño.
+
 ---
 
 ### F-09. Alertas: refresco y estado
@@ -576,6 +590,10 @@ Para quién
 - Cancelar el intervalo al desmontar.
 
 **Aceptación:** el panel no queda con datos viejos sin aviso.
+
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `AlertsPanel.vue` agrega el botón “Actualizar”, refresco automático cada 5 minutos y la etiqueta “Actualizado hace X” alimentada por `alertsUpdatedAt` en `useAlerts.ts`. Los intervalos se cancelan en `onBeforeUnmount`. El test de navegador verifica el botón, la etiqueta y una recarga manual.
 
 ---
 
@@ -598,6 +616,10 @@ Ampliar `tests/browser.mjs`:
 
 **Aceptación:** `npm run build`, `npm run test:api` y `npm run test:browser` pasan.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `tests/api-contract.mjs` agrega el titular semanal Delta 2020-W40 (`66 / 10 / 6,60 / 12 / high`), la tendencia 2019–2020 y la comparación mensual `ALL` vs `VIIRS_SNPP` (189 celdas / 6.628 hotspots vs 154 / 3.313), además de validar `hotspots` y `hotspotsBySensor`. `tests/browser.mjs` ya cubría selector de sensor, toggle Hotspots, href del CSV y descarga SVG. Verificado con backend y frontend levantados: `npm run build`, `npm run test:api` y `npm run test:browser` pasan.
+
 ---
 
 ### F-11. Limpieza
@@ -607,6 +629,10 @@ Ampliar `tests/browser.mjs`:
 - Revisar que `.env` siga ignorado.
 
 **Aceptación:** `npm run build` sin imports rotos; `git ls-files` sin logs ni claves.
+
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** se eliminaron `src/data/firms.ts` y `src/data/sampleCalendar.ts`; se destrackearon `run-app.err` y `frontend/ChronosFire/vite.err` (quedan en disco) y se agregó `*.err` a `.gitignore`. `.env` sigue ignorado. Verificado: `npm run build` pasa y `git ls-files` no incluye logs ni la clave de FIRMS. Queda como pendiente documental actualizar las referencias a `src/data/firms.ts` en `frontend/ChronosFire/docs/recursos-nasa.md`.
 
 ---
 
@@ -672,17 +698,27 @@ X-Truncated: false
 
 **Aceptación:** una semana sin datos no se muestra como “sin fuego”.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `backend/db/migraciones/populate_coverage.sql` puebla `coverage_daily` con el proxy sensor/fuente/fecha con detecciones y `rebuild_coverage.sql` calcula `calendar_weekly.n_data_years` (0 si no hay cobertura). `CalendarRepository` expone `nDataYears`, `hasCoverage`, `coverageKnown` y `coverageMonths`; `weekly` devuelve `nDataYears` y `dataStatus = no_data` cuando no hay cobertura; `monthly` distingue `observed` (incluye ceros con cobertura) de `no_data`/`unknown`. La UI ya dibuja trama y no cero para valores nulos, y `MethodologyPanel` documenta que la cobertura es un proxy. Verificado: Delta 2020-W40 `nDataYears=15`; pre-SNPP 2000-W1 `no_data`; NOAA-21 2000-01 `no_data`; `mvn test`, `npm run build`, `test:api` y `test:browser` pasan.
+
 ### D-02. Reproducibilidad
 
 - Dump de demo y `docker-compose`.
 - ETL con variables de entorno.
 - `data/README.md` con URLs y checksums.
 
+**Estado:** ✅ implementado el 15/11/2026 (cubierto por B-08).
+
+**Implementación:** `docker-compose.yml` con PostgreSQL 17 y dump de demo, `run-app.ps1 -Demo`, ETL con `CHRONOS_DATA`/`CHRONOS_TMP` y `data/README.md` con URLs y checksums. Docker Desktop no estaba corriendo, así que el compose y el dump se validaron por separado.
+
 ### D-03. Eventos (opcional, fuera del MVP)
 
 - Clustering de hotspots <5 km en el mismo día o días consecutivos.
 - Tabla `fire_events` y endpoint `/api/events`.
 - Solo si se quiere afirmar “número de incendios”. Mientras tanto, no usarlo en la demo.
+
+**Estado:** ⏳ pendiente / opcional, fuera del MVP (15/11/2026). No existen `fire_events` ni `/api/events`.
 
 ---
 
@@ -812,22 +848,22 @@ X-Truncated: false
 ### Cumplimiento del challenge
 
 - [x] Calendario muestra hotspots además de celdas.
-- [ ] Rango visible desde 2003 (o 2000) por defecto.
+- [x] Rango visible desde 2003 (o 2000) por defecto.
 - [x] Selector de sensor disponible.
 - [x] Descarga de hotspots CSV desde la UI.
 - [x] Descarga de visualización (SVG/PNG).
 - [x] Rampa accesible.
-- [ ] Público objetivo explícito.
-- [ ] Comparación histórica y anomalía visibles.
-- [ ] Mapa interactivo con AOI/lat-lon.
+- [x] Público objetivo explícito.
+- [x] Comparación histórica y anomalía visibles.
+- [x] Mapa interactivo con AOI/lat-lon.
 
 ### Calidad
 
-- [ ] Tests backend y frontend verdes.
+- [x] Tests backend y frontend verdes.
 - [ ] OpenAPI y documentación actualizados.
-- [ ] Sin secretos ni logs versionados.
-- [ ] Sin sumas cross-sensor sin aclaración.
-- [ ] Límites metodológicos visibles en la app.
+- [x] Sin secretos ni logs versionados.
+- [x] Sin sumas cross-sensor sin aclaración.
+- [x] Límites metodológicos visibles en la app.
 
 ### Demo
 
