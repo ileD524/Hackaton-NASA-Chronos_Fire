@@ -68,15 +68,8 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
     <div class="hero-mark" aria-hidden="true">
       <svg class="hero-orbit" viewBox="0 0 100 100">
         <defs>
-          <radialGradient id="hero-orbit-glow">
-            <stop offset="0%" stop-color="#2E96F5" stop-opacity="0.4" />
-            <stop offset="65%" stop-color="#2E96F5" stop-opacity="0.07" />
-            <stop offset="100%" stop-color="#2E96F5" stop-opacity="0" />
-          </radialGradient>
           <path id="hero-orbit-track" d="M4 52A46 17 0 1 0 96 52A46 17 0 1 0 4 52" />
         </defs>
-
-        <circle cx="50" cy="52" r="49" fill="url(#hero-orbit-glow)" />
 
         <path
           d="M22 26L50 80L78 26"
