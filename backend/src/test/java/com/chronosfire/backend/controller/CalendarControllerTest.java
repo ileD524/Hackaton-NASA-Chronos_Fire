@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
 import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.service.CalendarService;
@@ -106,6 +107,32 @@ class CalendarControllerTest {
         assertEquals("VIIRS_SNPP", calendarService.getMonthlySensor());
     }
 
+    @Test
+    void returnsHeatmapWithHotspotBreakdown() throws Exception {
+        calendarService.setHeatmapResponse(List.of(new HeatmapCell(
+                "0.05:-660:-1200",
+                -33.0,
+                -60.0,
+                1,
+                4,
+                10,
+                7,
+                Map.of("MODIS", 2, "VIIRS_SNPP", 5),
+                null,
+                "observed")));
+
+        mockMvc.perform(get("/api/calendar/heatmap")
+                        .param("bbox", "-61,-34,-59.5,-32.5")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("sensor", "ALL"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].hotspots").value(7))
+                .andExpect(jsonPath("$[0].hotspotsBySensor.MODIS").value(2))
+                .andExpect(jsonPath("$[0].hotspotsBySensor.VIIRS_SNPP").value(5))
+                .andExpect(jsonPath("$[0].nDetections").value(10));
+    }
+
     @TestConfiguration
     static class TestConfig {
 
@@ -120,6 +147,7 @@ class CalendarControllerTest {
         private WeeklyResponse response;
         private List<MonthlyCell> monthlyResponse = List.of();
         private String monthlySensor;
+        private List<HeatmapCell> heatmapResponse = List.of();
 
         StubCalendarService() {
             super(null);
@@ -131,6 +159,10 @@ class CalendarControllerTest {
 
         void setMonthlyResponse(List<MonthlyCell> monthlyResponse) {
             this.monthlyResponse = monthlyResponse;
+        }
+
+        void setHeatmapResponse(List<HeatmapCell> heatmapResponse) {
+            this.heatmapResponse = heatmapResponse;
         }
 
         String getMonthlySensor() {
@@ -150,6 +182,16 @@ class CalendarControllerTest {
                 String sensor) {
             monthlySensor = sensor;
             return monthlyResponse;
+        }
+
+        @Override
+        public List<HeatmapCell> getHeatmap(
+                String bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor,
+                int limit) {
+            return heatmapResponse;
         }
     }
 }

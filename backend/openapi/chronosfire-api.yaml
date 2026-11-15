@@ -98,7 +98,12 @@ paths:
     get:
       tags: [Calendario]
       operationId: getHeatmap
-      summary: Celdas de 0,05 grados para el mapa
+      summary: Celdas de 0,05 grados con hotspots por sensor
+      description: |
+        `hotspots` cuenta detecciones de vegetacion efectiva, confianza
+        nominal/alta y fuera de la mascara industrial. `hotspotsBySensor`
+        conserva el desglose y no debe presentarse como un promedio.
+        `nDetections` sigue siendo el conteo crudo all-sensor de la celda.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
@@ -733,6 +738,16 @@ components:
           type: integer
         nDetections:
           type: integer
+        hotspots:
+          type: integer
+          description: |
+            Detecciones de vegetacion efectiva, confianza nominal/alta y fuera
+            de la mascara industrial. No es cantidad de incendios.
+        hotspotsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Conteo por sensor; no sumar entre sensores como promedio.
         anomaly:
           type: number
           nullable: true

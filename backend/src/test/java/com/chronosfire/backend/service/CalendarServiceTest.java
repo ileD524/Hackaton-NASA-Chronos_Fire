@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.chronosfire.backend.dto.Bbox;
 import com.chronosfire.backend.dto.DailyRow;
+import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
 import com.chronosfire.backend.dto.TrendRow;
 import com.chronosfire.backend.dto.WeeklyResponse;
@@ -251,6 +252,40 @@ class CalendarServiceTest {
     }
 
     @Test
+    void heatmapEnrichesCellsWithHarmonizedHotspots() {
+        StubRepository repository = new StubRepository();
+        repository.heatmapRows = List.of(new HeatmapCell(
+                "0.05:-660:-1200",
+                -33.0,
+                -60.0,
+                1,
+                4,
+                10,
+                0,
+                Map.of(),
+                null,
+                "observed"));
+        repository.heatmapHotspots = List.of(
+                new CalendarRepository.HeatmapHotspot("0.05:-660:-1200", "MODIS", 2),
+                new CalendarRepository.HeatmapHotspot("0.05:-660:-1200", "VIIRS_SNPP", 5));
+
+        List<HeatmapCell> cells = new CalendarService(repository)
+                .getHeatmap(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "ALL",
+                        5000);
+
+        assertEquals(1, cells.size());
+        assertEquals(7, cells.get(0).hotspots());
+        assertEquals(2, cells.get(0).hotspotsBySensor().get("MODIS"));
+        assertEquals(5, cells.get(0).hotspotsBySensor().get("VIIRS_SNPP"));
+        assertEquals(10, cells.get(0).nDetections());
+        assertEquals("ALL", repository.heatmapHotspotsSensor);
+    }
+
+    @Test
     void dailyEnrichesRowsWithHarmonizedHotspots() {
         StubRepository repository = new StubRepository();
         LocalDate day = LocalDate.parse("2020-09-15");
@@ -439,6 +474,9 @@ class CalendarServiceTest {
         private List<DailyRow> dailyRows = List.of();
         private List<DailyHotspot> dailyHotspots = List.of();
         private String dailyHotspotsSensor;
+        private List<HeatmapCell> heatmapRows = List.of();
+        private List<HeatmapHotspot> heatmapHotspots = List.of();
+        private String heatmapHotspotsSensor;
         private List<AnnualSensor> annual = List.of();
         private List<WeeklyExportRow> weeklyRows = List.of();
 
@@ -520,6 +558,26 @@ class CalendarServiceTest {
                 String sensor) {
             dailyHotspotsSensor = sensor;
             return dailyHotspots;
+        }
+
+        @Override
+        public List<HeatmapCell> heatmap(
+                Bbox bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor,
+                int limit) {
+            return heatmapRows;
+        }
+
+        @Override
+        public List<HeatmapHotspot> heatmapHotspots(
+                Bbox bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor) {
+            heatmapHotspotsSensor = sensor;
+            return heatmapHotspots;
         }
 
         @Override

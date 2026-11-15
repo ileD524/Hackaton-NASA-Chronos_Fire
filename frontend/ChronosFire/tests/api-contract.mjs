@@ -28,6 +28,18 @@ if (!september2020 || september2020.anomaly === null || september2020.confidence
 const daily = await get(`/api/calendar/daily?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`)
 if (!daily.length) throw new Error('daily vacío')
 
+const heatmap = await get(`/api/calendar/heatmap?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=5000`)
+if (!heatmap.length) throw new Error('heatmap vacío')
+for (const field of ['hotspots', 'hotspotsBySensor']) {
+  if (!(field in heatmap[0])) throw new Error(`heatmap sin ${field}`)
+}
+const heatmapHotspots = heatmap.reduce((sum, cell) => sum + cell.hotspots, 0)
+if (heatmapHotspots !== 6628) throw new Error(`heatmap hotspots ${heatmapHotspots} != 6628`)
+
+const heatmapModis = await get(`/api/calendar/heatmap?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=MODIS&limit=5000`)
+const heatmapModisHotspots = heatmapModis.reduce((sum, cell) => sum + cell.hotspots, 0)
+if (heatmapModisHotspots !== 704) throw new Error(`heatmap MODIS ${heatmapModisHotspots} != 704`)
+
 const csvResponse = await fetch(
   `${BASE}/api/detections/export.csv?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL`
   + '&vegetation=true&confidence=nominal&confidence=high&limit=50000',
@@ -68,6 +80,8 @@ console.log(JSON.stringify({
   anomaly2020: september2020.anomaly,
   anomalyConfidence: september2020.confidence,
   dailyRows: daily.length,
+  heatmapHotspots,
+  heatmapModisHotspots,
   hotspotsCsvRows: csvRows,
   alerts: alerts.count,
   validationEvents: validation.length,

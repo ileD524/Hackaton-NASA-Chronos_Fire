@@ -50,16 +50,19 @@ async function refresh() {
     const query = params({ ...filters.value, ...timeWindow.value })
     const rows = await fetchJSON<MapPoint[]>(`/api/calendar/heatmap?${query}&limit=5000`, current.signal)
     if (current.signal.aborted) return
-    const total = rows.reduce((sum, row) => sum + row.nDetections, 0)
+    const total = rows.reduce((sum, row) => sum + row.hotspots, 0)
     data.value = {
       points: rows,
       total_groups: rows.length,
       shown_groups: rows.length,
-      total_detections: total,
-      shown_detections: total,
+      total_hotspots: total,
+      shown_hotspots: total,
       aggregation_km: 0.05,
     }
     for (const p of rows) {
+      const breakdown = Object.entries(p.hotspotsBySensor ?? {})
+        .map(([sensor, value]) => `${sensor} ${format(value)}`)
+        .join(' · ')
       L.circleMarker([p.cellLat, p.cellLon], {
         radius: Math.min(9, 2 + Math.log1p(p.fireDays) * .9),
         fillColor: '#EAFE07',
@@ -67,7 +70,7 @@ async function refresh() {
         weight: .5,
         fillOpacity: .8,
       })
-        .bindPopup(`<strong>${format(p.fireDays)} días con actividad</strong><br>${format(p.nDetections)} detecciones<br><small>Celda ${p.gridId} · 0,05°</small>`)
+        .bindPopup(`<strong>${format(p.hotspots)} hotspots</strong><br>${format(p.fireDays)} días con actividad<br><small>${breakdown || 'Sin hotspots'} · Celda ${p.gridId} · 0,05°</small>`)
         .addTo(points!)
     }
     updateBox()
@@ -104,10 +107,10 @@ onBeforeUnmount(() => { controller?.abort(); resize?.disconnect(); map?.remove()
 <template>
 <section class="panel map-panel" id="mapa" aria-labelledby="mapa-title">
   <header class="map-head"><div><span class="section-kicker">ACTIVIDAD DEL MES</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><button class="chip" @click="emit('open-calendar')">Elegir otro mes ↗</button></header>
-  <div class="map-toolbar"><span v-if="data">{{format(data.total_detections)}} detecciones en {{format(data.shown_groups)}} celdas</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
+  <div class="map-toolbar"><span v-if="data">{{format(data.total_hotspots)}} hotspots en {{format(data.shown_groups)}} celdas</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
   <div class="map-canvas"><div ref="mapEl" class="map" role="region" aria-label="Mapa interactivo de celdas con actividad"></div><div v-if="busy" class="map-notice" role="status">Consultando el mes…</div><div v-if="error" class="map-notice" role="alert">{{error}}</div><div v-else-if="data&&!data.points.length" class="map-notice">No hay celdas con actividad en este mes y área.</div></div>
   <div class="map-legend"><span><i class="dot activity"></i>Celdas con actividad</span></div>
-  <footer class="map-foot"><p>Grilla de 0,05° (~5 km). El tamaño indica días con actividad; el calendario y el mapa usan la misma grilla.</p><p v-if="data">Se muestran {{format(data.shown_groups)}} celdas con mayor actividad de {{format(data.total_groups)}}.</p></footer>
+  <footer class="map-foot"><p>Grilla de 0,05° (~5 km). El tamaño indica días con actividad; el calendario y el mapa usan la misma grilla. Los hotspots de distintos sensores no se suman como promedio.</p><p v-if="data">Se muestran {{format(data.shown_groups)}} celdas con mayor actividad de {{format(data.total_groups)}}.</p></footer>
 </section>
 </template>
 <style scoped>

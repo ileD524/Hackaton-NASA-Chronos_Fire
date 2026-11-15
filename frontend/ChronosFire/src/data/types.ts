@@ -66,14 +66,16 @@ export interface MapPoint {
   fireCells: number
   fireDays: number
   nDetections: number
+  hotspots: number
+  hotspotsBySensor: Record<string, number>
 }
 
 export interface MapData {
   points: MapPoint[]
   total_groups: number
   shown_groups: number
-  total_detections: number
-  shown_detections: number
+  total_hotspots: number
+  shown_hotspots: number
   aggregation_km: number
 }
 

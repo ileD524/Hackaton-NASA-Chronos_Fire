@@ -281,8 +281,49 @@ public class CalendarRepository {
                 rs.getInt("fire_cells"),
                 rs.getInt("fire_days"),
                 rs.getInt("n_detections"),
+                0,
+                Map.of(),
                 null,
                 "observed"), params.toArray());
+    }
+
+    /**
+     * Hotspots armonizados por celda y sensor para el mapa. Misma grilla que
+     * {@code grid_daily}: 0,05 grados.
+     */
+    public List<HeatmapHotspot> heatmapHotspots(
+            Bbox bbox,
+            LocalDate from,
+            LocalDate to,
+            String sensor) {
+        String sql = """
+                SELECT '0.05:' || CAST(round(latitude / 0.05) AS BIGINT) || ':' ||
+                       CAST(round(longitude / 0.05) AS BIGINT) AS grid_id,
+                       sensor,
+                       count(*)::int AS hotspots
+                FROM v_detections_analysis
+                WHERE acq_date BETWEEN ? AND ?
+                  AND latitude BETWEEN ? AND ?
+                  AND longitude BETWEEN ? AND ?
+                  AND
+                  """
+                + HOTSPOT_PREDICATE
+                + ("ALL".equals(sensor) ? "" : "  AND sensor = ?\n")
+                + "GROUP BY 1, 2\nORDER BY 1, 2";
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        return jdbc.query(sql, (rs, rowNum) -> new HeatmapHotspot(
+                rs.getString("grid_id"),
+                rs.getString("sensor"),
+                rs.getInt("hotspots")), params.toArray());
     }
 
     /**
@@ -532,6 +573,13 @@ public class CalendarRepository {
 
     public record DailyHotspot(
             LocalDate day,
+            String gridId,
+            String sensor,
+            int hotspots
+    ) {
+    }
+
+    public record HeatmapHotspot(
             String gridId,
             String sensor,
             int hotspots

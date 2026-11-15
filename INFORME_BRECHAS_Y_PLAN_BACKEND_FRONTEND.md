@@ -262,6 +262,10 @@ GROUP BY 1, 2;
 - Tiempo de respuesta < 1 s para un AOI y un mes con cache caliente.
 - Test de contrato para la forma del JSON.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `heatmapHotspots` en `CalendarRepository` agrega `hotspots` y `hotspotsBySensor` por celda, con la misma definición armonizada de B-02 y la misma grilla de 0,05°. `CalendarService.getHeatmap` enriquece las celdas. El mapa dejó de sumar `nDetections`: muestra hotspots, el desglose por sensor en el popup y el aviso de que no se suman como promedio. 33 tests backend, 0 fallos; build y tests de contrato pasan. Verificado en vivo: Delta 2020-09 `ALL` 193 celdas / 6.628 hotspots; `MODIS` 124 / 704; `SNPP` 154 / 3.313.
+
 **Archivos:** `HeatmapCell.java`, `CalendarRepository.java`, `CalendarService.java`, `FireMap.vue`.
 
 ---

@@ -10,6 +10,7 @@ import com.chronosfire.backend.repository.CalendarRepository;
 import com.chronosfire.backend.repository.CalendarRepository.AnnualSensor;
 import com.chronosfire.backend.repository.CalendarRepository.Baseline;
 import com.chronosfire.backend.repository.CalendarRepository.DailyHotspot;
+import com.chronosfire.backend.repository.CalendarRepository.HeatmapHotspot;
 import com.chronosfire.backend.repository.CalendarRepository.MonthFire;
 import com.chronosfire.backend.repository.CalendarRepository.MonthSensorDetections;
 import com.chronosfire.backend.repository.CalendarRepository.MonthlyHotspot;
@@ -185,7 +186,35 @@ public class CalendarService {
         int safeLimit = validateLimit(limit, 5000, 50000);
         Bbox queryBbox = queryBbox(bboxParam);
         String sensor = normalizeSensor(sensorParam, "ALL");
-        return repository.heatmap(queryBbox, from, to, sensor, safeLimit);
+
+        List<HeatmapCell> rows = repository.heatmap(queryBbox, from, to, sensor, safeLimit);
+        if (rows.isEmpty()) {
+            return rows;
+        }
+
+        Map<String, Map<String, Integer>> hotspots = new HashMap<>();
+        for (HeatmapHotspot row : repository.heatmapHotspots(queryBbox, from, to, sensor)) {
+            hotspots.computeIfAbsent(row.gridId(), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
+        List<HeatmapCell> enriched = new ArrayList<>(rows.size());
+        for (HeatmapCell row : rows) {
+            Map<String, Integer> bySensor = hotspots.getOrDefault(row.gridId(), Map.of());
+            int total = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            enriched.add(new HeatmapCell(
+                    row.gridId(),
+                    row.cellLat(),
+                    row.cellLon(),
+                    row.fireCells(),
+                    row.fireDays(),
+                    row.nDetections(),
+                    total,
+                    bySensor,
+                    row.anomaly(),
+                    row.dataStatus()));
+        }
+        return enriched;
     }
 
     @Cacheable(value = "monthly", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam")

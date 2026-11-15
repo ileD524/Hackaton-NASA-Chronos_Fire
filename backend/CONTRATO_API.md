@@ -92,7 +92,7 @@ Ejemplo verificado (Delta 2020, semana 40):
 | Endpoint | Parametros | Semantica |
 |---|---|---|
 | `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily` con `hotspots` armonizados; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
-| `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05°; `anomaly` queda `null` porque la anomalía es por AOI |
+| `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05° con `hotspots` y `hotspotsBySensor`; `anomaly` queda `null` porque la anomalía es por AOI |
 | `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; celdas, hotspots, detecciones, baseline/anomalia y desglose por sensor; `ALL` no es promedio |
 | `GET /api/calendar/trend` | `bbox`, `from`, `to`, `sensor` | Serie anual; `AUTO` usa la era de cada año; baseline anual leave-one-out |
 
@@ -110,8 +110,10 @@ Reglas:
 - En `daily`, `source` y `frpDensityMaxWm2` quedan `null` porque `grid_daily`
   no guarda esos campos.
 - En `heatmap`, `anomaly` queda `null`: la anomalía es por AOI, no por celda.
-- En `monthly` y `daily`, `fireCells`, `fireDays`, `hotspots`,
+- En `monthly`, `daily` y `heatmap`, `fireCells`, `fireDays`, `hotspots`,
   `hotspotsBySensor` y `detectionsBySensor` respetan el filtro de sensor.
+  En `heatmap`, `nDetections` sigue siendo el conteo crudo all-sensor de la
+  celda; la metrica armonizada es `hotspots`.
   `fire_day` sigue siendo all-sensor: `fireCells(sensor)` cuenta celdas con
   actividad en dias en que ese sensor tuvo al menos una deteccion, no celdas
   atribuibles en exclusiva a ese sensor. `AUTO` se trata como `ALL` y `ALL` no
@@ -161,6 +163,9 @@ Verificado:
   12 referencias y `high`; `ALL` `189 / 62,0 / 3,05` con 12 y `high`.
   2012 queda `insufficient` aunque tenga 17 referencias; 2020 solo tambien
   queda `insufficient` por falta de referencias.
+- Delta 2020-09 `heatmap`: `ALL` 193 celdas y 6.628 hotspots; `MODIS` 124
+  celdas y 704 hotspots; `VIIRS_SNPP` 154 celdas y 3.313 hotspots. Una celda
+  puede mezclar sensores y `hotspotsBySensor` conserva el desglose.
 - Delta 2019-2020: `trend` devuelve 2019 = 0,96 y 2020 = 6,22.
 - Sin bbox, `monthly` 2020 tarda ~5,6 s la primera vez y queda cacheado.
 
@@ -281,7 +286,7 @@ demo inicia en el Delta.
 | GET | `/api/meta` | `detections`, `grid_*`, `industrial_cells` | Cobertura y definiciones |
 | GET | `/api/calendar/weekly` | `grid_weekly_sensor`, `grid_weekly` | Titular semanal y anomalia |
 | GET | `/api/calendar/daily` | `grid_daily` | Serie diaria |
-| GET | `/api/calendar/heatmap` | `grid_daily` | Mapa de celdas 0,05° |
+| GET | `/api/calendar/heatmap` | `grid_daily`, `v_detections_analysis` | Mapa de celdas 0,05° con hotspots por sensor |
 | GET | `/api/calendar/monthly` | `grid_daily`, `v_detections_analysis` | Agregacion mensual con celdas y hotspots |
 | GET | `/api/calendar/trend` | `grid_weekly` | Serie anual |
 | GET | `/api/calendar/export.csv` | `grid_weekly` | Descarga semanal |
