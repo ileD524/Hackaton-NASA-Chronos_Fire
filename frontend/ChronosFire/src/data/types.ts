@@ -1,4 +1,5 @@
 export type Metric = 'all' | 'MODIS' | 'VIIRS_SNPP' | 'VIIRS_NOAA20' | 'VIIRS_NOAA21'
+export type MetricMode = 'cells' | 'hotspots'
 export type Bbox = [number, number, number, number]
 export interface Filters { from: string; to: string; metric: Metric; bbox: Bbox | null }
 
@@ -23,6 +24,8 @@ export interface MonthCell {
   fire_cells: number
   fire_days: number
   n_detections: number
+  hotspots: number
+  hotspots_by_sensor: Record<string, number>
   data_status: string
   baseline_fire_cells: number | null
   anomaly: number | null
@@ -48,6 +51,8 @@ export interface DailyRow {
   fire_day: boolean
   n_detections: number
   sensors: string[]
+  hotspots: number
+  hotspots_by_sensor: Record<string, number>
   frp_max_mw: number | null
   frp_density_max_wm2: number | null
   data_status: string

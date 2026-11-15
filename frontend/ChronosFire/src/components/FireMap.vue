@@ -107,10 +107,10 @@ onBeforeUnmount(() => { controller?.abort(); resize?.disconnect(); map?.remove()
 <template>
 <section class="panel map-panel" id="mapa" aria-labelledby="mapa-title">
   <header class="map-head"><div><span class="section-kicker">ACTIVIDAD DEL MES</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><button class="chip" @click="emit('open-calendar')">Elegir otro mes ↗</button></header>
-  <div class="map-toolbar"><span v-if="data">{{format(data.total_hotspots)}} hotspots en {{format(data.shown_groups)}} celdas</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
+  <div class="map-toolbar"><span v-if="data">{{format(data.total_hotspots)}} hotspots en {{format(data.shown_groups)}} celdas mostradas</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
   <div class="map-canvas"><div ref="mapEl" class="map" role="region" aria-label="Mapa interactivo de celdas con actividad"></div><div v-if="busy" class="map-notice" role="status">Consultando el mes…</div><div v-if="error" class="map-notice" role="alert">{{error}}</div><div v-else-if="data&&!data.points.length" class="map-notice">No hay celdas con actividad en este mes y área.</div></div>
   <div class="map-legend"><span><i class="dot activity"></i>Celdas con actividad</span></div>
-  <footer class="map-foot"><p>Grilla de 0,05° (~5 km). El tamaño indica días con actividad; el calendario y el mapa usan la misma grilla. Los hotspots de distintos sensores no se suman como promedio.</p><p v-if="data">Se muestran {{format(data.shown_groups)}} celdas con mayor actividad de {{format(data.total_groups)}}.</p></footer>
+  <footer class="map-foot"><p>Grilla de 0,05° (~5 km). El mapa muestra hotspots; el calendario puede alternar entre celdas con actividad y hotspots. El tamaño indica días con actividad y los hotspots de distintos sensores no se suman como promedio.</p><p v-if="data">Se muestran hasta 5.000 celdas ordenadas por días con actividad; los totales corresponden a lo mostrado.{{ data.points.length >= 5000 ? ' Vista parcial: acotá el área o el mes para ver el resto.' : '' }}</p></footer>
 </section>
 </template>
 <style scoped>

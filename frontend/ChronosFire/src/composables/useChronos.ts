@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue'
-import type { CalendarData, DailyRow, Filters, Meta, MonthCell } from '@/data/types'
+import type { CalendarData, DailyRow, Filters, Meta, MetricMode, MonthCell } from '@/data/types'
 import { SERIES } from '@/data/types'
 
 interface ApiMonthly {
@@ -9,6 +9,8 @@ interface ApiMonthly {
   fireDays: number
   nDetections: number
   detectionsBySensor: Record<string, number>
+  hotspots: number
+  hotspotsBySensor: Record<string, number>
   partial: boolean
   dataStatus: string
   baselineFireCells: number | null
@@ -25,6 +27,8 @@ interface ApiDaily {
   fireDay: boolean
   nDetections: number
   sensors: string[]
+  hotspots: number
+  hotspotsBySensor: Record<string, number>
   frpMaxMw: number | null
   frpDensityMaxWm2: number | null
   source: string | null
@@ -43,6 +47,7 @@ const filters = ref<Filters>({
   metric: 'all',
   bbox: DELTA_BBOX,
 })
+const metricMode = ref<MetricMode>('cells')
 const calendar = ref<CalendarData | null>(null)
 const metadata = ref<Meta | null>(null)
 const loading = ref(false)
@@ -114,6 +119,8 @@ function monthCell(row: ApiMonthly): MonthCell {
     fire_cells: row.fireCells,
     fire_days: row.fireDays,
     n_detections: row.nDetections,
+    hotspots: row.hotspots ?? 0,
+    hotspots_by_sensor: row.hotspotsBySensor ?? {},
     data_status: row.dataStatus,
     baseline_fire_cells: row.baselineFireCells,
     anomaly: row.anomaly,
@@ -140,6 +147,8 @@ function aggregateDaily(rows: ApiDaily[], metric: Filters['metric']): DailyRow[]
         fire_day: false,
         n_detections: 0,
         sensors: [],
+        hotspots: 0,
+        hotspots_by_sensor: {},
         frp_max_mw: null,
         frp_density_max_wm2: null,
         data_status: 'observed',
@@ -157,6 +166,10 @@ function aggregateDaily(rows: ApiDaily[], metric: Filters['metric']): DailyRow[]
     }
     day.fire_day = day.fire_day || row.fireDay
     day.n_detections += row.nDetections
+    day.hotspots += row.hotspots ?? 0
+    for (const [sensor, value] of Object.entries(row.hotspotsBySensor ?? {})) {
+      day.hotspots_by_sensor[sensor] = (day.hotspots_by_sensor[sensor] ?? 0) + value
+    }
     day.frp_max_mw = Math.max(day.frp_max_mw ?? 0, row.frpMaxMw ?? 0) || null
     day.frp_density_max_wm2 = Math.max(day.frp_density_max_wm2 ?? 0, row.frpDensityMaxWm2 ?? 0) || null
     for (const sensor of row.sensors ?? []) day.sensorSet.add(sensor)
@@ -165,6 +178,15 @@ function aggregateDaily(rows: ApiDaily[], metric: Filters['metric']): DailyRow[]
     const { sensorSet, ...value } = day
     return { ...value, sensors: [...sensorSet].sort() }
   })
+}
+
+/**
+ * Valor de la metrica activa. Devuelve null cuando el mes no esta observado
+ * para no presentar "0 hotspots" como si hubiera ausencia de fuego.
+ */
+function metricValue(cell: MonthCell | null | undefined): number | null {
+  if (!cell || cell.data_status !== 'observed') return null
+  return metricMode.value === 'cells' ? cell.value : cell.hotspots
 }
 
 async function loadDaily() {
@@ -209,10 +231,11 @@ async function load(next: Filters = filters.value) {
     calendar.value = { ...next, months, daily: [], coverage_known: false }
     const currentSelection = selectedMonth.value
     const keep = currentSelection && months.some(
-      (m) => m.year === currentSelection.year && m.month === currentSelection.month && m.value !== null,
+      (m) => m.year === currentSelection.year && m.month === currentSelection.month && metricValue(m) !== null,
     )
     if (!keep) {
-      const peak = months.filter((m) => m.value !== null).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0]
+      const peak = months.filter((m) => metricValue(m) !== null)
+        .sort((a, b) => (metricValue(b) ?? 0) - (metricValue(a) ?? 0))[0]
       selectedMonth.value = peak ? { year: peak.year, month: peak.month } : null
     }
     await loadDaily()
@@ -254,7 +277,12 @@ const months = computed(() => calendar.value?.months ?? [])
 const selected = computed(() =>
   months.value.find((m) => m.year === selectedMonth.value?.year && m.month === selectedMonth.value?.month),
 )
-const valueField = computed(() => 'active_cells_selected' as const)
+const valueField = computed<'active_cells_selected' | 'hotspots'>(() =>
+  metricMode.value === 'cells' ? 'active_cells_selected' : 'hotspots')
+const metricLabel = computed(() =>
+  metricMode.value === 'cells' ? 'celdas con actividad' : 'hotspots detectados')
+const metricUnit = computed(() =>
+  metricMode.value === 'cells' ? 'celdas-mes con actividad' : 'hotspots detectados en el rango')
 const selectedDaily = computed(() => calendar.value?.daily ?? [])
 
 watch(selectedMonth, () => { void loadDaily() }, { deep: true })
@@ -272,6 +300,10 @@ export function useChronos() {
     selected,
     selectedDaily,
     valueField,
+    metricMode,
+    metricValue,
+    metricLabel,
+    metricUnit,
     seriesLabel: computed(() => SERIES[filters.value.metric]),
     areaLabel: computed(() => {
       const bbox = filters.value.bbox

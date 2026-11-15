@@ -417,6 +417,12 @@ hotspots → "hotspots detectados"
 
 **Dependencia:** B-02.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `metricMode` en `useChronos`; `MonthCell` y `DailyRow` incorporan `hotspots` y `hotspots_by_sensor`; `useCalendar` expone `metricValue()` y `metricLabel()` y recalcula cortes, totales y etiquetas. `FireCalendar` agrega el toggle, `KpiStrip` y `CalendarLegend` cambian de unidad, y `DailyDetail` usa `hotspotsBySensor` en modo hotspots. **La comparación histórica y la rampa de anomalía quedan solo en modo celdas**: no se implementó baseline de hotspots por decisión de valor/riesgo. En modo celdas la tabla diaria deja de atribuir celdas por sensor. Verificado en vivo: Delta 2020-09 `189` celdas y `6.628` hotspots; la suma diaria de hotspots coincide (`6.628`); `MODIS 704`, `VIIRS_SNPP 3.313`. `npm run build`, `npm run test:api` y `npm run test:browser` pasan.
+
+**Nota:** el plan original pedía que la comparación usara `metricValue`; se acotó a celdas para no comparar conteos de detecciones sin calibración. Queda como deuda explícita si se quisiera una anomalía de hotspots por sensor.
+
 ---
 
 ### F-03. Descarga de hotspots CSV
@@ -793,7 +799,7 @@ X-Truncated: false
 
 ### Cumplimiento del challenge
 
-- [ ] Calendario muestra hotspots además de celdas.
+- [x] Calendario muestra hotspots además de celdas.
 - [ ] Rango visible desde 2003 (o 2000) por defecto.
 - [ ] Selector de sensor disponible.
 - [x] Descarga de hotspots CSV desde la UI.

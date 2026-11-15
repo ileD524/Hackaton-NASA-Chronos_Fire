@@ -43,6 +43,27 @@ if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Err
 if (initialCsv.searchParams.get('from') !== '2012-01-01') throw new Error('CSV inicial sin fecha desde')
 await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
 
+// F-02: modo celdas / hotspots
+const augustCell = page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()
+const cellsValue = (await augustCell.textContent())?.trim()
+await page.getByRole('button', { name: 'Hotspots detectados', exact: true }).click()
+await expect(page.locator('.kpi-list')).toContainText('hotspots detectados en el rango')
+await expect(page.locator('.legend')).toContainText('Hotspots detectados · quintiles')
+await expect(page.getByRole('button', { name: 'Diferencia histórica', exact: true })).toHaveCount(0)
+await expect(page.locator('#calendario')).toContainText('La comparación histórica y la rampa de anomalía se calculan sobre celdas con actividad')
+await expect(page.locator('.comparison-number')).not.toContainText('%')
+const hotspotsValue = (await augustCell.textContent())?.trim()
+if (!cellsValue || !hotspotsValue || cellsValue === hotspotsValue) {
+  throw new Error(`el calendario no cambió de métrica: ${cellsValue} -> ${hotspotsValue}`)
+}
+await page.getByText('Ver valores diarios accesibles').click()
+await expect(page.locator('.daily-table thead')).toContainText('Hotspots MODIS')
+await expect(page.locator('.daily-table thead')).toContainText('Total hotspots')
+await page.getByRole('button', { name: 'Celdas con actividad', exact: true }).click()
+await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad')
+await expect(page.locator('.daily-table thead')).toContainText('Celdas con actividad')
+await expect(page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()).toHaveText(cellsValue)
+
 const downloadPromise = page.waitForEvent('download')
 await page.getByRole('link', { name: /Descargar hotspots CSV/ }).click()
 const download = await downloadPromise
@@ -114,6 +135,8 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
     'initial monthly calendar',
     'map hotspots by sensor',
     'CSV download with truncation notice',
+    'cells and hotspots metric toggle',
+    'hotspots daily table by sensor',
     'backend monthly anomaly',
     'hotspots CSV button follows active filters',
     'month selection updates map',

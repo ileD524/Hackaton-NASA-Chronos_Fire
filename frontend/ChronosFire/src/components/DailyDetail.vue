@@ -2,19 +2,26 @@
 import { computed } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import { useCalendar, format } from '@/composables/useCalendar'
-const { selected, selectedDaily, valueField, seriesLabel } = useChronos()
+import type { DailyRow } from '@/data/types'
+const { selected, selectedDaily, valueField, seriesLabel, metricMode } = useChronos()
 const { monthName } = useCalendar()
-const max = computed(() => Math.max(1, ...selectedDaily.value.map((d) => d[valueField.value] ?? 0)))
-const bars = computed(() => selectedDaily.value.map((d) => ({
-  date: d.date_utc,
-  value: d[valueField.value],
-  height: d[valueField.value] / max.value * 100,
-})))
+const max = computed(() => Math.max(1, ...selectedDaily.value.map((d) => Number(d[valueField.value] ?? 0))))
+const bars = computed(() => selectedDaily.value.map((d) => {
+  const value = Number(d[valueField.value] ?? 0)
+  return { date: d.date_utc, value, height: value / max.value * 100 }
+}))
+const dailyUnit = computed(() => metricMode.value === 'cells' ? 'celdas con actividad / día' : 'hotspots detectados / día')
+const barUnit = computed(() => metricMode.value === 'cells' ? 'celdas' : 'hotspots')
+function viirsHotspots(row: DailyRow) {
+  return Object.entries(row.hotspots_by_sensor ?? {})
+    .filter(([sensor]) => sensor.startsWith('VIIRS'))
+    .reduce((sum, [, value]) => sum + value, 0)
+}
 </script>
 <template>
-<section class="panel" aria-labelledby="daily-title"><header class="daily-head"><div><span class="section-kicker">ACERCARSE AL DETALLE</span><h2 class="panel-title" id="daily-title">{{selected?`${monthName(selected.month)} ${selected.year}`:'Detalle diario'}}</h2></div><span class="small-note">{{ seriesLabel }} · celdas con actividad / día</span></header>
-<div class="daily-chart" role="img" :aria-label="`Actividad diaria de ${selected?monthName(selected.month):'mes seleccionado'}`"><div class="day-column" v-for="bar in bars" :key="bar.date"><div class="bar-space"><span class="daily-bar" :style="{height:`${Math.max(bar.height,bar.value===0?1:2)}%`}" :title="`${bar.date}: ${format(bar.value)} celdas`"></span></div><span class="day-label">{{Number(bar.date.slice(-2))%5===0||bar.date.endsWith('01')?Number(bar.date.slice(-2)):''}}</span></div></div>
-<details><summary>Ver valores diarios accesibles</summary><div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>Fecha UTC</th><th>MODIS</th><th>VIIRS</th><th>Total</th></tr></thead><tbody><tr v-for="d in selectedDaily" :key="d.date_utc"><th scope="row">{{d.date_utc}}</th><td>{{format(d.active_cells_modis)}}</td><td>{{d.active_cells_viirs===null?'—':format(d.active_cells_viirs)}}</td><td>{{format(d.active_cells_union)}}</td></tr></tbody></table></div></details>
+<section class="panel" aria-labelledby="daily-title"><header class="daily-head"><div><span class="section-kicker">ACERCARSE AL DETALLE</span><h2 class="panel-title" id="daily-title">{{selected?`${monthName(selected.month)} ${selected.year}`:'Detalle diario'}}</h2></div><span class="small-note">{{ seriesLabel }} · {{ dailyUnit }}</span></header>
+<div class="daily-chart" role="img" :aria-label="`${metricMode === 'cells' ? 'Celdas con actividad' : 'Hotspots detectados'} por día en ${selected?monthName(selected.month):'el mes seleccionado'}`"><div class="day-column" v-for="bar in bars" :key="bar.date"><div class="bar-space"><span class="daily-bar" :style="{height:`${Math.max(bar.height,bar.value===0?1:2)}%`}" :title="`${bar.date}: ${format(bar.value)} ${barUnit}`"></span></div><span class="day-label">{{Number(bar.date.slice(-2))%5===0||bar.date.endsWith('01')?Number(bar.date.slice(-2)):''}}</span></div></div>
+<details><summary>Ver valores diarios accesibles</summary><div class="daily-table-wrap"><table class="daily-table"><caption class="sr-only">Serie diaria de {{ metricMode === 'cells' ? 'celdas con actividad' : 'hotspots detectados' }}; los hotspots por sensor no se suman entre sí como promedio.</caption><thead v-if="metricMode==='cells'"><tr><th>Fecha UTC</th><th>Celdas con actividad</th></tr></thead><thead v-else><tr><th>Fecha UTC</th><th>Hotspots MODIS</th><th>Hotspots VIIRS</th><th>Total hotspots</th></tr></thead><tbody><template v-for="d in selectedDaily" :key="d.date_utc"><tr v-if="metricMode==='cells'"><th scope="row">{{d.date_utc}}</th><td>{{format(d.active_cells_selected)}}</td></tr><tr v-else><th scope="row">{{d.date_utc}}</th><td>{{format(d.hotspots_by_sensor.MODIS ?? 0)}}</td><td>{{format(viirsHotspots(d))}}</td><td>{{format(d.hotspots)}}</td></tr></template></tbody></table></div></details>
 </section>
 </template>
 <style scoped>

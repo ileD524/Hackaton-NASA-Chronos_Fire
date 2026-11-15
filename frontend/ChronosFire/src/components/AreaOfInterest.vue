@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import type { Bbox } from '@/data/types'
-const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv } = useChronos()
+const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv, metricMode } = useChronos()
 const checkCalendarCsv = () => checkCsv(exportURL.value)
 const checkHotspotsCsv = () => checkCsv(hotspotsExportURL.value)
 const from = ref(filters.value.from), to = ref(filters.value.to)
@@ -78,7 +78,7 @@ function reset() {
     <p class="small-note export-note">Hasta 50.000 filas. Solo vegetación nominal/alta, sin focos industriales. Usa el área, el rango y el sensor activos.</p>
     <p v-if="csvNotice" class="small-note export-note" role="status">{{ csvNotice }}</p>
     <p v-if="csvError" class="small-note export-error" role="alert">{{ csvError }}</p>
-    <p class="small-note">Cero registros no confirma ausencia de fuego. El calendario usa todos los sensores; la capa de detalle conserva el desglose.</p>
+    <p class="small-note">Cero registros no confirma ausencia de fuego. {{ metricMode==='cells' ? 'La comparación histórica se calcula sobre celdas con actividad.' : 'Los hotspots son conteos de detecciones; la comparación histórica se calcula sobre celdas con actividad.' }}</p>
   </aside>
 </template>
 <style scoped>
