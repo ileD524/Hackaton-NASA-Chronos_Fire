@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useChronos } from '@/composables/useChronos'
+import { TIMELINE_START, useChronos } from '@/composables/useChronos'
 import { SENSOR_OPTIONS } from '@/data/types'
 import type { Bbox, Metric } from '@/data/types'
 const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv, metricMode } = useChronos()
@@ -10,12 +10,12 @@ const from = ref(filters.value.from), to = ref(filters.value.to)
 const sensor = ref<Metric>(filters.value.metric)
 const area = ref('delta'), west = ref(-61), south = ref(-34), east = ref(-59.5), north = ref(-32.5)
 const validation = ref('')
-const dateMin = computed(() => metadata.value?.first_date || undefined)
+const dateMin = computed(() => TIMELINE_START)
 const dateMax = computed(() => metadata.value?.last_date || undefined)
 const archiveLabel = computed(() => {
-  const first = metadata.value?.first_date?.slice(0, 4)
+  const first = TIMELINE_START.slice(0, 4)
   const last = metadata.value?.last_date?.slice(0, 4)
-  return first && last ? `Ver todo el archivo ${first}–${last}` : 'Ver todo el archivo'
+  return first && last ? `Ver todo el período ${first}–${last}` : 'Ver todo el período'
 })
 watch(filters, (f) => {
   from.value = f.from
@@ -51,7 +51,7 @@ function changeSensor() {
 }
 function reset() {
   area.value = 'all'
-  from.value = metadata.value?.first_date ?? ''
+  from.value = TIMELINE_START
   to.value = metadata.value?.last_date ?? ''
   apply()
 }

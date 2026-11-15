@@ -53,6 +53,9 @@ interface ApiMeta {
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
+// La serie histórica del calendario comienza en 2003. Los meses sin cobertura
+// permanecen visibles como "sin datos" en vez de ocultar años del período.
+export const TIMELINE_START = '2003-01-01'
 const filters = ref<Filters>({
   from: '',
   to: '',
@@ -321,7 +324,7 @@ async function initialize() {
       .filter((sensor) => sensor.sensor.startsWith('VIIRS') && sensor.from)
       .map((sensor) => sensor.from as string)
       .sort()[0] ?? ''
-    const from = meta.dateRange?.from ?? ''
+    const from = TIMELINE_START
     const to = meta.dateRange?.to ?? ''
     filters.value = { ...filters.value, from, to }
     metadata.value = {
