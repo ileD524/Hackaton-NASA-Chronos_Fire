@@ -30,7 +30,10 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | Esquema `ChronosFireDB.sql` | Aplicado |
 | `detections` | Cargada casi en su totalidad (~7,08 M de filas); verificar cobertura |
 | `grid_daily` | Construida (~2,1 M de filas) |
-| `calendar_weekly` | Construida (~0,78 M de filas) |
+| `grid_weekly` | Construida (~1,58 M de filas) |
+| `grid_weekly_sensor` | Construida (~2,27 M de filas) |
+| `calendar_weekly` | Corregida (~3,72 M de filas, 53 semanas/celda) |
+| `coverage_daily` | Esquema creado; población pendiente |
 | `v_detections_canonical` | Creada en PostgreSQL (política SP/NRT) |
 | `industrial_cells` | Creada (885 celdas, type=2) |
 | `v_detections_analysis` | Creada (canónica + máscara industrial) |
@@ -44,7 +47,10 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 |---|---|---|
 | `detections` | Una fila por sensor + píxel + instante | Detalle, filtros, GeoJSON |
 | `grid_daily` | Celda 0,05° × día | Calendario diario, heatmap |
-| `calendar_weekly` | Celda × semana ISO | Climatología y anomalías |
+| `grid_weekly` | Celda × isoyear × semana | Actividad observada |
+| `grid_weekly_sensor` | Celda × isoyear × semana × sensor | Baseline SNPP-only y detalle por sensor |
+| `calendar_weekly` | Celda × semana ISO (53) | Climatología corregida |
+| `coverage_daily` | Región/sensor/fecha | Cobertura (pendiente de datos) |
 | `ingest_runs` | Ejecución de carga | Auditoría (no se expone en el MVP) |
 | `v_latest_nrt` | Detecciones NRT de 7 días | Alertas |
 | `v_vegetation_detections` | Detecciones de vegetación | Análisis |
@@ -227,13 +233,15 @@ backend/
 |---|---|---|---|
 | GET | `/api/health` | `SELECT 1` | Alta |
 | GET | `/api/meta` | `detections` | Alta |
-| GET | `/api/calendar/weekly` | `grid_daily` + `calendar_weekly` | Alta |
+| GET | `/api/calendar/weekly` | `grid_weekly` + `grid_weekly_sensor` + `calendar_weekly` | Alta |
 | GET | `/api/calendar/daily` | `grid_daily` | Alta |
 | GET | `/api/calendar/heatmap` | `grid_daily` | Alta |
+| GET | `/api/calendar/export.csv` | `grid_weekly_sensor` | Alta |
 | GET | `/api/alerts` | `v_detections_analysis` (NRT) | Alta |
 | GET | `/api/alerts/geojson` | `v_detections_analysis` (NRT) | Alta |
 | GET | `/api/detections` | `v_detections_analysis` | Media |
 | GET | `/api/detections/geojson` | `v_detections_analysis` | Media |
+| GET | `/api/detections/export.csv` | `v_detections_analysis` | Media |
 
 ### Fuente de datos y política SP/NRT
 
@@ -269,26 +277,48 @@ days              (para alerts)
 
 ```json
 {
-  "week": 35,
-  "detections": 1234,
-  "fireCells": 87,
-  "frpSumMw": 4567.8,
-  "climatologyProbability": 0.12,
-  "expectedFireCells": 62.4,
-  "anomalyRatio": 1.39,
-  "reliable": true
+  "week": 40,
+  "fireCells": 66,
+  "baselineFireCells": 10,
+  "anomaly": 6.60,
+  "referenceYears": 12,
+  "baselineSensor": "VIIRS_SNPP",
+  "confidence": "high",
+  "provisional": false,
+  "detectionsBySensor": {
+    "MODIS": 0,
+    "VIIRS_SNPP": 120,
+    "VIIRS_NOAA20": 40
+  }
 }
 ```
 
 Cálculo:
 
 ```text
-expectedFireCells = climatologyProbability × n_cells_del_AOI
-anomalyRatio      = observedFireCells / expectedFireCells
-reliable          = n_years >= 5
+observedFireCells = count(distinct grid_id)
+                    where fire_cells = 1
+                      and isoyear = year
+                      and week_of_year = week
+                      and bbox
+
+baselineFireCells = median(observedFireCells)
+                    for referenceYears, excluding year
+
+anomaly = observedFireCells / baselineFireCells
 ```
 
-Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y `reliable = false`.
+Reglas:
+
+- Baseline con **mediana**, no media.
+- `referenceYears >= 7`; `>= 10` alta confianza.
+- `baselineFireCells >= 3`; `>= 10` alta confianza.
+- `observedFireCells >= 3`.
+- Si no cumple, `anomaly = null` y `confidence = "insufficient"`.
+- `baselineSensor`: `MODIS` (2003–2011) o `VIIRS_SNPP` (2013–2025).
+- `provisional`: `true` para 2026 o datos NRT.
+- No devolver `fire_day_prob` como probabilidad.
+- `detections` no es titular; si se incluye, va por sensor.
 
 ### Respuesta de alertas tempranas
 
@@ -314,7 +344,7 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
       "frpMaxMw": 52.3,
       "sensors": ["VIIRS_SNPP", "VIIRS_NOAA20"],
       "confidenceMax": "high",
-      "anomalyRatio": 1.8,
+      "aoiAnomaly": 1.8,
       "level": "warning"
     }
   ]
@@ -325,9 +355,9 @@ Si `expectedFireCells` es 0 o `n_years` es bajo, devolver `null` en anomalía y 
 
 | Nivel | Regla sugerida |
 |---|---|
-| `info` | 1–2 detecciones en la celda, sin anomalía |
-| `watch` | ≥ 3 detecciones o `anomalyRatio ≥ 1.5` |
-| `warning` | ≥ 10 detecciones o `anomalyRatio ≥ 2.0` o `frpMaxMw` alto |
+| `info` | 1–2 detecciones en la celda, sin anomalía de AOI |
+| `watch` | ≥ 3 detecciones o `aoiAnomaly >= 1,5` |
+| `warning` | ≥ 10 detecciones o `aoiAnomaly >= 2,0` o `frpMaxMw` alto |
 
 Los umbrales son configurables y deben ajustarse con la demo. No son una probabilidad.
 
@@ -359,7 +389,7 @@ ORDER BY detections DESC
 LIMIT :limit;
 ```
 
-La anomalía se calcula comparando la actividad reciente de la celda con `calendar_weekly` para la semana actual. Si `n_years < 5`, devolver `anomalyRatio = null`.
+La anomalía de alertas es **a nivel AOI**, calculada con `grid_weekly_sensor` y baseline SNPP-only para la semana actual. No se calcula por celda. Si `n_ref_years < 7`, devolver `aoiAnomaly = null`.
 
 ---
 
@@ -415,20 +445,20 @@ La anomalía se calcula comparando la actividad reciente de la celda con `calend
 ### Fase 3 — Calendario (4–6 h)
 
 - `CalendarRepository` con tres consultas:
-  1. **Weekly**: `grid_daily` + `calendar_weekly`, agrupado por semana.
+  1. **Weekly**: `grid_weekly` + `grid_weekly_sensor` + `calendar_weekly`.
   2. **Daily**: `grid_daily` agrupado por día.
   3. **Heatmap**: `grid_daily` agrupado por celda.
 - Los agregados se usan tal como están. Si se reconstruyen, deben generarse desde `v_detections_analysis` para respetar la política SP/NRT y la máscara industrial.
 - `CalendarService`:
   - Defaults de fechas.
   - Validación de bbox.
-  - Cálculo de anomalía.
-  - `reliable` según `n_years`.
+  - Cálculo de anomalía por AOI: observado vs mediana multianual.
+  - `confidence` según `n_ref_years` y `baseline`.
 - `CalendarController`.
 - Cache opcional por `(bbox, year)` si las consultas tardan.
 
 **Criterio de aceptación:**
-- `/api/calendar/weekly?year=2020` en el Delta devuelve la anomalía de 2020.
+- `/api/calendar/weekly?year=2020` en el Delta devuelve anomalía ≈ 6,6 en la semana 40.
 - Semanas sin datos devuelven `null`, no `0`.
 - Tiempo de respuesta < 1 s para un AOI típico.
 
@@ -465,9 +495,9 @@ Incluidas en el MVP, no como opcionales.
 - `AlertService`:
   - Agrupa por celda.
   - Calcula `detections`, `frpMaxMw`, `lastDetection`, `sensors`, `confidenceMax`.
-  - Calcula `anomalyRatio` contra `calendar_weekly` de la semana actual.
+  - Calcula `aoiAnomaly` contra el baseline SNPP-only de `grid_weekly_sensor`.
   - Asigna `level`: `info`, `watch`, `warning`.
-  - Si `n_years < 5`, `anomalyRatio = null`.
+  - Si `n_ref_years < 7`, `aoiAnomaly = null`.
 - `AlertController`:
   - `GET /api/alerts?days=7&bbox=...&limit=...`
   - `GET /api/alerts/geojson?days=7&bbox=...` (un `Point` por celda agrupada)
@@ -512,10 +542,12 @@ Incluidas en el MVP, no como opcionales.
 | Bbox | Validar y usar default Argentina |
 | Paginación | `limit`/`offset` con tope |
 | GeoJSON | `FeatureCollection` con `Point` |
-| Anomalía | Observado vs climatología; `reliable` por `n_years` |
+| Anomalía | Baseline por AOI: `fire_cells` observado vs **mediana** multianual |
+| Baseline | MODIS 2003–2011; VIIRS SNPP 2013–2025; 2012/2026 excluidos |
+| Umbral anomalía | `n_ref_years >= 7`; `baseline >= 3`; `observed >= 3` |
 | SP/NRT | Vista canónica: SP si existe para sensor/fecha; NRT en caso contrario |
 | Alertas | NRT no archivado, agrupado por celda, niveles `info/watch/warning` |
-| Volúmenes | `detections` ~7,08 M; `grid_daily` ~2,1 M; `calendar_weekly` ~0,78 M |
+| Volúmenes | `detections` ~7,08 M; `grid_daily` ~2,1 M; `grid_weekly` ~1,58 M; `grid_weekly_sensor` ~2,27 M; `calendar_weekly` ~3,72 M |
 | Semanas sin datos | `null`, no `0` |
 | Seguridad | Rol de solo lectura; secretos por entorno |
 | CORS | Configurable por `CORS_ORIGINS` |
@@ -590,9 +622,10 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 | SP/NRT solapados | Vista canónica `v_detections_canonical` |
 | SP parcial oculta NRT del día | Documentar; evaluar política por píxel en el futuro |
 | Alertas con falsos positivos | Confianza nominal/alta + máscara industrial |
-| Volumen de agregados | `grid_daily` ~2,1 M y `calendar_weekly` ~0,78 M: cachear y limitar consultas |
+| Volumen de agregados | `grid_daily` ~2,1 M; `grid_weekly` ~1,58 M; `calendar_weekly` ~3,72 M: cachear y limitar consultas |
 | Consultas lentas | Índices existentes; filtros de fecha/bbox; cache |
-| `n_years` bajo | Campo `reliable`; no mostrar anomalía |
+| `n_ref_years` bajo | No mostrar anomalía; `confidence` insuficiente |
+| Baseline inestable | Mediana; mínimo 3 celdas; excluir 2012/2026 |
 | Semanas faltantes | Devolver `null` y explicar en la UI |
 | Clave en el repo | `DB_PASSWORD` por entorno |
 | Bbox enorme | Limitar área o pedir confirmación |
@@ -609,14 +642,18 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 - [x] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
 - [x] `industrial_cells` existe (885 celdas) y cubre los focos conocidos.
 - [x] `v_detections_analysis` existe y marca `industrial_mask`.
-- [ ] `/api/calendar/weekly` devuelve calendario + anomalía.
+- [x] `grid_weekly` y `grid_weekly_sensor` construidos.
+- [x] `calendar_weekly` corregida, 53 semanas por celda.
+- [ ] `/api/calendar/weekly` devuelve `fireCells`, `baselineFireCells`, `anomaly`, `baselineSensor`, `confidence` y `detectionsBySensor`.
+- [ ] `/api/calendar/weekly` no expone `fire_day_prob` como probabilidad.
 - [ ] `/api/calendar/daily` devuelve serie diaria.
 - [ ] `/api/calendar/heatmap` devuelve celdas.
+- [ ] `/api/calendar/export.csv` y `/api/detections/export.csv` funcionan.
 - [ ] `/api/alerts` devuelve alertas agrupadas por celda, con nivel y última detección.
 - [ ] `/api/alerts` no muestra NRT si ya existe SP para ese sensor/fecha.
 - [ ] `/api/alerts` no muestra focos industriales.
 - [ ] `/api/detections` pagina, filtra y usa `v_detections_analysis`.
-- [ ] Consultas de calendario < 1 s para un AOI típico con ~2,1 M de filas en `grid_daily`.
+- [ ] Consultas de calendario < 1 s para un AOI típico con ~3,7 M de filas en `calendar_weekly`.
 - [ ] `/api/detections/geojson` es válido.
 - [ ] Errores 400/500 controlados.
 - [ ] CORS configurado.

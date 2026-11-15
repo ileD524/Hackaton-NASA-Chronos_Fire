@@ -55,18 +55,48 @@ implementar.
 
 ## Base de datos y ETL
 
-- Esquema: `db/ChronosFireDB.sql`
+- Esquema base: `db/ChronosFireDB.sql`
+- Corrección del calendario: `db/fix_calendar.sql` (una vez)
+- Actividad por sensor: `db/add_grid_weekly_sensor.sql` (una vez)
+- Rebuild del calendario: `db/rebuild_calendar.sql` (después de cada carga)
 - Máscara industrial: `db/build_industrial_mask.sql`
 - Carga con DuckDB: `../etl/load_pg.py`
 - Plan del backend: `PLAN_BACKEND.md`
 - Plan de armonización: `PLAN_ARMONIZACION.md`
 
-Orden recomendado:
+### Instalación nueva
 
 1. Aplicar `ChronosFireDB.sql`.
-2. Cargar detecciones con `etl/load_pg.py`.
-3. Construir `industrial_cells` con `build_industrial_mask.sql`.
-4. Reconstruir agregados con `etl/load_pg.py --aggregates`.
+2. Aplicar `fix_calendar.sql`.
+3. Aplicar `add_grid_weekly_sensor.sql`.
+4. Cargar detecciones:
+   ```powershell
+   python etl\load_pg.py --truncate
+   ```
+5. Construir máscara y `grid_daily`:
+   ```powershell
+   python etl\load_pg.py --only __none__ --aggregates
+   ```
+6. Reconstruir el calendario:
+   ```powershell
+   & "C:\Program Files\PostgreSQL\17\bin\psql.exe" `
+     -h 127.0.0.1 -p 5432 -U postgres -d chronos_fire `
+     -f backend\db\rebuild_calendar.sql
+   ```
+
+### Base ya existente
+
+Si el esquema y las migraciones ya están aplicados, después de cada carga:
+
+```powershell
+python etl\load_pg.py --truncate --aggregates
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" `
+  -h 127.0.0.1 -p 5432 -U postgres -d chronos_fire `
+  -f backend\db\rebuild_calendar.sql
+```
+
+`--aggregates` ya no reconstruye `calendar_weekly`; solo máscara y `grid_daily`.
+El calendario se reconstruye con `rebuild_calendar.sql` para aplicar 53 semanas y baseline por sensor.
 
 El backend solo consulta la base; la carga sigue siendo responsabilidad del
 ETL con DuckDB.

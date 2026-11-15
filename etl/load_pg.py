@@ -207,25 +207,7 @@ def aggregates(con):
     GROUP BY 1,2,3,4
     """)
     print(f"  grid_daily: {con.execute('SELECT count(*) FROM pg.grid_daily').fetchone()[0]:,} filas ({time.time()-t0:.1f}s)")
-
-    t0 = time.time()
-    print("Construyendo calendar_weekly (climatologia)...")
-    con.execute("TRUNCATE pg.calendar_weekly")
-    con.execute("""
-    INSERT INTO pg.calendar_weekly
-    SELECT
-      grid_id,
-      min(cell_lat)::double precision AS cell_lat,
-      min(cell_lon)::double precision AS cell_lon,
-      CAST(extract(week FROM day) AS SMALLINT) AS week_of_year,
-      count(DISTINCT extract(year FROM day))::int AS n_years,
-      avg(fire_day::int)::real AS fire_day_prob,
-      percentile_cont(0.5) WITHIN GROUP (ORDER BY frp_sum_mw)::real AS frp_p50,
-      percentile_cont(0.9) WITHIN GROUP (ORDER BY frp_sum_mw)::real AS frp_p90
-    FROM pg.grid_daily
-    GROUP BY 1, 4
-    """)
-    print(f"  calendar_weekly: {con.execute('SELECT count(*) FROM pg.calendar_weekly').fetchone()[0]:,} filas ({time.time()-t0:.1f}s)")
+    print("  calendar_weekly: ejecutar backend/db/rebuild_calendar.sql para reconstruir el calendario corregido.")
 
 
 def main():

@@ -4,7 +4,7 @@
 **Objetivo:** armonizar las detecciones MODIS y VIIRS lo suficiente para construir un calendario de actividad de fuego comparable, reproducible y defendible.  
 **Base:** PostgreSQL 17, `chronos_fire`  
 **Cobertura:** Argentina, 2000–2026  
-**Estado:** implementación parcial. 6.2 (SP/NRT) y 6.3 (máscara industrial) implementados en PostgreSQL.
+**Estado:** implementación parcial. 6.2 (SP/NRT), 6.3 (máscara industrial) y corrección C0–C2 del calendario implementados en PostgreSQL.
 
 ---
 
@@ -284,45 +284,17 @@ cell_lon = round(lon/0.05) * 0.05
 ### 6.5 Armonización temporal
 
 - Día UTC (`acq_date`).
-- Semana ISO (`extract(week from day)`).
-- 53 semanas por celda.
-- Semanas sin datos → `NULL`, no `0`.
-- `n_years` indica sobre cuántos años se calculó la probabilidad.
-- `reliable = n_years >= 5`.
+- Semana ISO con **`isoyear`**, no año calendario.
+- **53 semanas por celda** en `calendar_weekly`.
+- `grid_weekly`: actividad observada por celda / isoyear / semana.
+- `grid_weekly_sensor`: actividad por celda / isoyear / semana / sensor.
+- `n_fire_years`: años con `fire_day`.
+- `n_activity_years`: años con alguna detección.
+- `n_data_years`: años con cobertura; queda `NULL` hasta cargar `coverage_daily`.
+- La confiabilidad de la anomalía se calcula por AOI con `n_ref_years`, no por celda.
 
-**Completar calendario:**
-
-```sql
-WITH grids AS (
-    SELECT DISTINCT grid_id, cell_lat, cell_lon FROM grid_daily
-),
-weeks AS (
-    SELECT generate_series(1, 53) AS week_of_year
-),
-observed AS (
-    SELECT grid_id,
-           extract(week FROM day)::smallint AS week_of_year,
-           count(DISTINCT extract(year FROM day))::int AS n_years,
-           avg(fire_day::int)::real AS fire_day_prob,
-           percentile_cont(0.5) WITHIN GROUP (ORDER BY frp_sum_mw)::real AS frp_p50,
-           percentile_cont(0.9) WITHIN GROUP (ORDER BY frp_sum_mw)::real AS frp_p90
-    FROM grid_daily
-    GROUP BY 1, 2
-)
-SELECT g.grid_id, g.cell_lat, g.cell_lon,
-       w.week_of_year,
-       o.n_years,
-       o.fire_day_prob,
-       o.frp_p50,
-       o.frp_p90
-FROM grids g
-CROSS JOIN weeks w
-LEFT JOIN observed o
-  ON o.grid_id = g.grid_id
- AND o.week_of_year = w.week_of_year;
-```
-
-**Estado:** 🟡 parcial; hoy solo se guardan semanas observadas.
+**Implementado:** `calendar_weekly` tiene 3.719.116 filas, 53 semanas para 70.172 celdas.  
+**Pendiente:** `n_data_years` y `coverage_daily` (proxy de cobertura).
 
 ---
 
@@ -342,37 +314,96 @@ LEFT JOIN observed o
 **`grid_daily`:**
 
 ```sql
-fire_day = bool_or(veg_ok AND conf_ok)
+fire_day = bool_or(veg_and_conf)
 ```
 
-donde:
+**`grid_weekly` / `grid_weekly_sensor`:**
 
-```sql
-veg_ok  = (is_vegetation IS TRUE OR is_vegetation IS NULL)
-conf_ok = confidence_class IN ('nominal','high')
+```text
+fire_days        = días con fire_day en la celda/semana
+fire_cells       = 1 si fire_days > 0
+n_detections     = todas las detecciones de la celda/semana
+detections_by_sensor = JSONB por sensor
+frp_by_sensor    = JSONB por sensor (vegetación confiable)
 ```
-
-Con la máscara industrial, `veg_ok` debe excluir las detecciones NRT marcadas como industriales.
 
 **`calendar_weekly`:**
 
-```sql
-fire_day_prob = avg(fire_day::int)
-n_years       = count(DISTINCT year)
-frp_p50/p90   = percentiles de frp_sum_mw
+```text
+fire_day_rate_given_detection = sum(fire_days) / sum(detection_days)
+n_fire_years                  = años con fire_cells = 1
+n_activity_years              = años con alguna detección
+n_data_years                  = años con cobertura (NULL hasta coverage_daily)
+fire_days_mean                = promedio de fire_days por año con actividad
+provisional_share             = proporción de años con NRT
 ```
 
-**Anomalía:**
+`fire_day_rate_given_detection` **no es una probabilidad de fuego**: mide la proporción de días con detección que además tienen fuego de vegetación confiable.
+
+**Anomalía por AOI:**
 
 ```text
-expected = fire_day_prob * n_cells_del_AOI
-anomaly  = observed_fire_cells / expected
-reliable = n_years >= 5 AND expected >= 1
+observed(year, week) = count(distinct grid_id)
+                       where fire_cells = 1
+                         and isoyear = year
+                         and week_of_year = week
+                         and bbox
+
+baseline(week) = median(observed(y, week))
+                 for y in reference_years, y != evaluated_year
+
+anomaly = observed(year, week) / baseline(week)
 ```
 
-Si `expected` es muy bajo, no mostrar anomalía.
+Reglas:
 
-**Estado:** ✅ base implementada; 🟡 faltan semanas completas y máscara industrial.
+- Baseline con **mediana**, no media.
+- `n_ref_years >= 7` para mostrar; `>= 10` alta confianza.
+- `baseline >= 3`; si es menor, no mostrar.
+- `observed >= 3`; si es menor, no mostrar.
+- Si se evalúa 2026, marcar `provisional = true`.
+
+**Estado:** ✅ base corregida en PostgreSQL (`grid_weekly`, `grid_weekly_sensor`, `calendar_weekly`).  
+**Pendiente:** API con baseline por AOI, `coverage_daily` y validación formal MODIS/VIIRS.
+
+---
+
+### 6.7.1 Decisiones C0 para el baseline
+
+| Era | Años de referencia | Sensor del baseline |
+|---|---|---|
+| MODIS | 2003–2011 | MODIS |
+| Transición | — | 2012: sin anomalía |
+| VIIRS consistente | 2013–2025 | **VIIRS SNPP solamente** |
+| Provisional | 2013–2025 | SNPP; 2026 se evalúa como provisional |
+
+**Exclusiones:**
+
+- 2000–2002: MODIS en spin-up.
+- 2012: transición a VIIRS.
+- 2026: NRT provisional.
+- El año evaluado se excluye del baseline (leave-one-out).
+- 2018 y 2023 solo se excluyen si se usa “todos los VIIRS”; con SNPP-only no hace falta.
+
+**Umbrales:**
+
+- `n_ref_years >= 7`; `>= 10` alta confianza.
+- `baseline_fire_cells >= 3`; `>= 10` alta confianza.
+- `observed_fire_cells >= 3`.
+- `n_cells_aoi >= 10`.
+- Mediana, no media.
+
+**Validación ya realizada:**
+
+| Caso | Observado | Baseline mediana | n_ref | Anomalía |
+|---|---:|---:|---:|---:|
+| Delta 2020, semana 40 | 66 | 10 | 12 | **6,60** |
+| Corrientes 2022, semanas 2–7 | 193–392 | 11–36,5 | 11–12 | **10,7–20,2** |
+| Salta 2013, semana 37 | 164 | 84 | 9 | **1,95** |
+| Córdoba 2013, semana 37 | 86 | 7 | 9 | **12,29** |
+| La Pampa 2017, semana 1 | 311 | 3,5 | 12 | **88,86** (confianza baja) |
+
+La Pampa queda con confianza baja por baseline 3,5; el valor se muestra con advertencia.
 
 ---
 
@@ -385,7 +416,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 - Duplicados exactos.
 - Solapamiento SP/NRT.
 - Porcentaje de `fire_day` por semana.
-- `n_years` por celda.
+- `n_fire_years` y `n_activity_years` por celda.
 
 #### Validación con eventos conocidos
 
@@ -405,7 +436,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 - Comparar:
   - ranking de semanas,
   - correlación de Spearman,
-  - diferencias en `fire_day_prob`.
+  - diferencias en `fire_cells` y `fire_day_rate_given_detection`.
 - Si las tres versiones coinciden en los períodos críticos, la armonización es robusta para el calendario.
 
 #### Coincidencia espacial
@@ -451,18 +482,19 @@ Si `expected` es muy bajo, no mostrar anomalía.
 1. ✅ Crear `v_detections_canonical` (hecho).
 2. ✅ Construir `industrial_cells` desde SP (hecho: 885 celdas).
 3. ✅ Aplicar la máscara a NRT vía `v_detections_analysis` (hecho).
-4. ✅ Reconstruir `grid_daily` y `calendar_weekly` desde la vista (hecho).
-5. Completar las 53 semanas.
-6. Agregar `n_years` y `reliable`.
+4. ✅ Reconstruir `grid_daily`, `grid_weekly`, `grid_weekly_sensor` y `calendar_weekly` (hecho).
+5. ✅ Completar las 53 semanas (hecho: 3.719.116 filas).
+6. ✅ Agregar `n_fire_years`, `n_activity_years`, `n_data_years`, `fire_days_mean`, `provisional_share`.
+   - `n_data_years` queda `NULL` hasta cargar `coverage_daily`.
 
 **Entregable:** calendario consistente, sin industriales en NRT, sin semanas faltantes.
 
 ### H2 — Validación (1–2 días)
 
-1. Validar eventos conocidos.
-2. Comparar MODIS-only vs VIIRS-only vs ambos.
-3. Calcular coincidencia espacial.
-4. Documentar resultados y limitaciones.
+1. ✅ Validar eventos conocidos: Delta 2020, Corrientes 2022, Salta/Córdoba 2013 y La Pampa 2017.
+2. ⏳ Comparar MODIS-only vs VIIRS-only vs ambos.
+3. ⏳ Calcular coincidencia espacial.
+4. 🟡 Documentar resultados y limitaciones (parcial: baseline y eventos ya documentados).
 
 **Entregable:** informe de validación y métricas.
 
@@ -486,17 +518,17 @@ Si `expected` es muy bajo, no mostrar anomalía.
 
 ## 8. Criterios de aceptación
 
-- [ ] Las 8 fuentes están presentes o su ausencia está documentada.
-- [ ] No hay duplicados exactos.
-- [ ] No hay solapamiento SP/NRT sin resolver.
+- [x] Las 8 fuentes están presentes o su ausencia está documentada.
+- [x] No hay duplicados exactos.
+- [x] No hay solapamiento SP/NRT sin resolver.
 - [x] `v_detections_canonical` devuelve una sola fuente por sensor/fecha.
 - [x] `industrial_cells` cubre los focos industriales conocidos.
 - [x] NRT industrial no marca `fire_day`.
-- [ ] `calendar_weekly` tiene 53 semanas por celda (con `NULL` donde falta).
-- [ ] `fire_day_prob` y `n_years` son consistentes.
-- [ ] Los eventos 2020, 2022, 2013 y 2017 aparecen en el calendario.
+- [x] `calendar_weekly` tiene 53 semanas por celda (con `NULL` donde falta).
+- [x] `fire_day_prob` renombrada a `fire_day_rate_given_detection`; `n_fire_years` y `n_activity_years` separados.
+- [x] Los eventos 2020, 2022, 2013 y 2017 aparecen en el calendario con anomalía > 1.
 - [ ] MODIS-only y VIIRS-only coinciden en los períodos críticos.
-- [ ] Las limitaciones están documentadas.
+- [ ] Las limitaciones están documentadas por completo (coverage y validación pendientes).
 
 ---
 
@@ -507,11 +539,11 @@ Si `expected` es muy bajo, no mostrar anomalía.
 | Cobertura de fuentes | 8/8 o justificar faltantes |
 | Duplicados exactos | 0 |
 | Solapamiento SP/NRT sin resolver | 0 |
-| Celdas con 53 semanas | 100% |
-| Celdas con `n_years >= 5` | Reportar % |
-| Coincidencia MODIS/VIIRS | Reportar % |
-| Eventos conocidos detectados | 4/4 |
-| Diferencia de ranking MODIS vs VIIRS | Spearman > 0,8 (deseable) |
+| Celdas con 53 semanas | 100% ✅ |
+| Celdas con `n_fire_years >= 7` | Reportar % (hoy 18.516 filas) |
+| Coincidencia MODIS/VIIRS | Reportar % (pendiente) |
+| Eventos conocidos con anomalía > 1 | 4/4 ✅ |
+| Baseline mínimo | `n_ref_years >= 7`; `baseline >= 3` |
 
 ---
 
@@ -526,7 +558,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 | FRP no comparable | Medio | Alta | `frp_density`; no sumar FRP crudo |
 | Grilla 0,05° diluye fuegos pequeños | Medio | Media | Sensibilidad 0,05 vs 0,1 |
 | Semanas faltantes | Medio | Alta | Generar 53 semanas con `NULL` |
-| `n_years` bajo → anomalía falsa | Alto | Media | `reliable = n_years >= 5` |
+| `n_ref_years` bajo → anomalía falsa | Alto | Media | `n_ref_years >= 7`; no mostrar anomalía |
 | Huecos de cobertura interpretados como cero | Alto | Alta | `NULL` + banderas de cobertura |
 | Nubosidad no disponible | Medio | Alta | Documentar; no imputar |
 | Zona horaria | Bajo | Baja | UTC en toda la cadena |
@@ -542,7 +574,7 @@ Si `expected` es muy bajo, no mostrar anomalía.
 1. **Grilla:** 0,05° (actual) o 0,1° para mayor estabilidad.
 2. **Confianza:** usar `nominal + high` o solo `high`.
 3. **Máscara industrial:** umbral de 10 detecciones/3 años o más conservador.
-4. **`n_years` mínimo:** 5 años.
+4. **`n_ref_years` mínimo:** 7 años (alta confianza ≥ 10).
 5. **SP/NRT:** política por fecha (actual) o por píxel (futuro).
 6. **NRT en calendario:** incluirlo con la vista canónica o solo SP.
 7. **Eventos:** clustering en el MVP o después.
