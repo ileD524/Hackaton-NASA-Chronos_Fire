@@ -68,8 +68,31 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
     <div class="hero-mark" aria-hidden="true">
       <svg class="hero-orbit" viewBox="0 0 100 100">
         <defs>
-          <path id="hero-orbit-track" d="M4 52A46 17 0 1 0 96 52A46 17 0 1 0 4 52" />
+          <path id="hero-orbit-track" d="M90.62 30.4A46 17 -28 0 1 9.38 73.6A46 17 -28 0 1 90.62 30.4" />
+          <!-- Recorte con la forma de la V: sólo se activa mientras el hotspot va por la mitad lejana. -->
+          <mask id="hero-v-mask" maskUnits="userSpaceOnUse" x="-12" y="-12" width="124" height="124">
+            <rect x="-12" y="-12" width="124" height="124" fill="#FFFFFF" />
+            <path
+              d="M22 26L50 80L78 26"
+              fill="none"
+              stroke="#000000"
+              stroke-width="10"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <animate
+                attributeName="stroke-opacity"
+                values="0;0;1;1;0"
+                keyTimes="0;0.475;0.525;0.975;1"
+                dur="20s"
+                repeatCount="indefinite"
+              />
+            </path>
+          </mask>
         </defs>
+
+        <!-- Mitad lejana de la órbita: se dibuja antes de la V y queda tapada por ella. -->
+        <path class="hero-orbit-ring" d="M90.62 30.4A46 17 -28 0 0 9.38 73.6" />
 
         <path
           d="M22 26L50 80L78 26"
@@ -79,24 +102,26 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
           stroke-linecap="round"
           stroke-linejoin="round"
         />
-        <ellipse
-          cx="50"
-          cy="52"
-          rx="46"
-          ry="17"
-          transform="rotate(-28 50 52)"
-          fill="none"
-          stroke="#2E96F5"
-          stroke-width="1.8"
-          opacity="0.85"
-        />
 
+        <!-- Mitad cercana: se dibuja después de la V y la cruza por delante. -->
+        <path class="hero-orbit-ring" d="M90.62 30.4A46 17 -28 0 1 9.38 73.6" />
+
+        <!-- Un solo hotspot: siempre encima, recortado por la V cuando pasa por atrás.
+             La máscara va en el <g> (sin transformar) para que comparta el espacio de la V;
+             si se aplica al círculo, animateMotion desplaza también el recorte. -->
         <circle v-if="reduceMotion" cx="84" cy="30" r="5.5" fill="#E43700" />
-        <g v-else transform="rotate(-28 50 52)">
+        <g v-else mask="url(#hero-v-mask)">
           <circle class="hero-orbit-dot" r="5.5" fill="#E43700">
             <animateMotion dur="20s" repeatCount="indefinite">
               <mpath href="#hero-orbit-track" />
             </animateMotion>
+            <animate
+              attributeName="r"
+              values="5.5;5.1;5.5;5.9;5.5"
+              keyTimes="0;0.25;0.5;0.75;1"
+              dur="20s"
+              repeatCount="indefinite"
+            />
           </circle>
         </g>
       </svg>
@@ -228,6 +253,13 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
   width: 100%;
   height: auto;
   overflow: visible;
+}
+
+.hero-orbit-ring {
+  fill: none;
+  stroke: #2E96F5;
+  stroke-width: 1.8;
+  opacity: 0.85;
 }
 
 .hero-orbit-dot {
