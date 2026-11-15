@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 
-export type RampId = 'sequential' | 'anomaly'
+export type RampId = 'sequential' | 'risk' | 'anomaly'
 
 const rampId = ref<RampId>('sequential')
 
@@ -43,6 +43,39 @@ export function anomalyBand(delta: number | null): AnomalyBand {
   return ANOMALY_BANDS.find((band) => delta <= band.upTo) ?? ANOMALY_BANDS[4]!
 }
 
+/**
+ * Escala de probabilidad histórica con cortes fijos (0–1, 1–3, 3–8, 8–20 y
+ * >=20 %). A diferencia de los quintiles de hotspots, los cortes no dependen
+ * de las celdas mostradas: dos meses o dos áreas son comparables.
+ * La rampa (púrpura -> rojo -> amarillo) es perceptualmente ordenada y
+ * distinguible de Viridis, que queda reservada al volumen.
+ */
+export interface RiskBand {
+  id: 'very-low' | 'low' | 'moderate' | 'high' | 'very-high'
+  bg: string
+  label: string
+  upTo: number
+}
+
+export const RISK_BANDS: RiskBand[] = [
+  { id: 'very-low', bg: '#2E2150', label: '< 1 %', upTo: 0.01 },
+  { id: 'low', bg: '#5B2A78', label: '1–3 %', upTo: 0.03 },
+  { id: 'moderate', bg: '#9C2A6E', label: '3–8 %', upTo: 0.08 },
+  { id: 'high', bg: '#DC5A4E', label: '8–20 %', upTo: 0.20 },
+  { id: 'very-high', bg: '#FDE725', label: '≥ 20 %', upTo: Infinity },
+]
+
+export const RISK_STOPS = RISK_BANDS.map((band) => band.bg)
+export const RISK_CUTS_LABEL = '0–1 %, 1–3 %, 3–8 %, 8–20 %, ≥ 20 %'
+/** Celdas sin respaldo histórico (`insufficient`) o sin tabla de riesgo. */
+export const NO_RISK_COLOR = '#5A6B8C'
+
+/** Banda de riesgo para una probabilidad (0,05 = 5 %); null si no hay dato. */
+export function riskBand(probability: number | null): RiskBand | null {
+  if (probability === null || Number.isNaN(probability)) return null
+  return RISK_BANDS.find((band) => probability < band.upTo) ?? RISK_BANDS[4]!
+}
+
 export function luminance(hex: string) {
   const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(n => n <= .04045 ? n / 12.92 : ((n + .055) / 1.055) ** 2.4)
   return .2126 * rgb[0]! + .7152 * rgb[1]! + .0722 * rgb[2]!
@@ -57,5 +90,14 @@ export function textOn(bg: string) { return contrast(bg, '#07173F') > contrast(b
 export function colorAt(bucket: number) { return SEQUENTIAL_STOPS[Math.min(4, Math.max(0, Math.round(bucket)))]! }
 
 export function useColorRamp() {
-  return { rampId, colorAt, textOn, label: (id: RampId) => id === 'sequential' ? 'Volumen observado' : 'Diferencia frente a la mediana' }
+  return {
+    rampId,
+    colorAt,
+    textOn,
+    label: (id: RampId) => id === 'sequential'
+      ? 'Volumen observado'
+      : id === 'risk'
+        ? 'Probabilidad histórica'
+        : 'Diferencia frente a la mediana',
+  }
 }
