@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import type { CalendarData, DailyRow, Filters, Meta, MetricMode, MonthCell } from '@/data/types'
 import { SERIES } from '@/data/types'
+import { apiUrl } from '@/api'
 
 interface ApiMonthly {
   year: number
@@ -100,7 +101,7 @@ export function hotspotsParams(f: Filters): URLSearchParams {
 }
 
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+  const response = await fetch(apiUrl(url), { signal })
   const result = await response.json()
   if (!response.ok) throw new Error(result?.error || result?.message || 'No se pudo cargar la consulta.')
   return result as T
@@ -378,8 +379,8 @@ export function useChronos() {
     csvError,
     csvChecking,
     checkCsv,
-    exportURL: computed(() => `/api/calendar/export.csv?${params(filters.value)}`),
-    hotspotsExportURL: computed(() => `/api/detections/export.csv?${hotspotsParams(filters.value)}`),
+    exportURL: computed(() => apiUrl(`/api/calendar/export.csv?${params(filters.value)}`)),
+    hotspotsExportURL: computed(() => apiUrl(`/api/detections/export.csv?${hotspotsParams(filters.value)}`)),
   }
 }
 
