@@ -3,7 +3,7 @@
 **Proyecto:** Hackaton NASA Chronos Fire  
 **Base de datos:** PostgreSQL 17, `chronos_fire`  
 **Stack:** Java 21+, Spring Boot 3.x, JDBC (`NamedParameterJdbcTemplate`)  
-**Estado:** planificación. El backend todavía no está implementado.
+**Estado:** backend fases 0-5 y frontend fase 6 completados. Contrato OpenAPI, calendario, detecciones, GeoJSON, CSV, alertas, AOIs y validación. Ver `CONTRATO_API.md`.
 
 ---
 
@@ -37,7 +37,7 @@ El backend **no carga datos**: la carga sigue siendo responsabilidad del ETL con
 | `v_detections_canonical` | Creada en PostgreSQL (política SP/NRT) |
 | `industrial_cells` | Creada (885 celdas, type=2) |
 | `v_detections_analysis` | Creada (canónica + máscara industrial) |
-| Backend Java | No implementado |
+| Backend Java | Fases 0-5: contrato, calendario, detecciones, GeoJSON, CSV, alertas, AOIs y validación |
 | `application.properties` | Existe y apunta a `chronos_fire` |
 | ETL DuckDB | `etl/load_pg.py` |
 
@@ -236,6 +236,8 @@ backend/
 | GET | `/api/calendar/weekly` | `grid_weekly` + `grid_weekly_sensor` + `calendar_weekly` | Alta |
 | GET | `/api/calendar/daily` | `grid_daily` | Alta |
 | GET | `/api/calendar/heatmap` | `grid_daily` | Alta |
+| GET | `/api/calendar/monthly` | `grid_daily` + `detections` | Alta |
+| GET | `/api/calendar/trend` | `grid_weekly_sensor` | Alta |
 | GET | `/api/calendar/export.csv` | `grid_weekly_sensor` | Alta |
 | GET | `/api/alerts` | `v_detections_analysis` (NRT) | Alta |
 | GET | `/api/alerts/geojson` | `v_detections_analysis` (NRT) | Alta |
@@ -636,25 +638,29 @@ En el backend, además, se puede pedir `source=SP` o `source=NRT` explícitament
 
 ## 10. Definition of Done del MVP
 
-- [ ] `mvn spring-boot:run` funciona.
-- [ ] `/api/health` devuelve `database: true`.
-- [ ] `/api/meta` devuelve cobertura por sensor/fuente.
+- [x] `mvn spring-boot:run` funciona.
+- [x] `/api/health` devuelve `database: true`.
+- [x] `/api/meta` devuelve cobertura por sensor/fuente.
 - [x] `v_detections_canonical` existe y respeta SP > NRT por sensor/fecha.
 - [x] `industrial_cells` existe (885 celdas) y cubre los focos conocidos.
 - [x] `v_detections_analysis` existe y marca `industrial_mask`.
 - [x] `grid_weekly` y `grid_weekly_sensor` construidos.
 - [x] `calendar_weekly` corregida, 53 semanas por celda.
-- [ ] `/api/calendar/weekly` devuelve `fireCells`, `baselineFireCells`, `anomaly`, `baselineSensor`, `confidence` y `detectionsBySensor`.
-- [ ] `/api/calendar/weekly` no expone `fire_day_prob` como probabilidad.
-- [ ] `/api/calendar/daily` devuelve serie diaria.
-- [ ] `/api/calendar/heatmap` devuelve celdas.
-- [ ] `/api/calendar/export.csv` y `/api/detections/export.csv` funcionan.
-- [ ] `/api/alerts` devuelve alertas agrupadas por celda, con nivel y última detección.
-- [ ] `/api/alerts` no muestra NRT si ya existe SP para ese sensor/fecha.
-- [ ] `/api/alerts` no muestra focos industriales.
-- [ ] `/api/detections` pagina, filtra y usa `v_detections_analysis`.
+- [x] `/api/calendar/weekly` devuelve `fireCells`, `baselineFireCells`, `anomaly`, `baselineSensor`, `confidence` y `detectionsBySensor`.
+- [x] `/api/calendar/weekly` no expone `fire_day_prob` como probabilidad.
+- [x] `/api/calendar/daily` devuelve serie diaria.
+- [x] `/api/calendar/heatmap` devuelve celdas.
+- [x] `/api/calendar/monthly` devuelve meses con `partial` y `dataStatus`.
+- [x] `/api/calendar/trend` devuelve serie anual con baseline.
+- [x] `/api/calendar/export.csv` y `/api/detections/export.csv` funcionan.
+- [x] `/api/alerts` devuelve alertas agrupadas por celda, con nivel y última detección.
+- [x] `/api/alerts` no muestra NRT si ya existe SP para ese sensor/fecha.
+- [x] `/api/alerts` no muestra focos industriales.
+- [x] `/api/aois` devuelve el catálogo de AOIs y sus ventanas.
+- [x] `/api/validation` devuelve los eventos conocidos con anomalía y veredicto.
+- [x] `/api/detections` pagina, filtra y usa `v_detections_analysis`.
 - [ ] Consultas de calendario < 1 s para un AOI típico con ~3,7 M de filas en `calendar_weekly`.
-- [ ] `/api/detections/geojson` es válido.
+- [x] `/api/detections/geojson` es válido.
 - [ ] Errores 400/500 controlados.
 - [ ] CORS configurado.
 - [ ] Sin credenciales en el repo.

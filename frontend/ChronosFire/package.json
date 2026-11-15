@@ -10,6 +10,7 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "start": "bash run-local.sh",
+    "test:api": "node tests/api-contract.mjs",
     "test:browser": "node tests/browser.mjs"
   },
   "dependencies": {

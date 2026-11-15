@@ -50,6 +50,20 @@ htmlcov/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
+# ---------- Java ----------
+*.class
+*.ctxt
+*.jar
+*.war
+*.ear
+*.nar
+.mtj.tmp/
+hs_err_pid*
+replay_pid*
+target/
+.gradle/
+!**/gradle/wrapper/gradle-wrapper.jar
+
 # ---------- Secretos y configuración local ----------
 .env
 .env.*
@@ -130,6 +144,7 @@ coverage/
 # ---------- IDEs y editores ----------
 .vscode/
 !.vscode/extensions.json
+!.vscode/tasks.json
 .idea/
 *.iml
 *.swp

@@ -4,6 +4,8 @@ import BrandMark from '@/components/BrandMark.vue'
 const navItems = [
   { label: 'Mapa', target: '#mapa' },
   { label: 'Calendario', target: '#calendario' },
+  { label: 'Alertas', target: '#alertas' },
+  { label: 'Validación', target: '#validacion' },
   { label: 'Metodología', target: '#metodologia' },
   { label: 'Datos', target: '#datos' },
 ]

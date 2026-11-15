@@ -1,104 +1,165 @@
 # Chronos Fire - Backend
 
-Carpeta reservada para el backend Java. **La implementación todavía no está hecha**:
-acá solo queda la configuración base y la referencia de dónde van los archivos.
+Backend Java 21 + Spring Boot de **solo lectura** sobre PostgreSQL 17
+(`chronos_fire`). Implementa la API del calendario de actividad de fuego
+armonizado (MODIS + VIIRS).
 
-## Stack previsto
+**Estado:** fases 0-5 del backend y fase 6 del frontend completadas.
 
-- Java 21+
-- Spring Boot
-- PostgreSQL 17 (`chronos_fire`)
-- JDBC (`JdbcTemplate` / `NamedParameterJdbcTemplate`)
+- Fase 0: contrato OpenAPI de los 15 endpoints.
+- Fase 1: esqueleto Spring Boot, `/api/health` y `/api/meta`.
+- Fase 2: `/api/calendar/weekly` con baseline y anomalia.
+- Fase 3: `/api/calendar/daily`, `heatmap`, `monthly` y `trend`.
+- Fase 4: detecciones, GeoJSON, CSV de detecciones y CSV semanal.
+- Fase 5: alertas NRT, GeoJSON de alertas, AOIs y validación.
+- Fase 6: frontend adaptado al contrato Java; proxy Vite a `:8080`.
 
-## Archivos de configuración
+El backend **no modifica la base**: solo ejecuta `SELECT`. No crea tablas,
+columnas, índices, vistas ni datos.
 
-```text
-backend/
-└─ src/main/resources/
-   └─ application.properties
-```
+## Requisitos
 
-`application.properties` ya apunta a:
+- Java 21 o superior.
+- Maven 3.9 o superior.
+- PostgreSQL 17 con la base `chronos_fire` ya cargada.
 
-```text
-jdbc:postgresql://127.0.0.1:5432/chronos_fire
-```
+## Configuracion
 
-Variables de entorno soportadas:
-
-```text
-SERVER_PORT
-DB_URL
-DB_USER
-DB_PASSWORD
-DB_POOL_SIZE
-CORS_ORIGINS
-```
-
-## Dónde agregar el código
-
-Cuando se implemente, la estructura sugerida es:
+Copiar `backend/.env.example` a un archivo local o definir las variables:
 
 ```text
-backend/
-└─ src/main/java/com/chronosfire/backend/
-   ├─ ChronosFireApplication.java
-   ├─ config/
-   ├─ controller/
-   ├─ dto/
-   ├─ repository/
-   └─ web/
+SERVER_PORT=8080
+DB_URL=jdbc:postgresql://127.0.0.1:5432/chronos_fire
+DB_USER=postgres
+DB_PASSWORD=...
+DB_POOL_SIZE=10
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:4173,http://localhost:8080
 ```
 
-No se agregó `pom.xml` ni código Java: el proyecto se crea cuando se decida
-implementar.
+No hay contrasena hardcodeada en `application.properties`.
+
+## Correr solo el backend
+
+```powershell
+$env:DB_PASSWORD = 'postgres'
+mvn spring-boot:run
+```
+
+## Correr backend + frontend
+
+Desde la raíz del repo:
+
+```powershell
+Copy-Item backend\.env.example backend\.env
+# editar DB_PASSWORD en backend\.env
+.\run-app.ps1
+```
+
+También está la task de VS Code `app: dev`.
+
+O compilar y ejecutar el JAR:
+
+```powershell
+mvn clean package
+java -jar target/chronos-fire-backend-0.0.1-SNAPSHOT.jar
+```
+
+## Endpoints implementados
+
+| Metodo | Ruta | Descripcion |
+|---|---|---|
+| GET | `/api/health` | Estado de la app, PostgreSQL, latencia y ultima deteccion |
+| GET | `/api/meta` | Sensores, fuentes, rangos, conteos, definiciones y limitaciones |
+| GET | `/api/calendar/weekly` | Actividad semanal, baseline, anomalia y desglose por sensor |
+| GET | `/api/calendar/daily` | Serie diaria por celda |
+| GET | `/api/calendar/heatmap` | Celdas 0,05° agregadas |
+| GET | `/api/calendar/monthly` | Agregacion mensual con `partial` y `dataStatus` |
+| GET | `/api/calendar/trend` | Serie anual con baseline |
+| GET | `/api/calendar/export.csv` | CSV semanal por celda y sensor |
+| GET | `/api/detections` | Detecciones paginadas |
+| GET | `/api/detections/geojson` | Detecciones como GeoJSON |
+| GET | `/api/detections/export.csv` | CSV de detecciones |
+| GET | `/api/alerts` | Alertas NRT agrupadas por celda |
+| GET | `/api/alerts/geojson` | Alertas como GeoJSON |
+| GET | `/api/aois` | Catálogo de AOIs |
+| GET | `/api/validation` | Eventos conocidos validados |
+
+Ejemplos:
+
+```text
+http://127.0.0.1:8080/api/health
+http://127.0.0.1:8080/api/meta
+http://127.0.0.1:8080/api/calendar/weekly?bbox=-61,-34,-59.5,-32.5&year=2020&week=40&sensor=AUTO
+http://127.0.0.1:8080/api/calendar/monthly?bbox=-61,-34,-59.5,-32.5&from=2020-01-01&to=2020-03-31&sensor=ALL
+http://127.0.0.1:8080/api/calendar/trend?bbox=-61,-34,-59.5,-32.5&from=2019-01-01&to=2020-12-31&sensor=AUTO
+http://127.0.0.1:8080/api/detections?bbox=-61,-34,-59.5,-32.5&from=2020-09-01&to=2020-09-30&sensor=MODIS&limit=10
+http://127.0.0.1:8080/api/calendar/export.csv?bbox=-61,-34,-59.5,-32.5&from=2020-01-01&to=2020-01-31&sensor=ALL
+http://127.0.0.1:8080/api/alerts?bbox=-61,-34,-59.5,-32.5&days=7
+http://127.0.0.1:8080/api/aois
+http://127.0.0.1:8080/api/validation
+http://127.0.0.1:8080/swagger-ui.html
+http://127.0.0.1:8080/v3/api-docs
+```
+
+### Rendimiento
+
+- `/api/health` responde en decenas de milisegundos.
+- `/api/meta` tarda unos 3-4 s la primera vez porque cuenta tablas grandes;
+  luego queda cacheado 10 minutos.
+- `/api/calendar/weekly` tarda menos de 1 s la primera vez para un AOI y
+  queda cacheado 10 minutos.
+- `daily`, `heatmap` y `trend` responden en menos de 1 s para un AOI.
+- `monthly` con AOI responde en ~0,2 s; sin bbox, la primera llamada puede
+  tardar ~5 s y luego queda cacheada.
+- `detections` con AOI y un mes responde en ~0,3 s; GeoJSON y CSV en ~0,1 s.
+- `alerts` con AOI responde en ~1,5 s la primera vez; nacional ~7,5 s.
+  Queda cacheada 60 s.
+- `aois` responde en milisegundos.
+- `validation` tarda ~8 s la primera vez y queda cacheada 10 minutos.
+- `monthly` para el Delta tarda ~0,7 s; toda la extensión puede tardar
+  varios segundos. El frontend inicia en el Delta para evitar esa espera.
+- `detectionsApprox` en `/api/health` sale de `pg_class.reltuples`; es una
+  aproximacion, no un `count(*)`.
+
+## Contrato
+
+- OpenAPI: `openapi/chronosfire-api.yaml`
+- Guia de adaptacion del frontend: `CONTRATO_API.md`
+
+El contrato completo incluye:
+
+- calendario semanal, diario, mensual, heatmap y tendencia;
+- alertas NRT;
+- detecciones y GeoJSON;
+- exportacion CSV;
+- catalogo de AOIs;
+- validacion de eventos.
+
+Los endpoints de calendario, alertas, detecciones y validacion quedan para las
+fases 2 a 5. La fase 1 solo expone `health` y `meta`.
+
+## Tests
+
+```powershell
+mvn test
+```
+
+Los tests de controladores usan `@WebMvcTest` y no requieren una base activa.
 
 ## Base de datos y ETL
 
 - Esquema base: `db/ChronosFireDB.sql`
-- Corrección del calendario: `db/fix_calendar.sql` (una vez)
-- Actividad por sensor: `db/add_grid_weekly_sensor.sql` (una vez)
-- Rebuild del calendario: `db/rebuild_calendar.sql` (después de cada carga)
-- Máscara industrial: `db/build_industrial_mask.sql`
+- Correccion del calendario: `db/migraciones/fix_calendar.sql`
+- Actividad por sensor: `db/migraciones/add_grid_weekly_sensor.sql`
+- Rebuild del calendario: `db/rebuild_calendar.sql`
+- Mascara industrial: `db/build_industrial_mask.sql`
+- Validacion §6.8: `db/validacion/`
 - Carga con DuckDB: `../etl/load_pg.py`
-- Plan del backend: `PLAN_BACKEND.md`
-- Plan de armonización: `PLAN_ARMONIZACION.md`
-- Scripts de validación §6.8: `db/validacion/`
-- Informe de validación §6.8: `VALIDACION_6_8.md`
 
-### Instalación nueva
+## Documentos
 
-1. Aplicar `ChronosFireDB.sql`.
-2. Aplicar `fix_calendar.sql`.
-3. Aplicar `add_grid_weekly_sensor.sql`.
-4. Cargar detecciones:
-   ```powershell
-   python etl\load_pg.py --truncate
-   ```
-5. Construir máscara y `grid_daily`:
-   ```powershell
-   python etl\load_pg.py --only __none__ --aggregates
-   ```
-6. Reconstruir el calendario:
-   ```powershell
-   & "C:\Program Files\PostgreSQL\17\bin\psql.exe" `
-     -h 127.0.0.1 -p 5432 -U postgres -d chronos_fire `
-     -f backend\db\rebuild_calendar.sql
-   ```
-
-### Base ya existente
-
-Si el esquema y las migraciones ya están aplicados, después de cada carga:
-
-```powershell
-python etl\load_pg.py --truncate --aggregates
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" `
-  -h 127.0.0.1 -p 5432 -U postgres -d chronos_fire `
-  -f backend\db\rebuild_calendar.sql
-```
-
-`--aggregates` ya no reconstruye `calendar_weekly`; solo máscara y `grid_daily`.
-El calendario se reconstruye con `rebuild_calendar.sql` para aplicar 53 semanas y baseline por sensor.
-
-El backend solo consulta la base; la carga sigue siendo responsabilidad del
-ETL con DuckDB.
+- Plan de backend: `PLAN_BACKEND.md`
+- Plan de armonizacion: `PLAN_ARMONIZACION.md`
+- Informe de validacion: `VALIDACION_6_8.md`
+- Contrato de API: `CONTRATO_API.md`
+- OpenAPI: `openapi/chronosfire-api.yaml`

@@ -26,7 +26,7 @@ const ramps: {id:RampId;name:string}[]=[{id:'sequential',name:'Actividad mensual
 <template>
   <section class="panel calendar-panel" :id="sectionId" :aria-labelledby="`${sectionId}-title`">
     <header class="panel-head"><div><span class="section-kicker">LA ACTIVIDAD A TRAVÉS DEL TIEMPO</span><h2 class="panel-title" :id="`${sectionId}-title`">Calendario de actividad</h2></div><span class="series-badge">{{ seriesLabel }}</span></header>
-    <p class="small-note">Celda-días de 1 km²: una celda con detecciones durante tres días suma tres. No mide área quemada.</p>
+    <p class="small-note">Celdas de 0,05° (~5 km) con actividad por mes. No mide área quemada ni cantidad de incendios únicos.</p>
     <div class="ramp-tabs" role="group" aria-label="Escala del calendario"><button v-for="r in ramps" :key="r.id" class="chip" :class="{'chip--active':rampId===r.id}" :aria-pressed="rampId===r.id" @click="rampId=r.id">{{r.name}}</button></div>
     <div class="cal-scroll" tabindex="0" aria-label="Tabla desplazable del calendario">
       <table class="cal"><caption class="sr-only">Celda-días por mes y año; seleccioná un mes para actualizar el mapa y el detalle diario.</caption><thead><tr><th scope="col">Año / total</th><th v-for="m in 12" :key="m" scope="col"><abbr :title="monthName(m-1)">{{monthShort(m-1)}}</abbr></th></tr></thead>
@@ -35,8 +35,8 @@ const ramps: {id:RampId;name:string}[]=[{id:'sequential',name:'Actividad mensual
         </tr></tbody>
       </table>
     </div>
-    <div v-if="selectionInfo" class="selection-detail" aria-live="polite"><strong>{{monthName(selectionInfo.month)}} {{selectionInfo.year}}</strong><span>{{selectionInfo.value===null?'Sin datos':`${format(selectionInfo.value)} celda-días`}}</span><span class="small-note">{{selectionInfo.cell?.available_days??0}} de {{selectionInfo.cell?.calendar_days??0}} días con valor<span v-if="selectionInfo.cell?.partial"> · período parcial*</span></span></div>
-    <p class="small-note">* Suma parcial: fechas recortadas, inicio del sensor o días no utilizables. — Sin datos para esta serie. El cero se conserva como cero registros.</p>
+    <div v-if="selectionInfo" class="selection-detail" aria-live="polite"><strong>{{monthName(selectionInfo.month)}} {{selectionInfo.year}}</strong><span>{{selectionInfo.value===null?'Sin datos':`${format(selectionInfo.value)} celdas con actividad`}}</span><span class="small-note">{{selectionInfo.cell?.data_status === 'observed' ? 'Mes con datos' : 'Sin datos'}}<span v-if="selectionInfo.cell?.partial"> · período parcial*</span></span></div>
+    <p class="small-note">* Mes recortado por el rango consultado. — Sin datos para esta serie. El cero se conserva como cero celdas.</p>
   </section>
 </template>
 <style scoped>

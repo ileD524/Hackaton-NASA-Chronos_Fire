@@ -41,6 +41,6 @@ npm run dev
 npm run build
 ```
 
-## Demo local conectada a DSv2
+## Demo local conectada al backend Java
 
-Ver [README-LOCAL.md](README-LOCAL.md) para abrir la demo, reproducir las consultas, interpretar la calibración y revisar los cambios de marca.
+Ver [README-LOCAL.md](README-LOCAL.md) para abrir la demo, iniciar Spring Boot y explorar el calendario de celdas de 0,05°.

@@ -1,0 +1,957 @@
+openapi: 3.0.3
+info:
+  title: Chronos Fire API
+  version: v1
+  description: |
+    API de solo lectura sobre PostgreSQL `chronos_fire`.
+    Fuente de verdad: detecciones FIRMS armonizadas (MODIS C6.1,
+    VIIRS SNPP, NOAA-20 y NOAA-21).
+    El backend no escribe en la base: solo SELECT.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local
+tags:
+  - name: Salud
+  - name: Metadatos
+  - name: Calendario
+  - name: Alertas
+  - name: Detecciones
+  - name: AOIs
+  - name: Validacion
+paths:
+  /api/health:
+    get:
+      tags: [Salud]
+      operationId: getHealth
+      summary: Estado del backend y de PostgreSQL
+      responses:
+        '200':
+          description: Backend y base disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Base no disponible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/meta:
+    get:
+      tags: [Metadatos]
+      operationId: getMeta
+      summary: Cobertura, sensores, conteos, definiciones y limitaciones
+      responses:
+        '200':
+          description: Metadatos del archivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetaResponse'
+
+  /api/calendar/weekly:
+    get:
+      tags: [Calendario]
+      operationId: getWeeklyCalendar
+      summary: Actividad semanal por AOI, con baseline y anomalia
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/Year'
+        - $ref: '#/components/parameters/Week'
+        - $ref: '#/components/parameters/AnomalySensor'
+      responses:
+        '200':
+          description: Resultado semanal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/calendar/daily:
+    get:
+      tags: [Calendario]
+      operationId: getDailyCalendar
+      summary: Serie diaria de celdas con actividad
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Filas diarias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DailyRow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/calendar/heatmap:
+    get:
+      tags: [Calendario]
+      operationId: getHeatmap
+      summary: Celdas de 0,05 grados para el mapa
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Celdas agregadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HeatmapCell'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/calendar/monthly:
+    get:
+      tags: [Calendario]
+      operationId: getMonthlyCalendar
+      summary: Agregacion mensual para la UI
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+      responses:
+        '200':
+          description: Meses agregados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MonthlyCell'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/calendar/trend:
+    get:
+      tags: [Calendario]
+      operationId: getTrend
+      summary: Serie anual con baseline y anomalia
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/AnomalySensor'
+      responses:
+        '200':
+          description: Serie anual
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrendRow'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/calendar/export.csv:
+    get:
+      tags: [Calendario]
+      operationId: exportCalendarCsv
+      summary: Exporta actividad semanal en CSV
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/alerts:
+    get:
+      tags: [Alertas]
+      operationId: getAlerts
+      summary: Alertas NRT agrupadas por celda
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/Days'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Alertas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/alerts/geojson:
+    get:
+      tags: [Alertas]
+      operationId: getAlertsGeoJson
+      summary: Alertas como FeatureCollection
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/Days'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: GeoJSON
+          content:
+            application/geo+json:
+              schema:
+                $ref: '#/components/schemas/GeoJsonFeatureCollection'
+
+  /api/detections:
+    get:
+      tags: [Detecciones]
+      operationId: getDetections
+      summary: Detecciones paginadas
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Confidence'
+        - $ref: '#/components/parameters/Source'
+        - $ref: '#/components/parameters/Type'
+        - $ref: '#/components/parameters/Vegetation'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Pagina de detecciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectionPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/detections/geojson:
+    get:
+      tags: [Detecciones]
+      operationId: getDetectionsGeoJson
+      summary: Detecciones como FeatureCollection
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: GeoJSON
+          content:
+            application/geo+json:
+              schema:
+                $ref: '#/components/schemas/GeoJsonFeatureCollection'
+
+  /api/detections/export.csv:
+    get:
+      tags: [Detecciones]
+      operationId: exportDetectionsCsv
+      summary: Exporta detecciones en CSV
+      parameters:
+        - $ref: '#/components/parameters/Bbox'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema:
+                type: string
+
+  /api/aois:
+    get:
+      tags: [AOIs]
+      operationId: getAois
+      summary: Catalogo de AOIs
+      responses:
+        '200':
+          description: AOIs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Aoi'
+
+  /api/validation:
+    get:
+      tags: [Validacion]
+      operationId: getValidation
+      summary: Eventos conocidos y sus metricas
+      responses:
+        '200':
+          description: Validacion
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValidationEvent'
+
+components:
+  parameters:
+    Bbox:
+      name: bbox
+      in: query
+      description: 'oeste,sur,este,norte en grados'
+      required: false
+      schema:
+        type: string
+        example: '-61,-34,-59.5,-32.5'
+    From:
+      name: from
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    To:
+      name: to
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    Year:
+      name: year
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 2000
+        maximum: 2026
+    Week:
+      name: week
+      in: query
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 53
+    AnomalySensor:
+      name: sensor
+      in: query
+      required: false
+      description: |
+        AUTO usa MODIS 2003-2011 y VIIRS SNPP 2013-2026.
+        ALL no es valido para la anomalia semanal.
+      schema:
+        type: string
+        enum: [AUTO, MODIS, VIIRS_SNPP, VIIRS_NOAA20, VIIRS_NOAA21]
+        default: AUTO
+    Sensor:
+      name: sensor
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [AUTO, ALL, MODIS, VIIRS_SNPP, VIIRS_NOAA20, VIIRS_NOAA21]
+        default: ALL
+    Confidence:
+      name: confidence
+      in: query
+      required: false
+      style: form
+      explode: true
+      schema:
+        type: array
+        items:
+          type: string
+          enum: [low, nominal, high]
+    Source:
+      name: source
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [SP, NRT]
+    Type:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: integer
+        enum: [0, 1, 2, 3]
+    Vegetation:
+      name: vegetation
+      in: query
+      required: false
+      schema:
+        type: boolean
+    Days:
+      name: days
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 30
+        default: 7
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50000
+        default: 1000
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  responses:
+    BadRequest:
+      description: Solicitud invalida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, database, latencyMs]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          type: boolean
+        databaseVersion:
+          type: string
+          nullable: true
+        latencyMs:
+          type: integer
+          format: int64
+        lastDetectionAt:
+          type: string
+          format: date-time
+          nullable: true
+        detectionsApprox:
+          type: integer
+          format: int64
+
+    MetaResponse:
+      type: object
+      properties:
+        version:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        lastDetectionAt:
+          type: string
+          format: date-time
+          nullable: true
+        database:
+          type: string
+        gridResolutionDeg:
+          type: number
+          format: double
+        sensors:
+          type: array
+          items:
+            $ref: '#/components/schemas/SensorCoverage'
+        sources:
+          type: array
+          items:
+            type: string
+        dateRange:
+          $ref: '#/components/schemas/DateRange'
+        counts:
+          $ref: '#/components/schemas/Counts'
+        metricDefinitions:
+          type: object
+          additionalProperties:
+            type: string
+        limitations:
+          type: array
+          items:
+            type: string
+        attribution:
+          type: string
+        provisional:
+          $ref: '#/components/schemas/ProvisionalWindow'
+
+    SensorCoverage:
+      type: object
+      properties:
+        sensor:
+          type: string
+        source:
+          type: string
+        rows:
+          type: integer
+          format: int64
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+
+    DateRange:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+          nullable: true
+        to:
+          type: string
+          format: date
+          nullable: true
+
+    Counts:
+      type: object
+      properties:
+        detections:
+          type: integer
+          format: int64
+        gridDaily:
+          type: integer
+          format: int64
+        gridWeekly:
+          type: integer
+          format: int64
+        gridWeeklySensor:
+          type: integer
+          format: int64
+        calendarWeekly:
+          type: integer
+          format: int64
+        industrialCells:
+          type: integer
+          format: int64
+        coverageDaily:
+          type: integer
+          format: int64
+        validationAois:
+          type: integer
+          format: int64
+
+    ProvisionalWindow:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        reason:
+          type: string
+
+    WeeklyResponse:
+      type: object
+      properties:
+        aoi:
+          $ref: '#/components/schemas/BboxObject'
+        year:
+          type: integer
+        week:
+          type: integer
+        observedFireCells:
+          type: integer
+        baselineFireCells:
+          type: number
+          format: double
+          nullable: true
+        anomaly:
+          type: number
+          format: double
+          nullable: true
+        referenceYears:
+          type: integer
+        referenceWindow:
+          type: string
+        observedSensor:
+          type: string
+        baselineSensor:
+          type: string
+        nCellsAoi:
+          type: integer
+        confidence:
+          type: string
+          enum: [high, low, insufficient]
+        provisional:
+          type: boolean
+        dataStatus:
+          type: string
+          enum: [observed, no_data, unknown]
+        nDataYears:
+          type: integer
+          nullable: true
+        fireCellsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+        detectionsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+        frpBySensor:
+          type: object
+          additionalProperties:
+            type: number
+        fireDayRateGivenDetection:
+          type: number
+          format: double
+          nullable: true
+
+    BboxObject:
+      type: object
+      properties:
+        minLon:
+          type: number
+        minLat:
+          type: number
+        maxLon:
+          type: number
+        maxLat:
+          type: number
+
+    DailyRow:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        gridId:
+          type: string
+        cellLat:
+          type: number
+        cellLon:
+          type: number
+        fireDay:
+          type: boolean
+        nDetections:
+          type: integer
+        sensors:
+          type: array
+          items:
+            type: string
+        frpMaxMw:
+          type: number
+          nullable: true
+        frpDensityMaxWm2:
+          type: number
+          nullable: true
+        source:
+          type: string
+          nullable: true
+        dataStatus:
+          type: string
+
+    HeatmapCell:
+      type: object
+      properties:
+        gridId:
+          type: string
+        cellLat:
+          type: number
+        cellLon:
+          type: number
+        fireCells:
+          type: integer
+        fireDays:
+          type: integer
+        nDetections:
+          type: integer
+        anomaly:
+          type: number
+          nullable: true
+        dataStatus:
+          type: string
+
+    MonthlyCell:
+      type: object
+      properties:
+        year:
+          type: integer
+        month:
+          type: integer
+          minimum: 0
+          maximum: 11
+        fireCells:
+          type: integer
+        fireDays:
+          type: integer
+        nDetections:
+          type: integer
+        detectionsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+        partial:
+          type: boolean
+        dataStatus:
+          type: string
+
+    TrendRow:
+      type: object
+      properties:
+        year:
+          type: integer
+        fireCells:
+          type: integer
+        baselineFireCells:
+          type: number
+          nullable: true
+        anomaly:
+          type: number
+          nullable: true
+        referenceYears:
+          type: integer
+        confidence:
+          type: string
+        provisional:
+          type: boolean
+        observedSensor:
+          type: string
+        baselineSensor:
+          type: string
+
+    AlertResponse:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        asOf:
+          type: string
+          format: date-time
+        latestAvailable:
+          type: string
+          format: date-time
+          nullable: true
+        days:
+          type: integer
+        aoi:
+          $ref: '#/components/schemas/BboxObject'
+        count:
+          type: integer
+        provisional:
+          type: boolean
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+
+    Alert:
+      type: object
+      properties:
+        cellLat:
+          type: number
+        cellLon:
+          type: number
+        lastDetection:
+          type: string
+          format: date-time
+        nDetections:
+          type: integer
+        frpMaxMw:
+          type: number
+          nullable: true
+        frpDensityMaxWm2:
+          type: number
+          nullable: true
+        sensors:
+          type: array
+          items:
+            type: string
+        confidenceMax:
+          type: string
+        aoiAnomaly:
+          type: number
+          nullable: true
+        level:
+          type: string
+          enum: [info, watch, warning]
+        industrialMasked:
+          type: boolean
+
+    Detection:
+      type: object
+      properties:
+        sensor:
+          type: string
+        source:
+          type: string
+        acquiredAt:
+          type: string
+          format: date-time
+        acqDate:
+          type: string
+          format: date
+        latitude:
+          type: number
+        longitude:
+          type: number
+        confidenceRaw:
+          type: string
+        confidenceNorm:
+          type: integer
+        confidenceClass:
+          type: string
+        fireType:
+          type: integer
+          nullable: true
+        isVegetation:
+          type: boolean
+          nullable: true
+        industrialMask:
+          type: boolean
+        frpMw:
+          type: number
+          nullable: true
+        frpDensityWm2:
+          type: number
+          nullable: true
+        pixelAreaKm2:
+          type: number
+          nullable: true
+        qualityFlags:
+          type: string
+          nullable: true
+        productVersion:
+          type: string
+
+    DetectionPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Detection'
+        total:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Aoi:
+      type: object
+      properties:
+        aoiId:
+          type: string
+        name:
+          type: string
+        minLat:
+          type: number
+        minLon:
+          type: number
+        maxLat:
+          type: number
+        maxLon:
+          type: number
+        observedSensor:
+          type: string
+        baselineSensor:
+          type: string
+        refFrom:
+          type: integer
+        refTo:
+          type: integer
+        status:
+          type: string
+          enum: [confirmed, provisional]
+        notes:
+          type: string
+        windows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AoiWindow'
+
+    AoiWindow:
+      type: object
+      properties:
+        isoyear:
+          type: integer
+        weekFrom:
+          type: integer
+        weekTo:
+          type: integer
+        expectedPeak:
+          type: integer
+          nullable: true
+
+    ValidationEvent:
+      type: object
+      properties:
+        aoiId:
+          type: string
+        name:
+          type: string
+        isoyear:
+          type: integer
+        week:
+          type: integer
+        observed:
+          type: integer
+        baseline:
+          type: number
+          nullable: true
+        nRefYears:
+          type: integer
+        anomaly:
+          type: number
+          nullable: true
+        confidence:
+          type: string
+        verdict:
+          type: string
+
+    GeoJsonFeatureCollection:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string

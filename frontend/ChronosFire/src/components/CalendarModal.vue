@@ -85,10 +85,10 @@ onBeforeUnmount(() => { document.removeEventListener('keydown', onKeydown); docu
           <header class="dialog-head">
             <div class="dialog-head-text">
               <h2 id="cal-modal-title" class="dialog-title">
-                Calendario de actividad de incendios
+                Calendario de actividad de fuego
               </h2>
               <p class="dialog-hint">
-                Elegí un mes para explorar sus detecciones locales y su detalle diario.
+                Elegí un mes para explorar sus celdas con actividad y el detalle diario.
               </p>
             </div>
             <button

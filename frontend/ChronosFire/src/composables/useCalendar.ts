@@ -29,7 +29,7 @@ export function useCalendar() {
     const vsMedian = value !== null && med !== null && med > 0 && !cell?.partial ? value / med - 1 : null
     const deltaText = vsMedian === null ? '' : `, ${vsMedian > 0 ? '+' : ''}${Math.round(vsMedian * 100)}% frente a la mediana de otros años completos`
     return { cell, value, bucket: bucketOf(value), norm: value === null ? 0 : Math.log1p(value)/Math.log1p(maxVal.value), vsMedian, aboveMedian: vsMedian !== null && vsMedian > 0,
-      label: `${NAMES[month]} ${year}: ${value === null ? 'sin datos para esta serie' : `${format(value)} celda-días${cell?.partial ? ', período parcial' : ''}${deltaText}`}` }
+      label: `${NAMES[month]} ${year}: ${value === null ? 'sin datos para esta serie' : `${format(value)} celdas con actividad${cell?.partial ? ', período parcial' : ''}${deltaText}`}` }
   }
   return { years, maxVal, minVal, thresholds, cellMeta, monthName: (m: number) => NAMES[m] ?? '', monthShort: (m: number) => MONTH_LABELS[m] ?? '', annualTotal: (y: number) => months.value.filter(m => m.year === y).reduce((s,m) => s + (m.value ?? 0), 0) }
 }

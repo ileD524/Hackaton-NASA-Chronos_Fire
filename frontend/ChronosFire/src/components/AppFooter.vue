@@ -10,7 +10,7 @@ const year = new Date().getFullYear()
       <BrandMark class="footer-brand" :size="32" tagline />
 
       <div class="footer-meta">
-        <span class="footer-credit">Datos: NASA Earthdata FIRMS · MODIS y VIIRS</span>
+        <span class="footer-credit">Datos: NASA Earthdata FIRMS · MODIS y VIIRS · grilla 0,05°</span>
         <span class="footer-nasa">Proyecto participante de NASA Space Apps {{ year }}</span>
       </div>
 

@@ -12,6 +12,8 @@ import MethodologyPanel from '@/components/MethodologyPanel.vue'
 import AppFooter from '@/components/AppFooter.vue'
 import CalendarModal from '@/components/CalendarModal.vue'
 import DailyDetail from '@/components/DailyDetail.vue'
+import AlertsPanel from '@/components/AlertsPanel.vue'
+import ValidationPanel from '@/components/ValidationPanel.vue'
 import { useChronos } from '@/composables/useChronos'
 const { initialize, filters, areaLabel, loading, error, selectedMonth, calendarOpen, calendar, load } = useChronos()
 onMounted(initialize)
@@ -31,6 +33,7 @@ onMounted(initialize)
         <FireCalendar v-model:selected-month="selectedMonth" />
         <CalendarLegend />
         <DailyDetail />
+        <div class="side-by-side"><AlertsPanel /><ValidationPanel /></div>
         <div class="side-by-side"><MonthComparison /><MethodologyPanel /></div>
       </div>
       <div v-else class="panel initial-state"><h2>Tu archivo de actividad</h2><p>{{ error ? 'El servidor no pudo cargar los datos.' : 'Preparando el calendario de detecciones MODIS y VIIRS.' }}</p></div>

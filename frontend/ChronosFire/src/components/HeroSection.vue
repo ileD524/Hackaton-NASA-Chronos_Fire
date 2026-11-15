@@ -29,16 +29,16 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
 <template>
   <section class="hero" aria-labelledby="hero-title">
     <div class="hero-copy">
-      <div class="hero-eyebrow">Archivo histórico · MODIS + VIIRS · datos locales</div>
+      <div class="hero-eyebrow">Archivo histórico · MODIS + VIIRS · grilla 0,05°</div>
       <h1 id="hero-title" class="hero-title">
-        Calendario de<br />actividad de incendios
+        Calendario de<br />actividad de fuego
       </h1>
       <!--p class="hero-sub">
         <strong class="accent">Más de dos décadas de hotspots,</strong>
         una sola serie. ¿Cómo está este mes frente a la historia?
       </p-->
       <p class="hero-sub">
-        Explorá <strong>cuándo y dónde se detectó actividad</strong>, y cómo cambia al comparar los sensores.
+        Explorá <strong>cuándo y dónde se detectó actividad</strong> y cómo se compara con la historia multianual.
       </p>
       <p v-if="region" class="hero-context">
         Área de interés: <strong>{{ region }}</strong> · {{ rangeLabel }}
