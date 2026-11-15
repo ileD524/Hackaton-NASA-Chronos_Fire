@@ -1,12 +1,16 @@
 package com.chronosfire.backend.controller;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.MonthlyCell;
 import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.service.CalendarService;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +68,31 @@ class CalendarControllerTest {
                 .andExpect(jsonPath("$.fireCellsBySensor.VIIRS_SNPP").value(66));
     }
 
+    @Test
+    void returnsMonthlyCalendarAndForwardsSensor() throws Exception {
+        calendarService.setMonthlyResponse(List.of(new MonthlyCell(
+                2020,
+                8,
+                66,
+                78,
+                1242,
+                Map.of("VIIRS_SNPP", 1242),
+                false,
+                "observed")));
+
+        mockMvc.perform(get("/api/calendar/monthly")
+                        .param("bbox", "-61,-34,-59.5,-32.5")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("sensor", "VIIRS_SNPP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].fireCells").value(66))
+                .andExpect(jsonPath("$[0].fireDays").value(78))
+                .andExpect(jsonPath("$[0].detectionsBySensor.VIIRS_SNPP").value(1242));
+
+        assertEquals("VIIRS_SNPP", calendarService.getMonthlySensor());
+    }
+
     @TestConfiguration
     static class TestConfig {
 
@@ -76,6 +105,8 @@ class CalendarControllerTest {
     static class StubCalendarService extends CalendarService {
 
         private WeeklyResponse response;
+        private List<MonthlyCell> monthlyResponse = List.of();
+        private String monthlySensor;
 
         StubCalendarService() {
             super(null);
@@ -85,9 +116,27 @@ class CalendarControllerTest {
             this.response = response;
         }
 
+        void setMonthlyResponse(List<MonthlyCell> monthlyResponse) {
+            this.monthlyResponse = monthlyResponse;
+        }
+
+        String getMonthlySensor() {
+            return monthlySensor;
+        }
+
         @Override
         public WeeklyResponse getWeekly(String bbox, int year, int week, String sensor) {
             return response;
+        }
+
+        @Override
+        public List<MonthlyCell> getMonthly(
+                String bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor) {
+            monthlySensor = sensor;
+            return monthlyResponse;
         }
     }
 }

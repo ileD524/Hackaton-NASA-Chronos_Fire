@@ -122,11 +122,16 @@ paths:
       tags: [Calendario]
       operationId: getMonthlyCalendar
       summary: Agregacion mensual para la UI
+      description: |
+        `fireCells` y `fireDays` se filtran por `sensor` cuando no es `ALL`.
+        `fire_day` sigue siendo all-sensor: `fireCells(sensor)` cuenta celdas
+        con actividad en dias en que ese sensor tuvo al menos una deteccion.
+        `ALL` no es un promedio; la serie esta dominada por VIIRS.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
-        - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/MonthlySensor'
       responses:
         '200':
           description: Meses agregados
@@ -366,6 +371,19 @@ components:
       name: sensor
       in: query
       required: false
+      schema:
+        type: string
+        enum: [AUTO, ALL, MODIS, VIIRS_SNPP, VIIRS_NOAA20, VIIRS_NOAA21]
+        default: ALL
+    MonthlySensor:
+      name: sensor
+      in: query
+      required: false
+      description: |
+        Filtra `fireCells`, `fireDays`, `nDetections` y `detectionsBySensor`.
+        `fire_day` es all-sensor: el valor por sensor significa "celdas con
+        actividad en dias con deteccion de ese sensor", no atribucion exclusiva.
+        `AUTO` se trata como `ALL` en este endpoint.
       schema:
         type: string
         enum: [AUTO, ALL, MODIS, VIIRS_SNPP, VIIRS_NOAA20, VIIRS_NOAA21]

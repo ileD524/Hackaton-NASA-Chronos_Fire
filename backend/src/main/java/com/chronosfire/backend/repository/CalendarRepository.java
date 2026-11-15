@@ -228,8 +228,18 @@ public class CalendarRepository {
                 "observed"), params.toArray());
     }
 
-    public List<MonthFire> monthlyFire(Bbox bbox, LocalDate from, LocalDate to) {
-        return jdbc.query("""
+    /**
+     * Agregacion mensual de actividad.
+     *
+     * <p>Cuando {@code sensor} no es {@code ALL}, se filtran las filas de
+     * {@code grid_daily} donde ese sensor participo. {@code fire_day} sigue
+     * siendo all-sensor: {@code fire_cells(sensor)} significa "celdas con
+     * actividad en dias en que ese sensor tuvo al menos una deteccion", la
+     * misma semantica que usan {@code daily} y {@code heatmap}. No es un
+     * conteo de celdas atribuible exclusivamente al sensor.</p>
+     */
+    public List<MonthFire> monthlyFire(Bbox bbox, LocalDate from, LocalDate to, String sensor) {
+        String sql = """
                 SELECT extract(year FROM day)::int AS year,
                        (extract(month FROM day)::int - 1) AS month,
                        count(DISTINCT grid_id) FILTER (WHERE fire_day)::int AS fire_cells,
@@ -239,18 +249,25 @@ public class CalendarRepository {
                 WHERE day BETWEEN ? AND ?
                   AND cell_lat BETWEEN ? AND ?
                   AND cell_lon BETWEEN ? AND ?
-                GROUP BY 1, 2
-                ORDER BY 1, 2
-                """, (rs, rowNum) -> new MonthFire(
+                """
+                + ("ALL".equals(sensor) ? "" : "  AND CAST(? AS TEXT) = ANY(sensors)\n")
+                + "GROUP BY 1, 2\nORDER BY 1, 2";
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        return jdbc.query(sql, (rs, rowNum) -> new MonthFire(
                 rs.getInt("year"),
                 rs.getInt("month"),
                 rs.getInt("fire_cells"),
                 rs.getInt("fire_days"),
-                rs.getInt("n_detections")),
-                java.sql.Date.valueOf(from),
-                java.sql.Date.valueOf(to),
-                bbox.minLat(), bbox.maxLat(),
-                bbox.minLon(), bbox.maxLon());
+                rs.getInt("n_detections")), params.toArray());
     }
 
     public List<MonthSensorDetections> monthlyDetections(

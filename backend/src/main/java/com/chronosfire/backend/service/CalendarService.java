@@ -165,7 +165,7 @@ public class CalendarService {
         String sensor = normalizeSensor(sensorParam, "ALL");
 
         Map<String, MonthFire> fires = new HashMap<>();
-        for (MonthFire row : repository.monthlyFire(queryBbox, from, to)) {
+        for (MonthFire row : repository.monthlyFire(queryBbox, from, to, sensor)) {
             fires.put(monthKey(row.year(), row.month()), row);
         }
 

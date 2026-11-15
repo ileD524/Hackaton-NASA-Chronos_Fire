@@ -100,6 +100,8 @@ Antes de implementar, el equipo debe fijar estas definiciones y usarlas en la UI
 
 ### B-01. Filtrar `fire_cells` por sensor en `/api/calendar/monthly`
 
+**Estado:** ✅ implementado el 15/11/2026.
+
 **Problema:** `CalendarService.getMonthly()` llama a `repository.monthlyFire(bbox, from, to)` sin sensor. `monthlyDetections()` sí filtra, pero el titular `fireCells` no. Si el frontend agrega un selector, el calendario seguiría mostrando todos los sensores.
 
 **Cambio propuesto:**
@@ -139,6 +141,8 @@ GET /api/calendar/monthly?bbox=-61,-34,-59.5,-32.5&from=2020-01-01&to=2020-12-31
 - `sensor=VIIRS_SNPP` en Delta 2020-09 devuelve 66 celdas.
 - Un test de controlador cubre `sensor` inválido y `sensor=ALL`.
 - OpenAPI actualizado.
+
+**Implementación:** `monthlyFire(..., sensor)` en `CalendarRepository`, `getMonthly` pasa el sensor normalizado, 4 tests nuevos (23 en total, 0 fallos), OpenAPI y `CONTRATO_API.md` actualizados. Verificado en vivo sobre Delta 2020-09: `ALL` 189/618, `MODIS` 119/313, `VIIRS_SNPP` 154/496; `AUTO` se comporta como `ALL`.
 
 **Archivos:** `CalendarController.java`, `CalendarService.java`, `CalendarRepository.java`, `MonthlyCell.java`, `openapi/chronosfire-api.yaml`, tests.
 

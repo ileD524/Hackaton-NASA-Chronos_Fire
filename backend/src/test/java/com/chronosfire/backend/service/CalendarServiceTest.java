@@ -87,6 +87,53 @@ class CalendarServiceTest {
         assertEquals("unknown", months.get(1).dataStatus());
         assertEquals(0, months.get(1).fireCells());
         assertEquals("observed", months.get(2).dataStatus());
+        assertEquals("ALL", repository.monthlyFireSensor);
+    }
+
+    @Test
+    void monthlyForwardsSensorToRepository() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = List.of(
+                new CalendarRepository.MonthFire(2020, 8, 66, 78, 1242));
+        repository.monthlyDetections = List.of(
+                new CalendarRepository.MonthSensorDetections(2020, 8, "VIIRS_SNPP", 1242));
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "VIIRS_SNPP");
+
+        assertEquals(1, months.size());
+        assertEquals(66, months.get(0).fireCells());
+        assertEquals("VIIRS_SNPP", repository.monthlyFireSensor);
+    }
+
+    @Test
+    void monthlyNormalizesAutoToAll() {
+        StubRepository repository = new StubRepository();
+
+        new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "AUTO");
+
+        assertEquals("ALL", repository.monthlyFireSensor);
+    }
+
+    @Test
+    void monthlyRejectsInvalidSensor() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new CalendarService(new StubRepository())
+                        .getMonthly(
+                                "-61,-34,-59.5,-32.5",
+                                LocalDate.parse("2020-09-01"),
+                                LocalDate.parse("2020-09-30"),
+                                "VIIRS_BAD"));
     }
 
     @Test
@@ -166,6 +213,7 @@ class CalendarServiceTest {
         private int nCells = 0;
         private int detectionCellDays = 0;
         private List<MonthFire> monthlyFire = List.of();
+        private String monthlyFireSensor;
         private List<MonthSensorDetections> monthlyDetections = List.of();
         private List<AnnualSensor> annual = List.of();
         private List<WeeklyExportRow> weeklyRows = List.of();
@@ -206,7 +254,8 @@ class CalendarServiceTest {
         }
 
         @Override
-        public List<MonthFire> monthlyFire(Bbox bbox, LocalDate from, LocalDate to) {
+        public List<MonthFire> monthlyFire(Bbox bbox, LocalDate from, LocalDate to, String sensor) {
+            monthlyFireSensor = sensor;
             return monthlyFire;
         }
 

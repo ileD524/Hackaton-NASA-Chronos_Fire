@@ -93,7 +93,7 @@ Ejemplo verificado (Delta 2020, semana 40):
 |---|---|---|
 | `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily`; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
 | `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05°; `anomaly` queda `null` porque la anomalía es por AOI |
-| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; `fireCells`/`fireDays` all-sensor; `detectionsBySensor` filtrado por sensor |
+| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; `fireCells`/`fireDays` y `detectionsBySensor` filtrados por sensor; `ALL` no es promedio |
 | `GET /api/calendar/trend` | `bbox`, `from`, `to`, `sensor` | Serie anual; `AUTO` usa la era de cada año; baseline anual leave-one-out |
 
 Reglas:
@@ -110,13 +110,18 @@ Reglas:
 - En `daily`, `source` y `frpDensityMaxWm2` quedan `null` porque `grid_daily`
   no guarda esos campos.
 - En `heatmap`, `anomaly` queda `null`: la anomalía es por AOI, no por celda.
-- En `monthly`, `fireCells` y `fireDays` son all-sensor; `detectionsBySensor`
-  respeta el filtro de sensor.
+- En `monthly`, `fireCells`, `fireDays` y `detectionsBySensor` respetan el
+  filtro de sensor. `fire_day` sigue siendo all-sensor: `fireCells(sensor)`
+  cuenta celdas con actividad en dias en que ese sensor tuvo al menos una
+  deteccion, no celdas atribuibles en exclusiva a ese sensor. `AUTO` se trata
+  como `ALL` y `ALL` no es un promedio: la serie esta dominada por VIIRS.
 
 Verificado:
 
 - Delta 2020 septiembre: `daily` y `heatmap` responden en <0,2 s.
 - Delta 2020 enero-marzo: `monthly` responde en ~0,2 s.
+- Delta 2020-09 `monthly` por sensor: `ALL` 189 celdas / 618 dias;
+  `MODIS` 119 / 313; `VIIRS_SNPP` 154 / 496; `AUTO` se comporta como `ALL`.
 - Delta 2019-2020: `trend` devuelve 2019 = 0,96 y 2020 = 6,22.
 - Sin bbox, `monthly` 2020 tarda ~5,6 s la primera vez y queda cacheado.
 
