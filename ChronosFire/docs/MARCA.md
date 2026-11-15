@@ -12,6 +12,10 @@ Referencia: [NASA Space Apps Brand Guidelines](https://www.spaceappschallenge.or
 | Identidad del proyecto | El proyecto se presenta como **VII.MO**, con el punto del nombre siempre en Rocket Red. El logotipo y el símbolo viven en `src/components/BrandMark.vue`, que reproduce la geometría del mockup (`public/Anatomía Órbita-V-html/`). |
 | Movimiento | El hotspot del hero orbita lentamente sobre la trayectoria; se sustituye por el punto estático cuando el sistema pide movimiento reducido. |
 | Favicon | Símbolo solo (V + órbita + hotspot) sobre Deep Blue. |
+| Escala de actividad | Cinco quintiles de la selección: `#0B2A6B` → `#1F7A57` → `#EAFE07` → `#F0A02A` → `#D03000`. La leyenda muestra los cortes numéricos de cada tramo. |
+| Escala divergente | Cortes fijos en ±15% y ±50% sobre la mediana: verde por debajo, azul profundo en el centro, ámbar y rojo por encima. ▼/▲ y un anillo blanco marcan los extremos, así el dato no depende solo del color. |
+| Números críticos | El mes con mayor valor y la desviación del mes seleccionado usan el color de su banda (`#6EE7A8` a `#FF6A3D` sobre fondo oscuro); el resto de cada tarjeta queda neutro. |
+| Color de dato | El rojo de las celdas es `#D03000`, una versión apenas más oscura del Rocket Red: el `#E43700` puro daba 4,33:1 con texto blanco y no alcanzaba el mínimo de 4,5:1 en texto pequeño. El verde es un color de dato, no de la paleta de Space Apps. |
 | Contraste | Se corrigió el texto azul del encabezado y se calculó luminancia WCAG para elegir texto claro/oscuro en las celdas; todas las examinadas superan 4,5:1. |
 | Accesibilidad visual | Las escalas conservan valores numéricos; faltantes y meses parciales tienen etiquetas propias. |
 
