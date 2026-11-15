@@ -5,11 +5,11 @@ export type RampId = 'sequential' | 'anomaly'
 const rampId = ref<RampId>('sequential')
 
 /**
- * Escala secuencial de volumen (5 tramos sobre el logaritmo del total).
- * Arranca en el azul profundo de los paneles para que el extremo bajo no
- * parezca "sin datos" y sube por verde, lima, ámbar y rojo de dato.
+ * Escala secuencial de volumen: cinco quintiles de la selección.
+ * Sigue la paleta de marca: azul profundo → azul eléctrico → celeste →
+ * lima neón → rojo. La leyenda muestra los cortes numéricos de cada quintil.
  */
-export const SEQUENTIAL_STOPS = ['#0B2A6B', '#1F7A57', '#EAFE07', '#F0A02A', '#D03000']
+export const SEQUENTIAL_STOPS = ['#0A2A66', '#0960E1', '#2E96F5', '#EAFE07', '#E03000']
 
 /**
  * Escala divergente de anomalía con cortes fijos en ±15% y ±50%.
@@ -30,8 +30,8 @@ export const ANOMALY_BANDS: AnomalyBand[] = [
   { id: 'low-extreme', bg: '#1F7A57', ink: '#6EE7A8', mark: '▼', legend: '≤ −50%', extreme: true, upTo: -0.5 },
   { id: 'low', bg: '#8FD9B6', ink: '#A7E8C8', mark: '', legend: '−50 a −15%', extreme: false, upTo: -0.15 },
   { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', legend: '±15%', extreme: false, upTo: 0.15 },
-  { id: 'high', bg: '#F0A02A', ink: '#F5B547', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
-  { id: 'high-extreme', bg: '#D03000', ink: '#FF6A3D', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
+  { id: 'high', bg: '#F08A00', ink: '#FFB24D', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
+  { id: 'high-extreme', bg: '#E03000', ink: '#FF6A3D', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
 ]
 
 /** Banda de anomalía para una diferencia relativa (0,5 = +50%). */
