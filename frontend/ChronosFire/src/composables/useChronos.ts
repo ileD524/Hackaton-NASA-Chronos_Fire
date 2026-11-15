@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import type { CalendarData, DailyRow, Filters, Meta, MetricMode, MonthCell } from '@/data/types'
+import { apiUrl } from '@/api'
 import { formatNumber, seriesLabel as localizedSeriesLabel, t } from './useI18n'
 
 interface ApiMonthly {
@@ -64,6 +65,9 @@ interface ApiMeta {
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
+// La serie histórica del calendario comienza en 2003. Los meses sin cobertura
+// permanecen visibles como "sin datos" en vez de ocultar años del período.
+export const TIMELINE_START = '2003-01-01'
 const filters = ref<Filters>({
   from: '',
   to: '',
@@ -117,7 +121,7 @@ export function hotspotsParams(f: Filters): URLSearchParams {
 }
 
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(url, { signal })
+  const response = await fetch(apiUrl(url), { signal })
   const result = await response.json()
   if (!response.ok) throw new Error(result?.error || result?.message || t('error.fetch'))
   return result as T
@@ -397,7 +401,7 @@ async function initialize() {
       .filter((sensor) => sensor.sensor.startsWith('VIIRS') && sensor.from)
       .map((sensor) => sensor.from as string)
       .sort()[0] ?? ''
-    const from = meta.dateRange?.from ?? ''
+    const from = TIMELINE_START
     const to = meta.dateRange?.to ?? ''
     filters.value = { ...filters.value, from, to }
     metadata.value = {
@@ -472,8 +476,8 @@ export function useChronos() {
     csvError,
     csvChecking,
     checkCsv,
-    exportURL: computed(() => `/api/calendar/export.csv?${params(filters.value)}`),
-    hotspotsExportURL: computed(() => `/api/detections/export.csv?${hotspotsParams(filters.value)}`),
+    exportURL: computed(() => apiUrl(`/api/calendar/export.csv?${params(filters.value)}`)),
+    hotspotsExportURL: computed(() => apiUrl(`/api/detections/export.csv?${hotspotsParams(filters.value)}`)),
   }
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useChronos } from '@/composables/useChronos'
+import { TIMELINE_START, useChronos } from '@/composables/useChronos'
 import { useI18n } from '@/composables/useI18n'
 import { SENSOR_OPTIONS } from '@/data/types'
 import type { Bbox, Metric } from '@/data/types'
@@ -13,10 +13,10 @@ const sensor = ref<Metric>(filters.value.metric)
 const area = ref('delta'), west = ref(-61), south = ref(-34), east = ref(-59.5), north = ref(-32.5)
 const validation = ref('')
 const sensorOptions = computed(() => SENSOR_OPTIONS.map((option) => ({ id: option.id, label: sensorLabel(option.id) })))
-const dateMin = computed(() => metadata.value?.first_date || undefined)
+const dateMin = computed(() => TIMELINE_START)
 const dateMax = computed(() => metadata.value?.last_date || undefined)
 const archiveLabel = computed(() => {
-  const first = metadata.value?.first_date?.slice(0, 4)
+  const first = TIMELINE_START.slice(0, 4)
   const last = metadata.value?.last_date?.slice(0, 4)
   return first && last ? t('aoi.archiveRange', { first, last }) : t('aoi.archive')
 })
@@ -54,7 +54,7 @@ function changeSensor() {
 }
 function reset() {
   area.value = 'all'
-  from.value = metadata.value?.first_date ?? ''
+  from.value = TIMELINE_START
   to.value = metadata.value?.last_date ?? ''
   apply()
 }

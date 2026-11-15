@@ -132,8 +132,8 @@ export const es = {
   'aoi.validationBbox': 'Revisá los límites del rectángulo.',
   'aoi.submit': 'Actualizar calendario',
   'aoi.submitting': 'Consultando…',
-  'aoi.archive': 'Ver todo el archivo',
-  'aoi.archiveRange': 'Ver todo el archivo {first}–{last}',
+  'aoi.archive': 'Ver todo el período',
+  'aoi.archiveRange': 'Ver todo el período {first}–{last}',
 
   'csv.limited':
     'Descarga limitada a {rows} filas. Acotá el área o el rango para obtener el resto.',
@@ -609,8 +609,8 @@ export const en: Record<MessageKey, string> = {
   'aoi.validationBbox': 'Check the rectangle bounds.',
   'aoi.submit': 'Update calendar',
   'aoi.submitting': 'Querying…',
-  'aoi.archive': 'View the full archive',
-  'aoi.archiveRange': 'View the full archive {first}–{last}',
+  'aoi.archive': 'View the full period',
+  'aoi.archiveRange': 'View the full period {first}–{last}',
 
   'csv.limited':
     'Download limited to {rows} rows. Narrow the area or range to get the rest.',

@@ -54,6 +54,7 @@ await expect(page.locator('section[aria-labelledby="comparison-title"]')).toCont
 const initialCsv = await hotspotsCsvURL()
 const initialFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
 const initialTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
+if (initialFrom !== '2003-01-01') throw new Error(`inicio histórico inesperado: ${initialFrom}`)
 if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Error('CSV inicial sin bbox del AOI')
 if (initialCsv.searchParams.get('from') !== initialFrom) throw new Error('CSV inicial sin fecha desde')
 await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
@@ -181,7 +182,7 @@ if (corrientesCsv.searchParams.get('bbox') !== '-60,-30.8,-55.5,-27') {
 }
 await page.screenshot({ path: `${ARTIFACTS}/corrientes.png`, fullPage: true })
 
-await page.getByRole('button', { name: /Ver todo el archivo \d{4}–\d{4}/ }).click()
+await page.getByRole('button', { name: /Ver todo el período \d{4}–\d{4}/ }).click()
 const archiveFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
 const archiveTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
 const expectedCells = (Number(archiveTo.slice(0, 4)) - Number(archiveFrom.slice(0, 4)) + 1) * 12
