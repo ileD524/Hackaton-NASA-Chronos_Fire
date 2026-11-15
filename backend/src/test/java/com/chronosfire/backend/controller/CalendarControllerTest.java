@@ -77,6 +77,8 @@ class CalendarControllerTest {
                 78,
                 1242,
                 Map.of("VIIRS_SNPP", 1242),
+                1180,
+                Map.of("VIIRS_SNPP", 1180),
                 false,
                 "observed")));
 
@@ -88,7 +90,10 @@ class CalendarControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].fireCells").value(66))
                 .andExpect(jsonPath("$[0].fireDays").value(78))
-                .andExpect(jsonPath("$[0].detectionsBySensor.VIIRS_SNPP").value(1242));
+                .andExpect(jsonPath("$[0].nDetections").value(1242))
+                .andExpect(jsonPath("$[0].detectionsBySensor.VIIRS_SNPP").value(1242))
+                .andExpect(jsonPath("$[0].hotspots").value(1180))
+                .andExpect(jsonPath("$[0].hotspotsBySensor.VIIRS_SNPP").value(1180));
 
         assertEquals("VIIRS_SNPP", calendarService.getMonthlySensor());
     }

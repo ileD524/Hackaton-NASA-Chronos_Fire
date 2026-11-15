@@ -7,12 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.MonthlyCell;
 import com.chronosfire.backend.dto.TrendRow;
 import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.repository.CalendarRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CalendarServiceTest {
@@ -88,6 +90,69 @@ class CalendarServiceTest {
         assertEquals(0, months.get(1).fireCells());
         assertEquals("observed", months.get(2).dataStatus());
         assertEquals("ALL", repository.monthlyFireSensor);
+    }
+
+    @Test
+    void monthlyReportsHotspotsSeparateFromRawDetections() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = List.of(
+                new CalendarRepository.MonthFire(2020, 8, 66, 78, 8689));
+        repository.monthlyDetections = List.of(
+                new CalendarRepository.MonthSensorDetections(2020, 8, "VIIRS_SNPP", 8098));
+        repository.monthlyHotspots = List.of(
+                new CalendarRepository.MonthlyHotspot(2020, 8, "VIIRS_SNPP", 6628));
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "VIIRS_SNPP");
+
+        MonthlyCell month = months.get(0);
+        assertEquals(8098, month.nDetections());
+        assertEquals(6628, month.hotspots());
+        assertEquals(6628, month.hotspotsBySensor().get("VIIRS_SNPP"));
+        assertTrue(month.hotspots() <= month.nDetections());
+        assertEquals("VIIRS_SNPP", repository.monthlyHotspotsSensor);
+    }
+
+    @Test
+    void dailyEnrichesRowsWithHarmonizedHotspots() {
+        StubRepository repository = new StubRepository();
+        LocalDate day = LocalDate.parse("2020-09-15");
+        repository.dailyRows = List.of(new DailyRow(
+                day,
+                "0.05:-660:-1200",
+                -33.0,
+                -60.0,
+                true,
+                10,
+                List.of("MODIS", "VIIRS_SNPP"),
+                0,
+                Map.of(),
+                50.0,
+                1.2,
+                null,
+                "observed"));
+        repository.dailyHotspots = List.of(
+                new CalendarRepository.DailyHotspot(day, "0.05:-660:-1200", "MODIS", 2),
+                new CalendarRepository.DailyHotspot(day, "0.05:-660:-1200", "VIIRS_SNPP", 5));
+
+        List<DailyRow> rows = new CalendarService(repository)
+                .getDaily(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "ALL",
+                        10);
+
+        assertEquals(1, rows.size());
+        assertEquals(7, rows.get(0).hotspots());
+        assertEquals(2, rows.get(0).hotspotsBySensor().get("MODIS"));
+        assertEquals(5, rows.get(0).hotspotsBySensor().get("VIIRS_SNPP"));
+        assertEquals(10, rows.get(0).nDetections());
+        assertEquals("ALL", repository.dailyHotspotsSensor);
     }
 
     @Test
@@ -215,6 +280,11 @@ class CalendarServiceTest {
         private List<MonthFire> monthlyFire = List.of();
         private String monthlyFireSensor;
         private List<MonthSensorDetections> monthlyDetections = List.of();
+        private List<MonthlyHotspot> monthlyHotspots = List.of();
+        private String monthlyHotspotsSensor;
+        private List<DailyRow> dailyRows = List.of();
+        private List<DailyHotspot> dailyHotspots = List.of();
+        private String dailyHotspotsSensor;
         private List<AnnualSensor> annual = List.of();
         private List<WeeklyExportRow> weeklyRows = List.of();
 
@@ -266,6 +336,36 @@ class CalendarServiceTest {
                 LocalDate to,
                 String sensor) {
             return monthlyDetections;
+        }
+
+        @Override
+        public List<MonthlyHotspot> monthlyHotspots(
+                Bbox bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor) {
+            monthlyHotspotsSensor = sensor;
+            return monthlyHotspots;
+        }
+
+        @Override
+        public List<DailyRow> daily(
+                Bbox bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor,
+                int limit) {
+            return dailyRows;
+        }
+
+        @Override
+        public List<DailyHotspot> dailyHotspots(
+                Bbox bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor) {
+            dailyHotspotsSensor = sensor;
+            return dailyHotspots;
         }
 
         @Override

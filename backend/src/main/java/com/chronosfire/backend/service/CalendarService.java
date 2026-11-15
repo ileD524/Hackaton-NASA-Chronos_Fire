@@ -9,8 +9,10 @@ import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.repository.CalendarRepository;
 import com.chronosfire.backend.repository.CalendarRepository.AnnualSensor;
 import com.chronosfire.backend.repository.CalendarRepository.Baseline;
+import com.chronosfire.backend.repository.CalendarRepository.DailyHotspot;
 import com.chronosfire.backend.repository.CalendarRepository.MonthFire;
 import com.chronosfire.backend.repository.CalendarRepository.MonthSensorDetections;
+import com.chronosfire.backend.repository.CalendarRepository.MonthlyHotspot;
 import com.chronosfire.backend.repository.CalendarRepository.SensorWeek;
 import com.chronosfire.backend.repository.CalendarRepository.WeekFlags;
 import com.chronosfire.backend.repository.CalendarRepository.WeeklyExportRow;
@@ -137,7 +139,39 @@ public class CalendarService {
         int safeLimit = validateLimit(limit, 5000, 50000);
         Bbox queryBbox = queryBbox(bboxParam);
         String sensor = normalizeSensor(sensorParam, "ALL");
-        return repository.daily(queryBbox, from, to, sensor, safeLimit);
+
+        List<DailyRow> rows = repository.daily(queryBbox, from, to, sensor, safeLimit);
+        if (rows.isEmpty()) {
+            return rows;
+        }
+
+        Map<String, Map<String, Integer>> hotspots = new HashMap<>();
+        for (DailyHotspot row : repository.dailyHotspots(queryBbox, from, to, sensor)) {
+            hotspots.computeIfAbsent(dayKey(row.day(), row.gridId()), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
+        List<DailyRow> enriched = new ArrayList<>(rows.size());
+        for (DailyRow row : rows) {
+            Map<String, Integer> bySensor = hotspots.getOrDefault(
+                    dayKey(row.date(), row.gridId()), Map.of());
+            int total = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            enriched.add(new DailyRow(
+                    row.date(),
+                    row.gridId(),
+                    row.cellLat(),
+                    row.cellLon(),
+                    row.fireDay(),
+                    row.nDetections(),
+                    row.sensors(),
+                    total,
+                    bySensor,
+                    row.frpMaxMw(),
+                    row.frpDensityMaxWm2(),
+                    row.source(),
+                    row.dataStatus()));
+        }
+        return enriched;
     }
 
     @Cacheable(value = "heatmap", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam + '|' + #limit")
@@ -175,6 +209,12 @@ public class CalendarService {
                     .put(row.sensor(), row.nDetections());
         }
 
+        Map<String, Map<String, Integer>> hotspotCounts = new HashMap<>();
+        for (MonthlyHotspot row : repository.monthlyHotspots(queryBbox, from, to, sensor)) {
+            hotspotCounts.computeIfAbsent(monthKey(row.year(), row.month()), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
         List<MonthlyCell> result = new ArrayList<>();
         YearMonth cursor = YearMonth.from(from);
         YearMonth end = YearMonth.from(to);
@@ -184,7 +224,9 @@ public class CalendarService {
             String key = monthKey(year, month);
             MonthFire fire = fires.get(key);
             Map<String, Integer> bySensor = detections.getOrDefault(key, Map.of());
+            Map<String, Integer> hotspotsBySensor = hotspotCounts.getOrDefault(key, Map.of());
             int nDetections = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            int hotspots = hotspotsBySensor.values().stream().mapToInt(Integer::intValue).sum();
             boolean partial = cursor.atDay(1).isBefore(from) || cursor.atEndOfMonth().isAfter(to);
             String dataStatus = fire == null && bySensor.isEmpty() ? "unknown" : "observed";
             result.add(new MonthlyCell(
@@ -194,6 +236,8 @@ public class CalendarService {
                     fire == null ? 0 : fire.fireDays(),
                     nDetections,
                     bySensor,
+                    hotspots,
+                    hotspotsBySensor,
                     partial,
                     dataStatus));
             cursor = cursor.plusMonths(1);
@@ -336,6 +380,10 @@ public class CalendarService {
 
     private String monthKey(int year, int month) {
         return year + "-" + month;
+    }
+
+    private String dayKey(LocalDate day, String gridId) {
+        return day + "|" + gridId;
     }
 
     private String sensorYearKey(String sensor, int year) {

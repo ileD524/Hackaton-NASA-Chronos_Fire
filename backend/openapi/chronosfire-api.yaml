@@ -75,7 +75,7 @@ paths:
     get:
       tags: [Calendario]
       operationId: getDailyCalendar
-      summary: Serie diaria de celdas con actividad
+      summary: Serie diaria de celdas con actividad y hotspots
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
@@ -121,12 +121,15 @@ paths:
     get:
       tags: [Calendario]
       operationId: getMonthlyCalendar
-      summary: Agregacion mensual para la UI
+      summary: Agregacion mensual con celdas y hotspots
       description: |
-        `fireCells` y `fireDays` se filtran por `sensor` cuando no es `ALL`.
-        `fire_day` sigue siendo all-sensor: `fireCells(sensor)` cuenta celdas
-        con actividad en dias en que ese sensor tuvo al menos una deteccion.
-        `ALL` no es un promedio; la serie esta dominada por VIIRS.
+        `fireCells`, `fireDays`, `hotspots` y `hotspotsBySensor` se filtran por
+        `sensor` cuando no es `ALL`. `fire_day` sigue siendo all-sensor:
+        `fireCells(sensor)` cuenta celdas con actividad en dias en que ese
+        sensor tuvo al menos una deteccion. `hotspots` cuenta detecciones de
+        vegetacion efectiva, confianza nominal/alta y fuera de la mascara
+        industrial; no es cantidad de incendios. `ALL` no es un promedio; la
+        serie esta dominada por VIIRS.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
@@ -678,6 +681,16 @@ components:
           type: array
           items:
             type: string
+        hotspots:
+          type: integer
+          description: |
+            Detecciones de vegetacion efectiva, confianza nominal/alta y fuera
+            de la mascara industrial. No es cantidad de incendios.
+        hotspotsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Conteo por sensor; no sumar entre sensores como promedio.
         frpMaxMw:
           type: number
           nullable: true
@@ -730,6 +743,16 @@ components:
           type: object
           additionalProperties:
             type: integer
+        hotspots:
+          type: integer
+          description: |
+            Detecciones de vegetacion efectiva, confianza nominal/alta y fuera
+            de la mascara industrial. No es cantidad de incendios.
+        hotspotsBySensor:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Conteo por sensor; no sumar entre sensores como promedio.
         partial:
           type: boolean
         dataStatus:

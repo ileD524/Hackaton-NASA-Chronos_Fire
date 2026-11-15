@@ -91,9 +91,9 @@ Ejemplo verificado (Delta 2020, semana 40):
 
 | Endpoint | Parametros | Semantica |
 |---|---|---|
-| `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily`; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
+| `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily` con `hotspots` armonizados; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
 | `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05°; `anomaly` queda `null` porque la anomalía es por AOI |
-| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; `fireCells`/`fireDays` y `detectionsBySensor` filtrados por sensor; `ALL` no es promedio |
+| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; celdas, hotspots, detecciones y desglose por sensor; `ALL` no es promedio |
 | `GET /api/calendar/trend` | `bbox`, `from`, `to`, `sensor` | Serie anual; `AUTO` usa la era de cada año; baseline anual leave-one-out |
 
 Reglas:
@@ -110,18 +110,26 @@ Reglas:
 - En `daily`, `source` y `frpDensityMaxWm2` quedan `null` porque `grid_daily`
   no guarda esos campos.
 - En `heatmap`, `anomaly` queda `null`: la anomalía es por AOI, no por celda.
-- En `monthly`, `fireCells`, `fireDays` y `detectionsBySensor` respetan el
-  filtro de sensor. `fire_day` sigue siendo all-sensor: `fireCells(sensor)`
-  cuenta celdas con actividad en dias en que ese sensor tuvo al menos una
-  deteccion, no celdas atribuibles en exclusiva a ese sensor. `AUTO` se trata
-  como `ALL` y `ALL` no es un promedio: la serie esta dominada por VIIRS.
+- En `monthly` y `daily`, `fireCells`, `fireDays`, `hotspots`,
+  `hotspotsBySensor` y `detectionsBySensor` respetan el filtro de sensor.
+  `fire_day` sigue siendo all-sensor: `fireCells(sensor)` cuenta celdas con
+  actividad en dias en que ese sensor tuvo al menos una deteccion, no celdas
+  atribuibles en exclusiva a ese sensor. `AUTO` se trata como `ALL` y `ALL` no
+  es un promedio: la serie esta dominada por VIIRS.
+- `hotspots` cuenta detecciones de vegetacion efectiva, confianza
+  nominal/alta y fuera de la mascara industrial. Es la misma definicion que
+  `fire_day`, pero a nivel de deteccion. `nDetections`/`detectionsBySensor`
+  son el conteo crudo; no son la metrica del calendario.
 
 Verificado:
 
 - Delta 2020 septiembre: `daily` y `heatmap` responden en <0,2 s.
 - Delta 2020 enero-marzo: `monthly` responde en ~0,2 s.
-- Delta 2020-09 `monthly` por sensor: `ALL` 189 celdas / 618 dias;
-  `MODIS` 119 / 313; `VIIRS_SNPP` 154 / 496; `AUTO` se comporta como `ALL`.
+- Delta 2020-09 `monthly` por sensor: `ALL` 189 celdas / 618 dias /
+  6.628 hotspots; `MODIS` 119 / 313 / 704; `VIIRS_SNPP` 154 / 496 / 3.313;
+  `AUTO` se comporta como `ALL`.
+- Delta 2020-09-15 `daily`: 20 filas de celda-dia, 76 hotspots; una celda
+  puede mezclar sensores (`hotspotsBySensor` conserva el desglose).
 - Delta 2019-2020: `trend` devuelve 2019 = 0,96 y 2020 = 6,22.
 - Sin bbox, `monthly` 2020 tarda ~5,6 s la primera vez y queda cacheado.
 
@@ -238,7 +246,7 @@ demo inicia en el Delta.
 | GET | `/api/calendar/weekly` | `grid_weekly_sensor`, `grid_weekly` | Titular semanal y anomalia |
 | GET | `/api/calendar/daily` | `grid_daily` | Serie diaria |
 | GET | `/api/calendar/heatmap` | `grid_daily` | Mapa de celdas 0,05° |
-| GET | `/api/calendar/monthly` | `grid_daily` | Agregacion mensual para la UI |
+| GET | `/api/calendar/monthly` | `grid_daily`, `v_detections_analysis` | Agregacion mensual con celdas y hotspots |
 | GET | `/api/calendar/trend` | `grid_weekly` | Serie anual |
 | GET | `/api/calendar/export.csv` | `grid_weekly` | Descarga semanal |
 | GET | `/api/alerts` | `v_detections_analysis` | Alertas NRT por celda |
@@ -300,6 +308,10 @@ El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracio
 - `fire_day`: celda de 0,05° con al menos una deteccion de vegetacion nominal/alta en el dia UTC.
 - `fire_cells`: celdas con actividad en el periodo.
 - `n_detections`: detecciones FIRMS; no es cantidad de incendios.
+- `hotspots`: detecciones de vegetacion efectiva, confianza nominal/alta y
+  fuera de la mascara industrial; no es cantidad de incendios.
+- `hotspotsBySensor`: el mismo conteo desglosado por sensor; no se suma entre
+  sensores para presentar un promedio.
 - `anomaly = observedFireCells / baselineFireCells`.
 - `baselineFireCells`: mediana multianual por AOI, leave-one-out.
 - `confidence`: `high`, `low` o `insufficient`.

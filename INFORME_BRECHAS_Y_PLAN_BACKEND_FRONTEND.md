@@ -150,6 +150,8 @@ GET /api/calendar/monthly?bbox=-61,-34,-59.5,-32.5&from=2020-01-01&to=2020-12-31
 
 ### B-02. Agregar el conteo de hotspots armonizados
 
+**Estado:** ✅ implementado el 15/11/2026.
+
 **Problema:** `monthlyDetections()` cuenta todas las filas de `detections`, incluidas industriales, baja confianza y tipos 1/2/3. Ese número no es “hotspots de vegetación confiable”.
 
 **Cambio propuesto:**
@@ -182,6 +184,8 @@ GROUP BY 1, 2, 3;
 - Delta 2020-09 con SNPP: `hotspots` coincide con la suma de detecciones de vegetación nominal/alta no industriales.
 - La diferencia entre `detections` y `hotspots` se explica en la UI.
 - Tests de servicio y controlador.
+
+**Implementación:** `monthlyHotspots` y `dailyHotspots` en `CalendarRepository`, enriquecimiento en `CalendarService`, campos nuevos en `MonthlyCell` y `DailyRow`. Filtro: vegetación efectiva, confianza nominal/alta y fuera de máscara industrial. 25 tests, 0 fallos. Verificado en vivo sobre Delta 2020-09: `ALL` 6.628 hotspots; `MODIS` 704; `VIIRS_SNPP` 3.313. Delta 2020-09-15: 76 hotspots en 20 celdas-día.
 
 **Archivos:** `CalendarService.java`, `CalendarRepository.java`, `MonthlyCell.java`, `DailyRow.java`, `openapi/chronosfire-api.yaml`.
 

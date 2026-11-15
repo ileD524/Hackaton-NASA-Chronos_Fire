@@ -8,11 +8,25 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class CalendarRepository {
+
+    /**
+     * Misma definicion que {@code fire_day} en {@code fix_calendar.sql}:
+     * vegetacion efectiva, confianza nominal/alta y fuera de la mascara
+     * industrial. Se usa para contar hotspots armonizados, no detecciones
+     * crudas.
+     */
+    private static final String HOTSPOT_PREDICATE = """
+            NOT industrial_mask
+              AND confidence_class IN ('nominal', 'high')
+              AND coalesce(is_vegetation_effective,
+                           confidence_class IN ('nominal', 'high'))
+            """;
 
     private final JdbcTemplate jdbc;
 
@@ -180,10 +194,53 @@ public class CalendarRepository {
                 rs.getBoolean("fire_day"),
                 rs.getInt("n_detections"),
                 toList(rs.getArray("sensors")),
+                0,
+                Map.of(),
                 toDouble(rs, "frp_max_mw"),
                 null,
                 null,
                 "observed"), params.toArray());
+    }
+
+    /**
+     * Hotspots armonizados por celda-dia y sensor. Misma grilla que
+     * {@code grid_daily}: 0,05 grados.
+     */
+    public List<DailyHotspot> dailyHotspots(
+            Bbox bbox,
+            LocalDate from,
+            LocalDate to,
+            String sensor) {
+        String sql = """
+                SELECT acq_date AS day,
+                       '0.05:' || CAST(round(latitude / 0.05) AS BIGINT) || ':' ||
+                       CAST(round(longitude / 0.05) AS BIGINT) AS grid_id,
+                       sensor,
+                       count(*)::int AS hotspots
+                FROM v_detections_analysis
+                WHERE acq_date BETWEEN ? AND ?
+                  AND latitude BETWEEN ? AND ?
+                  AND longitude BETWEEN ? AND ?
+                  AND
+                  """
+                + HOTSPOT_PREDICATE
+                + ("ALL".equals(sensor) ? "" : "  AND sensor = ?\n")
+                + "GROUP BY 1, 2, 3\nORDER BY 1, 2, 3";
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        return jdbc.query(sql, (rs, rowNum) -> new DailyHotspot(
+                rs.getObject("day", LocalDate.class),
+                rs.getString("grid_id"),
+                rs.getString("sensor"),
+                rs.getInt("hotspots")), params.toArray());
     }
 
     public List<HeatmapCell> heatmap(
@@ -304,6 +361,46 @@ public class CalendarRepository {
                 rs.getInt("n_detections")), params.toArray());
     }
 
+    /**
+     * Hotspots armonizados por mes y sensor. Es la metrica del calendario;
+     * {@code nDetections} sigue siendo el conteo crudo.
+     */
+    public List<MonthlyHotspot> monthlyHotspots(
+            Bbox bbox,
+            LocalDate from,
+            LocalDate to,
+            String sensor) {
+        String sql = """
+                SELECT extract(year FROM acq_date)::int AS year,
+                       (extract(month FROM acq_date)::int - 1) AS month,
+                       sensor,
+                       count(*)::int AS hotspots
+                FROM v_detections_analysis
+                WHERE acq_date BETWEEN ? AND ?
+                  AND latitude BETWEEN ? AND ?
+                  AND longitude BETWEEN ? AND ?
+                  AND
+                  """
+                + HOTSPOT_PREDICATE
+                + ("ALL".equals(sensor) ? "" : "  AND sensor = ?\n")
+                + "GROUP BY 1, 2, 3\nORDER BY 1, 2, 3";
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        return jdbc.query(sql, (rs, rowNum) -> new MonthlyHotspot(
+                rs.getInt("year"),
+                rs.getInt("month"),
+                rs.getString("sensor"),
+                rs.getInt("hotspots")), params.toArray());
+    }
+
     public List<WeeklyExportRow> weeklyExport(
             Bbox bbox,
             int fromYear,
@@ -422,6 +519,22 @@ public class CalendarRepository {
             int month,
             String sensor,
             int nDetections
+    ) {
+    }
+
+    public record MonthlyHotspot(
+            int year,
+            int month,
+            String sensor,
+            int hotspots
+    ) {
+    }
+
+    public record DailyHotspot(
+            LocalDate day,
+            String gridId,
+            String sensor,
+            int hotspots
     ) {
     }
 

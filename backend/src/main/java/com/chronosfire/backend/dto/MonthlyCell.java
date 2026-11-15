@@ -9,6 +9,8 @@ public record MonthlyCell(
         int fireDays,
         int nDetections,
         Map<String, Integer> detectionsBySensor,
+        int hotspots,
+        Map<String, Integer> hotspotsBySensor,
         boolean partial,
         String dataStatus
 ) {
