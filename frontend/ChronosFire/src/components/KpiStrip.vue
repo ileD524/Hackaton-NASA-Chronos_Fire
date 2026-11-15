@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useChronos } from '@/composables/useChronos'
-import { format, MONTH_LABELS, useCalendar } from '@/composables/useCalendar'
+import { format, useCalendar } from '@/composables/useCalendar'
+import { useI18n } from '@/composables/useI18n'
 import { anomalyBand } from '@/composables/useColorRamp'
+const { t, monthShort } = useI18n()
 const { months, seriesLabel, metricMode, metricValue, metricLabel, metricUnit } = useChronos()
 const { cellMeta } = useCalendar()
 const total = computed(() => months.value.reduce((sum, m) => sum + (metricValue(m) ?? 0), 0))
@@ -14,13 +16,13 @@ const peakBand = computed(() => metricMode.value === 'cells' && peak.value
   : null)
 const completeMonths = computed(() => months.value.filter((m) => metricValue(m) !== null && !m.partial).length)
 const partialIncluded = computed(() => months.value.some((m) => m.partial && metricValue(m) !== null))
-const peakUnit = computed(() => metricMode.value === 'cells' ? 'celdas' : 'hotspots')
+const peakUnit = computed(() => metricMode.value === 'cells' ? t('unit.cells') : t('unit.hotspots'))
 </script>
 <template>
   <ul class="kpi-list">
-    <li class="kpi"><span class="kpi-caption">ACTIVIDAD REGISTRADA</span><strong class="kpi-value">{{ format(total) }}</strong><span class="kpi-label">{{ metricUnit }} · {{ seriesLabel }}<span v-if="partialIncluded"> · incluye meses parciales</span></span></li>
-    <li class="kpi"><span class="kpi-caption">MES CON MAYOR VALOR</span><strong class="kpi-value smaller" :style="peakBand?{color:peakBand.ink}:undefined">{{ peak ? `${MONTH_LABELS[peak.month]} ${peak.year}` : '—' }}</strong><span class="kpi-label">{{ peak ? `${format(metricValue(peak)!)} ${peakUnit} · mes completo` : 'Sin meses completos en la selección' }}</span></li>
-    <li class="kpi"><span class="kpi-caption">MESES COMPLETOS</span><strong class="kpi-value">{{ format(completeMonths) }}</strong><span class="kpi-label">en la selección · no acredita cobertura sin nubes · {{ metricLabel }}</span></li>
+    <li class="kpi"><span class="kpi-caption">{{ t('kpi.activity') }}</span><strong class="kpi-value">{{ format(total) }}</strong><span class="kpi-label">{{ metricUnit }} · {{ seriesLabel }}<span v-if="partialIncluded">{{ t('kpi.includesPartial') }}</span></span></li>
+    <li class="kpi"><span class="kpi-caption">{{ t('kpi.peak') }}</span><strong class="kpi-value smaller" :style="peakBand?{color:peakBand.ink}:undefined">{{ peak ? `${monthShort(peak.month)} ${peak.year}` : '—' }}</strong><span class="kpi-label">{{ peak ? t('kpi.peakLabel', { value: format(metricValue(peak)!), unit: peakUnit }) : t('kpi.peakEmpty') }}</span></li>
+    <li class="kpi"><span class="kpi-caption">{{ t('kpi.complete') }}</span><strong class="kpi-value">{{ format(completeMonths) }}</strong><span class="kpi-label">{{ t('kpi.completeLabel', { metric: metricLabel }) }}</span></li>
   </ul>
 </template>
 <style scoped>

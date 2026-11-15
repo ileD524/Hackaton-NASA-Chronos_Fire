@@ -12,6 +12,11 @@ public record HeatmapCell(
         int hotspots,
         Map<String, Integer> hotspotsBySensor,
         Double anomaly,
-        String dataStatus
+        String dataStatus,
+        Double fireProbability,
+        Double probabilityLow,
+        Double probabilityHigh,
+        Integer probabilityRefYears,
+        String probabilityReliability
 ) {
 }

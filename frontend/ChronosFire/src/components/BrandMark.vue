@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from '@/composables/useI18n'
+
 withDefaults(
   defineProps<{
     variant?: 'horizontal' | 'stacked' | 'symbol'
@@ -7,6 +9,8 @@ withDefaults(
   }>(),
   { variant: 'horizontal', size: 44, tagline: false },
 )
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -46,7 +50,7 @@ withDefaults(
 
     <span v-if="variant !== 'symbol'" class="brand-text">
       <span class="brand-word">VII<span class="brand-dot">.</span>MO</span>
-      <span v-if="tagline" class="brand-tagline">Calendario de incendios</span>
+      <span v-if="tagline" class="brand-tagline">{{ t('brand.tagline') }}</span>
     </span>
   </span>
 </template>

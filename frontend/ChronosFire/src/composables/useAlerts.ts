@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type { AlertResponse, Bbox, ValidationEvent } from '@/data/types'
 import { fetchJSON } from './useChronos'
+import { t } from './useI18n'
 
 const alerts = ref<AlertResponse | null>(null)
 const validation = ref<ValidationEvent[]>([])
@@ -20,7 +21,7 @@ export function useAlerts() {
       alerts.value = await fetchJSON<AlertResponse>(`/api/alerts?${params}`)
       alertsUpdatedAt.value = new Date()
     } catch (e) {
-      alertsError.value = e instanceof Error ? e.message : 'No se pudieron cargar las alertas.'
+      alertsError.value = e instanceof Error ? e.message : t('error.alerts')
     } finally {
       alertsLoading.value = false
     }
@@ -32,7 +33,7 @@ export function useAlerts() {
     try {
       validation.value = await fetchJSON<ValidationEvent[]>('/api/validation')
     } catch (e) {
-      validationError.value = e instanceof Error ? e.message : 'No se pudo cargar la validación.'
+      validationError.value = e instanceof Error ? e.message : t('error.validation')
     } finally {
       validationLoading.value = false
     }

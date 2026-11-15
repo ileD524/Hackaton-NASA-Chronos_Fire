@@ -3,6 +3,7 @@ package com.chronosfire.backend.repository;
 import com.chronosfire.backend.dto.Bbox;
 import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.HeatmapCell;
+import com.chronosfire.backend.service.RiskMath;
 import java.sql.Array;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -230,23 +231,58 @@ public class CalendarRepository {
             LocalDate to,
             String sensor,
             int limit) {
-        String sql = """
-                SELECT day, grid_id, cell_lat, cell_lon, fire_day, n_detections, sensors, frp_max_mw
-                FROM grid_daily
-                WHERE day BETWEEN ? AND ?
-                  AND cell_lat BETWEEN ? AND ?
-                  AND cell_lon BETWEEN ? AND ?
+        boolean bySensor = !"ALL".equals(sensor);
+        // grid_daily.sensors lista los sensores con alguna deteccion, pero
+        // fire_day es global: para un sensor puntual hay que exigir que ESE
+        // sensor tenga una deteccion de vegetacion nominal/alta, igual que
+        // grid_weekly_sensor. Sin esto la serie diaria por sensor sobrecuenta.
+        String sql = (bySensor ? """
+                WITH sensor_fire AS (
+                    SELECT '0.05:' || CAST(round(latitude / 0.05) AS BIGINT) || ':' ||
+                           CAST(round(longitude / 0.05) AS BIGINT) AS grid_id,
+                           acq_date AS day,
+                           sensor
+                    FROM v_detections_analysis
+                    WHERE acq_date BETWEEN ? AND ?
+                      AND latitude BETWEEN ? AND ?
+                      AND longitude BETWEEN ? AND ?
+                      AND confidence_class IN ('nominal','high')
+                      AND coalesce(is_vegetation_effective, true)
+                    GROUP BY 1, 2, 3
+                )
+                """ : "")
+                + """
+                SELECT gd.day, gd.grid_id, gd.cell_lat, gd.cell_lon, gd.fire_day,
+                       gd.n_detections, gd.sensors, gd.frp_max_mw
+                FROM grid_daily gd
+                WHERE gd.day BETWEEN ? AND ?
+                  AND gd.cell_lat BETWEEN ? AND ?
+                  AND gd.cell_lon BETWEEN ? AND ?
                 """
-                + ("ALL".equals(sensor) ? "" : "  AND CAST(? AS TEXT) = ANY(sensors)\n")
-                + "ORDER BY day, grid_id\nLIMIT ?";
+                + (bySensor ? """
+                  AND gd.fire_day
+                  AND EXISTS (
+                      SELECT 1 FROM sensor_fire sf
+                      WHERE sf.grid_id = gd.grid_id AND sf.day = gd.day AND sf.sensor = ?
+                  )
+                """ : "")
+                + "ORDER BY gd.day, gd.grid_id\nLIMIT ?";
         List<Object> params = new ArrayList<>();
+        if (bySensor) {
+            params.add(java.sql.Date.valueOf(from));
+            params.add(java.sql.Date.valueOf(to));
+            params.add(bbox.minLat());
+            params.add(bbox.maxLat());
+            params.add(bbox.minLon());
+            params.add(bbox.maxLon());
+        }
         params.add(java.sql.Date.valueOf(from));
         params.add(java.sql.Date.valueOf(to));
         params.add(bbox.minLat());
         params.add(bbox.maxLat());
         params.add(bbox.minLon());
         params.add(bbox.maxLon());
-        if (!"ALL".equals(sensor)) {
+        if (bySensor) {
             params.add(sensor);
         }
         params.add(limit);
@@ -313,6 +349,134 @@ public class CalendarRepository {
             LocalDate to,
             String sensor,
             int limit) {
+        String era = riskEra(sensor, to);
+        if (era == null) {
+            return heatmapWithoutRisk(bbox, from, to, sensor, limit);
+        }
+
+        String sql = """
+                WITH semanas AS (
+                    SELECT DISTINCT extract(week FROM d)::smallint AS week_of_year
+                    FROM generate_series(?::date, ?::date, '1 day') AS d
+                ),
+                priors AS (
+                    SELECT coalesce(sum(alpha), 0)::float8 AS alpha,
+                           coalesce(sum(beta), 0)::float8  AS beta
+                    FROM risk_prior_week
+                    WHERE era = ?
+                      AND week_of_year IN (SELECT week_of_year FROM semanas)
+                ),
+                risk AS (
+                    SELECT grid_id,
+                           sum(fire_years)::int AS k,
+                           sum(ref_years)::int  AS n,
+                           min(ref_years)::int  AS n_min
+                    FROM risk_cell_week
+                    WHERE era = ?
+                      AND week_of_year IN (SELECT week_of_year FROM semanas)
+                      AND cell_lat BETWEEN ? AND ?
+                      AND cell_lon BETWEEN ? AND ?
+                    GROUP BY grid_id
+                )
+                SELECT c.grid_id, c.cell_lat, c.cell_lon,
+                       c.fire_cells, c.fire_days, c.n_detections,
+                       r.k, r.n, r.n_min, p.alpha, p.beta
+                FROM (
+                    SELECT grid_id, cell_lat, cell_lon,
+                           CASE WHEN count(*) FILTER (WHERE fire_day) > 0 THEN 1 ELSE 0 END AS fire_cells,
+                           count(*) FILTER (WHERE fire_day)::int AS fire_days,
+                           coalesce(sum(n_detections), 0)::int AS n_detections
+                    FROM grid_daily
+                    WHERE day BETWEEN ? AND ?
+                      AND cell_lat BETWEEN ? AND ?
+                      AND cell_lon BETWEEN ? AND ?
+                """
+                + ("ALL".equals(sensor) ? "" : "  AND CAST(? AS TEXT) = ANY(sensors)\n")
+                + """
+                    GROUP BY grid_id, cell_lat, cell_lon
+                    ORDER BY fire_days DESC, n_detections DESC
+                    LIMIT ?
+                ) c
+                LEFT JOIN risk r ON r.grid_id = c.grid_id
+                CROSS JOIN priors p
+                ORDER BY c.fire_days DESC, c.n_detections DESC
+                """;
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(era);
+        params.add(era);
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        params.add(bbox.minLat());
+        params.add(bbox.maxLat());
+        params.add(bbox.minLon());
+        params.add(bbox.maxLon());
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        params.add(limit);
+        return jdbc.query(sql, (rs, rowNum) -> {
+            double alpha = rs.getDouble("alpha");
+            double beta = rs.getDouble("beta");
+            int k = rs.getInt("k");
+            boolean hasRisk = !rs.wasNull();
+            int n = rs.getInt("n");
+            int nMin = rs.getInt("n_min");
+            boolean hasMin = !rs.wasNull();
+
+            Double probability = null;
+            Double low = null;
+            Double high = null;
+            Integer refYears = null;
+            String reliability = "insufficient";
+            if (hasRisk && n > 0) {
+                probability = RiskMath.posterior(k, n, alpha, beta);
+                double[] interval = RiskMath.wilson(k, n);
+                if (interval != null) {
+                    low = interval[0];
+                    high = interval[1];
+                }
+                if (hasMin) {
+                    refYears = nMin;
+                    reliability = RiskMath.reliability(nMin);
+                }
+            }
+
+            Double probabilityBase = alpha + beta > 0 ? alpha / (alpha + beta) : null;
+            Double anomaly = probability != null && probabilityBase != null && probabilityBase > 0
+                    ? round(probability / probabilityBase, 2)
+                    : null;
+
+            return new HeatmapCell(
+                    rs.getString("grid_id"),
+                    round(rs.getDouble("cell_lat"), 4),
+                    round(rs.getDouble("cell_lon"), 4),
+                    rs.getInt("fire_cells"),
+                    rs.getInt("fire_days"),
+                    rs.getInt("n_detections"),
+                    0,
+                    Map.of(),
+                    anomaly,
+                    "observed",
+                    probability,
+                    low,
+                    high,
+                    refYears,
+                    reliability);
+        }, params.toArray());
+    }
+
+    private List<HeatmapCell> heatmapWithoutRisk(
+            Bbox bbox,
+            LocalDate from,
+            LocalDate to,
+            String sensor,
+            int limit) {
         String sql = """
                 SELECT grid_id, cell_lat, cell_lon,
                        CASE WHEN count(*) FILTER (WHERE fire_day) > 0 THEN 1 ELSE 0 END AS fire_cells,
@@ -348,7 +512,25 @@ public class CalendarRepository {
                 0,
                 Map.of(),
                 null,
-                "observed"), params.toArray());
+                "observed",
+                null,
+                null,
+                null,
+                null,
+                "insufficient"), params.toArray());
+    }
+
+    /**
+     * Era de riesgo para el mapa: replica {@code resolvePlan} sobre la fecha
+     * final del rango. Las eras NOAA-20/21 no tienen tabla de riesgo en el MVP.
+     */
+    private String riskEra(String sensor, LocalDate to) {
+        return switch (sensor) {
+            case "MODIS" -> "MODIS";
+            case "VIIRS_SNPP" -> "SNPP";
+            case "ALL" -> to.getYear() >= 2013 ? "SNPP" : "MODIS";
+            default -> null;
+        };
     }
 
     /**

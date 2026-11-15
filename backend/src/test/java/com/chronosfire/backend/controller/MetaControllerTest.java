@@ -61,7 +61,18 @@ class MetaControllerTest {
                 new MetaResponse.ProvisionalWindow(
                         LocalDate.parse("2026-08-01"),
                         LocalDate.parse("2026-11-14"),
-                        "NRT")));
+                        "NRT"),
+                new MetaResponse.RiskMethodology(
+                        "risk-v1-low",
+                        "low",
+                        2025,
+                        0.01148,
+                        0.0286,
+                        0.74,
+                        3719116L,
+                        0.0236,
+                        0.05,
+                        "BSS 0.0286 < 0.05 en el holdout 2025: se publica como risk-v1-low.")));
 
         mockMvc.perform(get("/api/meta"))
                 .andExpect(status().isOk())
@@ -69,7 +80,11 @@ class MetaControllerTest {
                 .andExpect(jsonPath("$.gridResolutionDeg").value(0.05))
                 .andExpect(jsonPath("$.sensors[0].sensor").value("MODIS"))
                 .andExpect(jsonPath("$.counts.detections").value(7082474))
-                .andExpect(jsonPath("$.provisional.reason").value("NRT"));
+                .andExpect(jsonPath("$.provisional.reason").value("NRT"))
+                .andExpect(jsonPath("$.risk.modelVersion").value("risk-v1-low"))
+                .andExpect(jsonPath("$.risk.calibrationStatus").value("low"))
+                .andExpect(jsonPath("$.risk.bss").value(0.0286))
+                .andExpect(jsonPath("$.risk.holdoutYear").value(2025));
     }
 
     @TestConfiguration

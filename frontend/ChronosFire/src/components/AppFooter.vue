@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import BrandMark from '@/components/BrandMark.vue'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const year = new Date().getFullYear()
 </script>
 
@@ -10,8 +12,8 @@ const year = new Date().getFullYear()
       <BrandMark class="footer-brand" :size="32" tagline />
 
       <div class="footer-meta">
-        <span class="footer-credit">Datos: NASA Earthdata FIRMS · MODIS y VIIRS · grilla 0,05°</span>
-        <span class="footer-nasa">Proyecto participante de NASA Space Apps {{ year }}</span>
+        <span class="footer-credit">{{ t('footer.credit') }}</span>
+        <span class="footer-nasa">{{ t('footer.nasa', { year }) }}</span>
       </div>
 
       <img

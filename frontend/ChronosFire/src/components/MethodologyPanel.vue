@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useChronos } from '@/composables/useChronos'
+import { format } from '@/composables/useCalendar'
+import { useI18n } from '@/composables/useI18n'
 const { metadata } = useChronos()
+const { t, formatNumber } = useI18n()
+const risk = computed(() => metadata.value?.risk ?? null)
+const decimal = (value: number | null, digits = 3) => value === null
+  ? '—'
+  : formatNumber(value, { minimumFractionDigits: digits, maximumFractionDigits: digits })
 const sensorYear = (value: string | null | undefined) => value ? value.slice(0, 4) : ''
 const coverageLabel = computed(() => {
   const bySensor = new Map<string, { from: string; to: string }>()
@@ -31,22 +38,39 @@ const provisionalLabel = computed(() => {
 })
 </script>
 <template>
-<section class="panel" id="metodologia" aria-labelledby="method-title"><span class="section-kicker">DE LA OBSERVACIÓN A LA COMPARACIÓN</span><h2 class="panel-title" id="method-title">Qué estás viendo</h2>
-<p v-if="coverageLabel">{{ coverageLabel }}. Vegetación presunta con confianza nominal o alta.</p>
-<ol class="method-steps"><li><strong>Una grilla común.</strong> Detecciones asignadas por su centro a celdas de 0,05° (~5 km).</li><li><strong>Un día común.</strong> Agregación diaria en UTC; una celda con actividad en un día cuenta una vez.</li><li><strong>Una serie comparable.</strong> El calendario usa celdas con actividad, no una suma de detecciones entre sensores.</li></ol>
-<p><strong>Celda con actividad ≠ hotspot ≠ incendio.</strong> Una celda puede contener varios hotspots; un hotspot es una detección satelital y un incendio único requeriría agrupar eventos. La comparación histórica se calcula sobre celdas con actividad; los hotspots se muestran como conteo de detecciones.</p>
-<div class="audience">
-  <h3>Para quién</h3>
-  <ul>
-    <li><strong>Respuesta a emergencias:</strong> detectar semanas críticas y comparar el mes actual con su historia.</li>
-    <li><strong>Científicos:</strong> explorar patrones estacionales y anomalías multianuales.</li>
-    <li><strong>Gestión del territorio:</strong> priorizar el monitoreo en áreas con actividad recurrente.</li>
-  </ul>
-  <p class="use-case"><strong>Caso de validación semanal:</strong> Delta del Paraná, semana 40 de 2020: 6,6× la mediana (66 celdas con actividad frente a 10 de referencia).</p>
-  <p class="small-note">Herramienta descriptiva: no predice eventos ni asigna niveles de riesgo.</p>
+<section class="panel" id="metodologia" aria-labelledby="method-title"><span class="section-kicker">{{ t('method.kicker') }}</span><h2 class="panel-title" id="method-title">{{ t('method.title') }}</h2>
+<p v-if="coverageLabel">{{ t('method.coverage', { coverage: coverageLabel }) }}</p>
+<ol class="method-steps"><li><strong>{{ t('method.step1.strong') }}</strong> {{ t('method.step1.body') }}</li><li><strong>{{ t('method.step2.strong') }}</strong> {{ t('method.step2.body') }}</li><li><strong>{{ t('method.step3.strong') }}</strong> {{ t('method.step3.body') }}</li></ol>
+<p><strong>{{ t('method.definition.strong') }}</strong> {{ t('method.definition.body') }}</p>
+<div class="risk-method">
+  <h3>{{ t('method.riskTitle') }}</h3>
+  <p>{{ t('method.riskFormula') }}</p>
+  <p>{{ t('method.riskCoverage') }}</p>
+  <p>{{ t('method.riskLevels') }}</p>
+  <p>{{ t('method.disclaimer') }}</p>
+  <p v-if="risk" class="calibration" :class="`calibration-${risk.calibrationStatus}`">
+    <strong>{{ t('method.calibration', { year: risk.holdoutYear ?? '—' }) }}</strong>
+    {{ t('method.calibrationLine', { brier: decimal(risk.brier, 4), bss: decimal(risk.bss, 4), auc: decimal(risk.auc, 3), cells: format(risk.cellsWeek ?? 0) }) }}
+    <template v-if="risk.calibrationStatus === 'low'">
+      {{ t('method.calibrationLow', { threshold: decimal(risk.bssThreshold, 2), version: risk.modelVersion }) }}
+    </template>
+    <template v-else-if="risk.stabilityBss !== null">
+      {{ t('method.calibrationStability', { bss: decimal(risk.stabilityBss, 4) }) }}
+    </template>
+  </p>
 </div>
-<details><summary>Límites de la comparación</summary><p>La confianza se homologa a baja, nominal y alta. El baseline usa la mediana multianual por AOI y la era de cada sensor.</p><p>No hay calibración física de eficiencia de detección ni de FRP. La cobertura se aproxima con los días con detecciones (`coverage_daily`); no descuenta nubosidad ni overpass. La ausencia de registros no confirma ausencia de fuego.</p><p><template v-if="provisionalLabel">{{ provisionalLabel }} es NRT provisional y queda fuera del baseline. </template>Una celda de 0,05° no representa superficie quemada.</p></details>
-<a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Conocer NASA FIRMS ↗</a>
+<div class="audience">
+  <h3>{{ t('method.audienceTitle') }}</h3>
+  <ul>
+    <li><strong>{{ t('method.audience.emergency.strong') }}</strong> {{ t('method.audience.emergency.body') }}</li>
+    <li><strong>{{ t('method.audience.science.strong') }}</strong> {{ t('method.audience.science.body') }}</li>
+    <li><strong>{{ t('method.audience.land.strong') }}</strong> {{ t('method.audience.land.body') }}</li>
+  </ul>
+  <p class="use-case">{{ t('method.useCase') }}</p>
+  <p class="small-note">{{ t('method.note') }}</p>
+</div>
+<details><summary>{{ t('method.limits') }}</summary><p>{{ t('method.limits1') }}</p><p>{{ t('method.limits2') }}</p><p><template v-if="provisionalLabel">{{ t('method.provisional', { period: provisionalLabel }) }}</template>{{ t('method.limits3') }}</p></details>
+<a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">{{ t('method.firms') }}</a>
 </section>
 </template>
-<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}.audience{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.audience h3{font:800 16px var(--font-body);margin:0 0 10px}.audience ul{margin:0;padding-left:20px;font-size:14px;line-height:1.55}.audience li{margin:8px 0}.use-case{font-size:13px;line-height:1.55;margin:14px 0 8px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}</style>
+<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}.audience{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.audience h3{font:800 16px var(--font-body);margin:0 0 10px}.audience ul{margin:0;padding-left:20px;font-size:14px;line-height:1.55}.audience li{margin:8px 0}.use-case{font-size:13px;line-height:1.55;margin:14px 0 8px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}.risk-method{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.risk-method h3{font:800 16px var(--font-body);margin:0 0 10px}.risk-method p{font-size:13px;line-height:1.6;margin:8px 0}.risk-method code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.calibration{margin-top:12px;padding:10px 12px;border:1px solid var(--blue-100);border-radius:6px;font-size:12px!important}.calibration-low{border-color:#F08A00}</style>

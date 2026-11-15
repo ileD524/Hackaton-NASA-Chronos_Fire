@@ -220,7 +220,12 @@ public class CalendarService {
                     total,
                     bySensor,
                     row.anomaly(),
-                    row.dataStatus()));
+                    row.dataStatus(),
+                    row.fireProbability(),
+                    row.probabilityLow(),
+                    row.probabilityHigh(),
+                    row.probabilityRefYears(),
+                    row.probabilityReliability()));
         }
         return enriched;
     }

@@ -300,7 +300,12 @@ class CalendarServiceTest {
                 0,
                 Map.of(),
                 null,
-                "observed"));
+                "observed",
+                null,
+                null,
+                null,
+                null,
+                "insufficient"));
         repository.heatmapHotspots = List.of(
                 new CalendarRepository.HeatmapHotspot("0.05:-660:-1200", "MODIS", 2),
                 new CalendarRepository.HeatmapHotspot("0.05:-660:-1200", "VIIRS_SNPP", 5));

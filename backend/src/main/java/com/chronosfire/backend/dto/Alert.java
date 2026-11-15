@@ -14,6 +14,12 @@ public record Alert(
         String confidenceMax,
         Double aoiAnomaly,
         String level,
-        boolean industrialMasked
+        boolean industrialMasked,
+        Double fireProbability,
+        Double probabilityLow,
+        Double probabilityHigh,
+        Integer probabilityRefYears,
+        String probabilityReliability,
+        Double activityPercentile
 ) {
 }

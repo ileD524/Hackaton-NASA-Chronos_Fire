@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from '@/composables/useI18n'
 
 defineProps<{
   region?: string
@@ -10,6 +11,7 @@ const emit = defineEmits<{
   (e: 'open-calendar'): void
 }>()
 
+const { t } = useI18n()
 const reduceMotion = ref(false)
 let motionQuery: MediaQueryList | undefined
 
@@ -29,19 +31,19 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
 <template>
   <section class="hero" aria-labelledby="hero-title">
     <div class="hero-copy">
-      <div class="hero-eyebrow">Archivo histórico · MODIS + VIIRS · grilla 0,05°</div>
+      <div class="hero-eyebrow">{{ t('hero.eyebrow') }}</div>
       <h1 id="hero-title" class="hero-title">
-        Calendario de<br />actividad de fuego
+        {{ t('hero.title.1') }}<br />{{ t('hero.title.2') }}
       </h1>
       <!--p class="hero-sub">
         <strong class="accent">Más de dos décadas de hotspots,</strong>
         una sola serie. ¿Cómo está este mes frente a la historia?
       </p-->
       <p class="hero-sub">
-        Explorá <strong>cuándo y dónde se detectó actividad</strong> y cómo se compara con la historia multianual.
+        {{ t('hero.sub.pre') }}<strong>{{ t('hero.sub.strong') }}</strong>{{ t('hero.sub.post') }}
       </p>
       <p v-if="region" class="hero-context">
-        Área de interés: <strong>{{ region }}</strong> · {{ rangeLabel }}
+        {{ t('hero.context.label') }}: <strong>{{ region }}</strong> · {{ rangeLabel }}
       </p>
 
       <div class="hero-actions">
@@ -59,9 +61,9 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
             <rect x="3" y="5" width="18" height="16" rx="2" />
             <path d="M3 9h18M8 3v4M16 3v4" />
           </svg>
-          Abrir el calendario
+          {{ t('hero.cta') }}
         </button>
-        <a class="hero-link" href="#mapa">Explorar el mapa histórico</a>
+        <a class="hero-link" href="#mapa">{{ t('hero.map') }}</a>
       </div>
     </div>
 

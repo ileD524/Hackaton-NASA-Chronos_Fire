@@ -36,6 +36,12 @@ await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad'
 await expect(page.locator('#mapa-title')).toHaveText('Agosto 2020')
 await expect(page.locator('.map-toolbar')).toContainText('hotspots (todas las fuentes)')
 await expect(page.locator('.map-foot')).toContainText('no se suman como promedio')
+await expect(page.getByRole('group', { name: 'Colorear celdas por' })).toBeVisible()
+await page.getByRole('button', { name: 'Probabilidad', exact: true }).click()
+await expect(page.locator('.ramp-caption')).toHaveText('Probabilidad histórica · cortes fijos')
+await expect(page.locator('.map-legend')).toContainText('Sin respaldo')
+await page.getByRole('button', { name: 'Hotspots', exact: true }).click()
+await expect(page.locator('.ramp-caption')).toHaveText('Intensidad de hotspots · quintiles de lo mostrado')
 await page.getByRole('button', { name: 'Ampliar mapa' }).click()
 await expect(page.locator('.map-panel')).toHaveClass(/is-expanded/)
 await expect(page.locator('.map-backdrop')).toBeVisible()
@@ -44,7 +50,7 @@ await page.keyboard.press('Escape')
 await expect(page.locator('.map-panel')).not.toHaveClass(/is-expanded/)
 await expect(page.getByRole('button', { name: 'Ampliar mapa' })).toBeFocused()
 await expect(page.locator('.comparison-number')).not.toHaveText('—')
-await expect(page.getByText(/años de referencia/).first()).toBeVisible()
+await expect(page.locator('section[aria-labelledby="comparison-title"]')).toContainText('años de referencia')
 const initialCsv = await hotspotsCsvURL()
 const initialFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
 const initialTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
@@ -140,6 +146,12 @@ await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad'
 await expect(page.locator('.daily-table thead')).toContainText('Celdas con actividad')
 await expect(page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()).toHaveText(cellsValue)
 
+// Regresion: recargar con los mismos filtros no debe vaciar el detalle diario
+// y el eje debe cubrir todos los dias del mes (31 en agosto de 2020).
+await expect(page.locator('.daily-chart .day-column')).toHaveCount(31)
+await page.getByRole('button', { name: /Actualizar calendario/ }).click()
+await expect(page.locator('.daily-chart .day-column')).toHaveCount(31, { timeout: 30000 })
+
 // F-01: selector de sensor
 const sensorSelect = page.getByLabel('Sensor', { exact: true })
 const allCell = page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()
@@ -170,7 +182,7 @@ if (corrientesCsv.searchParams.get('bbox') !== '-60,-30.8,-55.5,-27') {
 }
 await page.screenshot({ path: `${ARTIFACTS}/corrientes.png`, fullPage: true })
 
-await page.getByRole('button', { name: /Ver todo el archivo \d{4}–\d{4}/ }).click()
+await page.getByRole('button', { name: /Ver todo el período \d{4}–\d{4}/ }).click()
 const archiveFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
 const archiveTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
 const expectedCells = (Number(archiveTo.slice(0, 4)) - Number(archiveFrom.slice(0, 4)) + 1) * 12
@@ -198,7 +210,7 @@ if (!anomalySvg.includes('▲')) throw new Error('SVG de anomalia sin simbolo ac
 
 await expect(page.locator('#alertas')).toContainText('Alertas recientes')
 await expect(page.locator('#alertas')).toContainText(/Actualizado hace/)
-await expect(page.locator('#alertas .alert-list li')).toHaveCount(5)
+await expect(page.locator('#alertas .alert-card')).toHaveCount(4)
 await expect(page.locator('#alertas .pager')).toContainText(/Página 1 de \d+/)
 await page.getByRole('button', { name: 'Siguiente página de alertas' }).click()
 await expect(page.locator('#alertas .pager')).toContainText('Página 2 de')
@@ -212,7 +224,20 @@ await alertResponse
 await expect(page.locator('#alertas')).toContainText(/Actualizado hace/)
 await expect(page.locator('#validacion')).toContainText('Eventos conocidos')
 await expect(page.locator('#validacion')).toContainText('Delta del Parana', { timeout: 30000 })
-await expect(page.locator('#validacion tbody tr')).toHaveCount(5)
+await expect(page.locator('#validacion .event-card')).toHaveCount(3)
+await expect(page.locator('#validacion .event-card').first()).toContainText('Cordoba')
+await expect(page.locator('#validacion .event-card .bar-observed')).toHaveCount(3)
+await expect(page.locator('#validacion details p')).toBeHidden()
+await expect(page.locator('#validacion .verdict-legend')).toContainText('Pasa')
+await expect(page.locator('#validacion .verdict-legend')).toContainText('No pasa')
+await expect(page.locator('#validacion .verdict-legend')).toContainText('Sin datos')
+const cardsMatchPanel = await page.locator('#validacion').evaluate((panel) =>
+  [...panel.querySelectorAll('.event-card')].every((card) => {
+    const outer = panel.getBoundingClientRect()
+    const inner = card.getBoundingClientRect()
+    return inner.left >= outer.left && inner.right <= outer.right
+  }))
+expect(cardsMatchPanel).toBe(true)
 await expect(page.locator('#validacion .pager')).toContainText('Página 1 de 2')
 await page.getByRole('button', { name: 'Siguiente página de eventos' }).click()
 await expect(page.locator('#validacion .pager')).toContainText('Página 2 de 2')

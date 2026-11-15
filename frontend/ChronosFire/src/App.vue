@@ -15,16 +15,18 @@ import DailyDetail from '@/components/DailyDetail.vue'
 import AlertsPanel from '@/components/AlertsPanel.vue'
 import ValidationPanel from '@/components/ValidationPanel.vue'
 import { useChronos } from '@/composables/useChronos'
+import { useI18n } from '@/composables/useI18n'
+const { t } = useI18n()
 const { initialize, filters, areaLabel, loading, error, selectedMonth, calendarOpen, calendar, load } = useChronos()
 onMounted(initialize)
 </script>
 <template>
-  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <a class="skip-link" href="#contenido">{{ t('skip.content') }}</a>
   <AppHeader />
   <main class="container main" id="contenido">
     <HeroSection :region="areaLabel" :range-label="`${filters.from} → ${filters.to} · UTC`" @open-calendar="calendarOpen = true" />
-    <div v-if="error" class="notice error-notice" role="alert">{{ error }} <button class="btn" @click="load()">Reintentar</button></div>
-    <p v-if="loading" class="loading-note" role="status">Consultando el archivo local…</p>
+    <div v-if="error" class="notice error-notice" role="alert">{{ error }} <button class="btn" @click="load()">{{ t('common.retry') }}</button></div>
+    <p v-if="loading" class="loading-note" role="status">{{ t('app.loading') }}</p>
     <div class="layout" :aria-busy="loading">
       <AreaOfInterest class="sidebar" />
       <div class="content" v-if="calendar">
@@ -36,7 +38,7 @@ onMounted(initialize)
         <div class="side-by-side"><AlertsPanel /><ValidationPanel /></div>
         <div class="side-by-side"><MonthComparison /><MethodologyPanel /></div>
       </div>
-      <div v-else class="panel initial-state"><h2>Tu archivo de actividad</h2><p>{{ error ? 'El servidor no pudo cargar los datos.' : 'Preparando el calendario de detecciones MODIS y VIIRS.' }}</p></div>
+      <div v-else class="panel initial-state"><h2>{{ t('app.initialTitle') }}</h2><p>{{ error ? t('app.initialError') : t('app.initialLoading') }}</p></div>
     </div>
   </main>
   <AppFooter />
@@ -47,7 +49,7 @@ onMounted(initialize)
 .main,.content { display: flex; flex-direction: column; gap: 24px; min-width: 0 }
 .layout { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 24px; align-items: start }
 .sidebar { position: sticky; top: 108px }
-.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 24px }
+.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start }
 .initial-state { min-height: 400px }
 .loading-note { margin: 0; color: var(--warm-lime) }
 @media(max-width:1100px) { .layout { grid-template-columns: 1fr } .sidebar {position:static} }

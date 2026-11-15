@@ -1,6 +1,7 @@
 import { ref } from 'vue'
+import { t } from './useI18n'
 
-export type RampId = 'sequential' | 'anomaly'
+export type RampId = 'sequential' | 'risk' | 'anomaly'
 
 const rampId = ref<RampId>('sequential')
 
@@ -24,23 +25,54 @@ export interface AnomalyBand {
   bg: string
   ink: string
   mark: string
-  legend: string
   extreme: boolean
   upTo: number
 }
 
 export const ANOMALY_BANDS: AnomalyBand[] = [
-  { id: 'low-extreme', bg: '#542788', ink: '#D8CCF0', mark: '▼', legend: '≤ −50%', extreme: true, upTo: -0.5 },
-  { id: 'low', bg: '#B2ABD2', ink: '#C9B8E8', mark: '', legend: '−50 a −15%', extreme: false, upTo: -0.15 },
-  { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', legend: '±15%', extreme: false, upTo: 0.15 },
-  { id: 'high', bg: '#FDB863', ink: '#FFD1A1', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
-  { id: 'high-extreme', bg: '#B35806', ink: '#FF9E64', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
+  { id: 'low-extreme', bg: '#542788', ink: '#D8CCF0', mark: '▼', extreme: true, upTo: -0.5 },
+  { id: 'low', bg: '#B2ABD2', ink: '#C9B8E8', mark: '', extreme: false, upTo: -0.15 },
+  { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', extreme: false, upTo: 0.15 },
+  { id: 'high', bg: '#FDB863', ink: '#FFD1A1', mark: '', extreme: false, upTo: 0.5 },
+  { id: 'high-extreme', bg: '#B35806', ink: '#FF9E64', mark: '▲', extreme: true, upTo: Infinity },
 ]
 
 /** Banda de anomalía para una diferencia relativa (0,5 = +50%). */
 export function anomalyBand(delta: number | null): AnomalyBand {
   if (delta === null) return ANOMALY_BANDS[2]!
   return ANOMALY_BANDS.find((band) => delta <= band.upTo) ?? ANOMALY_BANDS[4]!
+}
+
+/**
+ * Escala de probabilidad histórica con cortes fijos (0–1, 1–3, 3–8, 8–20 y
+ * >=20 %). A diferencia de los quintiles de hotspots, los cortes no dependen
+ * de las celdas mostradas: dos meses o dos áreas son comparables.
+ * La rampa (púrpura -> rojo -> amarillo) es perceptualmente ordenada y
+ * distinguible de Viridis, que queda reservada al volumen.
+ */
+export interface RiskBand {
+  id: 'very-low' | 'low' | 'moderate' | 'high' | 'very-high'
+  bg: string
+  label: string
+  upTo: number
+}
+
+export const RISK_BANDS: RiskBand[] = [
+  { id: 'very-low', bg: '#2E2150', label: '< 1 %', upTo: 0.01 },
+  { id: 'low', bg: '#5B2A78', label: '1–3 %', upTo: 0.03 },
+  { id: 'moderate', bg: '#9C2A6E', label: '3–8 %', upTo: 0.08 },
+  { id: 'high', bg: '#DC5A4E', label: '8–20 %', upTo: 0.20 },
+  { id: 'very-high', bg: '#FDE725', label: '≥ 20 %', upTo: Infinity },
+]
+
+export const RISK_STOPS = RISK_BANDS.map((band) => band.bg)
+/** Celdas sin respaldo histórico (`insufficient`) o sin tabla de riesgo. */
+export const NO_RISK_COLOR = '#5A6B8C'
+
+/** Banda de riesgo para una probabilidad (0,05 = 5 %); null si no hay dato. */
+export function riskBand(probability: number | null): RiskBand | null {
+  if (probability === null || Number.isNaN(probability)) return null
+  return RISK_BANDS.find((band) => probability < band.upTo) ?? RISK_BANDS[4]!
 }
 
 export function luminance(hex: string) {
@@ -57,5 +89,14 @@ export function textOn(bg: string) { return contrast(bg, '#07173F') > contrast(b
 export function colorAt(bucket: number) { return SEQUENTIAL_STOPS[Math.min(4, Math.max(0, Math.round(bucket)))]! }
 
 export function useColorRamp() {
-  return { rampId, colorAt, textOn, label: (id: RampId) => id === 'sequential' ? 'Volumen observado' : 'Diferencia frente a la mediana' }
+  return {
+    rampId,
+    colorAt,
+    textOn,
+    label: (id: RampId) => id === 'sequential'
+      ? t('color.ramp.volume')
+      : id === 'risk'
+        ? t('color.ramp.probability')
+        : t('color.ramp.anomaly'),
+  }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import FireCalendar from '@/components/FireCalendar.vue'
+import { useI18n } from '@/composables/useI18n'
 
 const props = defineProps<{
   open: boolean
@@ -11,6 +12,8 @@ const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
   (e: 'update:selectedMonth', value: { year: number; month: number } | null): void
 }>()
+
+const { t } = useI18n()
 
 const dialogRef = ref<HTMLElement | null>(null)
 const closeBtn = ref<HTMLButtonElement | null>(null)
@@ -85,17 +88,17 @@ onBeforeUnmount(() => { document.removeEventListener('keydown', onKeydown); docu
           <header class="dialog-head">
             <div class="dialog-head-text">
               <h2 id="cal-modal-title" class="dialog-title">
-                Calendario de actividad de fuego
+                {{ t('modal.title') }}
               </h2>
               <p class="dialog-hint">
-                Elegí un mes para explorar sus celdas con actividad y el detalle diario.
+                {{ t('modal.hint') }}
               </p>
             </div>
             <button
               ref="closeBtn"
               type="button"
               class="dialog-close"
-              aria-label="Cerrar el calendario"
+              :aria-label="t('modal.closeAria')"
               @click="close"
             >
               <svg

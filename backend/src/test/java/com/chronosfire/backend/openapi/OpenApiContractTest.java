@@ -52,6 +52,20 @@ class OpenApiContractTest {
                 "components", "schemas", "HeatmapCell", "properties");
         assertTrue(heatmap.containsKey("hotspots"));
         assertTrue(heatmap.containsKey("hotspotsBySensor"));
+        assertTrue(heatmap.containsKey("fireProbability"));
+        assertTrue(heatmap.containsKey("probabilityLow"));
+        assertTrue(heatmap.containsKey("probabilityHigh"));
+        assertTrue(heatmap.containsKey("probabilityRefYears"));
+        assertTrue(heatmap.containsKey("probabilityReliability"));
+
+        Map<String, Object> alert = at(root,
+                "components", "schemas", "Alert", "properties");
+        assertTrue(alert.containsKey("fireProbability"));
+        assertTrue(alert.containsKey("probabilityLow"));
+        assertTrue(alert.containsKey("probabilityHigh"));
+        assertTrue(alert.containsKey("probabilityRefYears"));
+        assertTrue(alert.containsKey("probabilityReliability"));
+        assertTrue(alert.containsKey("activityPercentile"));
 
         Map<String, Object> detectionsHeaders = at(root,
                 "paths", "/api/detections/export.csv", "get", "responses", "200", "headers");
@@ -68,6 +82,17 @@ class OpenApiContractTest {
         Map<String, Object> monthlySensor = at(root,
                 "components", "parameters", "MonthlySensor");
         assertNotNull(monthlySensor.get("description"));
+
+        Map<String, Object> metaProperties = at(root,
+                "components", "schemas", "MetaResponse", "properties");
+        assertTrue(metaProperties.containsKey("risk"));
+
+        Map<String, Object> risk = at(root,
+                "components", "schemas", "RiskMethodology", "properties");
+        assertTrue(risk.containsKey("modelVersion"));
+        assertTrue(risk.containsKey("calibrationStatus"));
+        assertTrue(risk.containsKey("bss"));
+        assertTrue(risk.containsKey("bssThreshold"));
     }
 
     @SuppressWarnings("unchecked")

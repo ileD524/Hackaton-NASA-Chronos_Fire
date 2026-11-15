@@ -1,7 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import type { CalendarData, DailyRow, Filters, Meta, MetricMode, MonthCell } from '@/data/types'
-import { SERIES } from '@/data/types'
 import { apiUrl } from '@/api'
+import { formatNumber, seriesLabel as localizedSeriesLabel, t } from './useI18n'
 
 interface ApiMonthly {
   year: number
@@ -50,6 +50,18 @@ interface ApiMeta {
   dateRange?: { from?: string; to?: string }
   counts?: { detections?: number; coverageDaily?: number }
   provisional?: { from?: string; to?: string; reason?: string } | null
+  risk?: {
+    modelVersion?: string
+    calibrationStatus?: string
+    holdoutYear?: number | null
+    brier?: number | null
+    bss?: number | null
+    auc?: number | null
+    cellsWeek?: number | null
+    stabilityBss?: number | null
+    bssThreshold?: number
+    note?: string
+  } | null
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
@@ -72,9 +84,14 @@ const calendarOpen = ref(false)
 const csvNotice = ref('')
 const csvError = ref('')
 const csvChecking = ref(false)
+const dailyLoading = ref(false)
+const dailyError = ref('')
 let controller: AbortController | undefined
 let dailyController: AbortController | undefined
-let lastDailyKey = ''
+// Clave de los datos que hoy estan en calendar.daily y clave del request en curso.
+// Se separan para no descartar datos validos ni duplicar pedidos.
+let dailyLoadedKey = ''
+let dailyPendingKey = ''
 
 const MONTH_DAYS = (year: number, month: number) => new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 const iso = (date: Date) => date.toISOString().slice(0, 10)
@@ -106,7 +123,7 @@ export function hotspotsParams(f: Filters): URLSearchParams {
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(apiUrl(url), { signal })
   const result = await response.json()
-  if (!response.ok) throw new Error(result?.error || result?.message || 'No se pudo cargar la consulta.')
+  if (!response.ok) throw new Error(result?.error || result?.message || t('error.fetch'))
   return result as T
 }
 
@@ -204,37 +221,97 @@ function metricValue(cell: MonthCell | null | undefined): number | null {
   return metricMode.value === 'cells' ? cell.value : cell.hotspots
 }
 
-async function loadDaily() {
-  if (!selectedMonth.value || !calendar.value) return
+/**
+ * Ventana diaria del mes seleccionado, recortada por el rango de filtros.
+ * Devuelve tambien la clave que identifica esos datos (mes + sensor + area).
+ */
+function dailyWindow() {
+  if (!selectedMonth.value) return null
   const { year, month } = selectedMonth.value
   const start = new Date(Date.UTC(year, month, 1))
   const end = new Date(Date.UTC(year, month + 1, 0))
   const from = iso(start) < filters.value.from ? filters.value.from : iso(start)
   const to = iso(end) > filters.value.to ? filters.value.to : iso(end)
-  const key = `${from}|${to}|${filters.value.metric}|${filters.value.bbox?.join(',') ?? ''}`
-  if (key === lastDailyKey) return
-  lastDailyKey = key
+  return { from, to, key: `${from}|${to}|${filters.value.metric}|${filters.value.bbox?.join(',') ?? ''}` }
+}
+
+/**
+ * Completa con ceros los dias sin detecciones para que el eje sea el mes real
+ * y no solo los dias que aparecen en la respuesta.
+ */
+function fillDailyDays(rows: DailyRow[], from: string, to: string): DailyRow[] {
+  const byDate = new Map(rows.map((row) => [row.date_utc, row]))
+  const filled: DailyRow[] = []
+  const cursor = new Date(`${from}T00:00:00Z`)
+  const last = iso(new Date(`${to}T00:00:00Z`))
+  while (iso(cursor) <= last) {
+    const date = iso(cursor)
+    filled.push(byDate.get(date) ?? {
+      date_utc: date,
+      active_cells_modis: 0,
+      active_cells_viirs: 0,
+      active_cells_union: 0,
+      active_cells_selected: 0,
+      modis_equivalent_cells: null,
+      modis_pi90_low: null,
+      modis_pi90_high: null,
+      fire_day: false,
+      n_detections: 0,
+      sensors: [],
+      hotspots: 0,
+      hotspots_by_sensor: {},
+      frp_max_mw: null,
+      frp_density_max_wm2: null,
+      data_status: 'observed',
+    })
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return filled
+}
+
+async function loadDaily(force = false) {
+  const range = dailyWindow()
+  if (!range || !calendar.value) return
+  const cached = range.key === dailyLoadedKey && calendar.value.daily.length > 0
+  if (!force && cached) return
+  if (!force && range.key === dailyPendingKey) return
 
   dailyController?.abort()
   const current = new AbortController()
   dailyController = current
+  dailyPendingKey = range.key
+  dailyLoading.value = true
+  dailyError.value = ''
+  // Los datos de otro mes/sensor/area no se muestran bajo este titulo.
+  calendar.value.daily = []
+  dailyLoadedKey = ''
   try {
-    const query = params({ ...filters.value, from, to })
+    const query = params({ ...filters.value, from: range.from, to: range.to })
     const rows = await fetchJSON<ApiDaily[]>(`/api/calendar/daily?${query}&limit=50000`, current.signal)
     if (current.signal.aborted || !calendar.value) return
-    calendar.value.daily = aggregateDaily(rows, filters.value.metric)
+    calendar.value.daily = fillDailyDays(aggregateDaily(rows, filters.value.metric), range.from, range.to)
+    dailyLoadedKey = range.key
   } catch (e) {
-    lastDailyKey = ''
-    if (!(e instanceof DOMException && e.name === 'AbortError')) {
-      error.value = e instanceof Error ? e.message : 'Error al cargar el detalle diario.'
+    if (current.signal.aborted) return
+    if (e instanceof DOMException && e.name === 'AbortError') return
+    dailyError.value = e instanceof Error ? e.message : t('error.daily')
+  } finally {
+    if (dailyController === current) {
+      dailyController = undefined
+      dailyPendingKey = ''
+      dailyLoading.value = false
     }
   }
+}
+
+async function retryDaily() {
+  await loadDaily(true)
 }
 
 async function load(next: Filters = filters.value) {
   if (!next.from || !next.to) {
     if (metadata.value) {
-      error.value = 'El servidor no informó el rango de fechas.'
+      error.value = t('error.range')
       return
     }
     await initialize()
@@ -264,7 +341,7 @@ async function load(next: Filters = filters.value) {
     await loadDaily()
   } catch (e) {
     if (!(e instanceof DOMException && e.name === 'AbortError')) {
-      error.value = e instanceof Error ? e.message : 'Error al consultar los datos.'
+      error.value = e instanceof Error ? e.message : t('error.query')
     }
   } finally {
     if (controller === current) loading.value = false
@@ -273,7 +350,7 @@ async function load(next: Filters = filters.value) {
 
 function formatRows(value: string | null) {
   const rows = Number(value)
-  return Number.isFinite(rows) ? new Intl.NumberFormat('es-AR').format(rows) : '—'
+  return Number.isFinite(rows) ? formatNumber(rows) : '—'
 }
 
 async function checkCsv(url: string) {
@@ -283,14 +360,14 @@ async function checkCsv(url: string) {
   csvChecking.value = true
   try {
     const response = await fetch(url, { method: 'HEAD' })
-    if (!response.ok) throw new Error(`No se pudo verificar el CSV (HTTP ${response.status}).`)
+    if (!response.ok) throw new Error(t('error.csvStatus', { status: response.status }))
     const returned = formatRows(response.headers.get('X-Returned-Rows'))
     const truncated = response.headers.get('X-Truncated') === 'true'
     csvNotice.value = truncated
-      ? `Descarga limitada a ${returned === '—' ? '50.000' : returned} filas. Acotá el área o el rango para obtener el resto.`
-      : `Descarga completa${returned === '—' ? '' : `: ${returned} filas`}.`
+      ? t('csv.limited', { rows: returned === '—' ? formatNumber(50000) : returned })
+      : returned === '—' ? t('csv.completeNoRows') : t('csv.complete', { rows: returned })
   } catch (e) {
-    csvError.value = e instanceof Error ? e.message : 'No se pudo verificar el CSV.'
+    csvError.value = e instanceof Error ? e.message : t('error.csv')
   } finally {
     csvChecking.value = false
   }
@@ -303,9 +380,9 @@ const selected = computed(() =>
 const valueField = computed<'active_cells_selected' | 'hotspots'>(() =>
   metricMode.value === 'cells' ? 'active_cells_selected' : 'hotspots')
 const metricLabel = computed(() =>
-  metricMode.value === 'cells' ? 'celdas con actividad' : 'hotspots detectados')
+  metricMode.value === 'cells' ? t('unit.metric.cells') : t('unit.metric.hotspots'))
 const metricUnit = computed(() =>
-  metricMode.value === 'cells' ? 'celdas-mes con actividad' : 'hotspots detectados en el rango')
+  metricMode.value === 'cells' ? t('unit.metricRange.cells') : t('unit.metricRange.hotspots'))
 const selectedDaily = computed(() => calendar.value?.daily ?? [])
 
 watch(selectedMonth, () => { void loadDaily() }, { deep: true })
@@ -344,10 +421,24 @@ async function initialize() {
             reason: meta.provisional.reason ?? '',
           }
         : null,
+      risk: meta.risk
+        ? {
+            modelVersion: meta.risk.modelVersion ?? 'risk-v1',
+            calibrationStatus: meta.risk.calibrationStatus === 'high' ? 'high' : 'low',
+            holdoutYear: meta.risk.holdoutYear ?? null,
+            brier: meta.risk.brier ?? null,
+            bss: meta.risk.bss ?? null,
+            auc: meta.risk.auc ?? null,
+            cellsWeek: meta.risk.cellsWeek ?? null,
+            stabilityBss: meta.risk.stabilityBss ?? null,
+            bssThreshold: meta.risk.bssThreshold ?? 0.05,
+            note: meta.risk.note ?? '',
+          }
+        : null,
     }
     await load()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Servidor no disponible.'
+    error.value = e instanceof Error ? e.message : t('error.server')
   }
 }
 
@@ -363,18 +454,21 @@ export function useChronos() {
     months,
     selected,
     selectedDaily,
+    dailyLoading,
+    dailyError,
+    retryDaily,
     valueField,
     metricMode,
     metricValue,
     metricLabel,
     metricUnit,
-    seriesLabel: computed(() => SERIES[filters.value.metric]),
+    seriesLabel: computed(() => localizedSeriesLabel(filters.value.metric)),
     areaLabel: computed(() => {
       const bbox = filters.value.bbox
-      if (!bbox) return 'Extensión completa · Argentina'
+      if (!bbox) return t('area.all')
       const [w, s, e, n] = bbox
-      if (w === -61 && s === -34 && e === -59.5 && n === -32.5) return 'Delta del Paraná'
-      return 'Área personalizada · recorte rectangular'
+      if (w === -61 && s === -34 && e === -59.5 && n === -32.5) return t('area.delta')
+      return t('area.custom')
     }),
     load,
     initialize,

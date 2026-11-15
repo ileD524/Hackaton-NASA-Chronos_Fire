@@ -1,8 +1,7 @@
 import { computed } from 'vue'
 import { useChronos } from './useChronos'
-export const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-const NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-export const format = (n: number) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)
+import { formatNumber, monthName, monthShort, t } from './useI18n'
+export const format = (n: number) => formatNumber(n, { maximumFractionDigits: 1 })
 export function useCalendar() {
   const { filters, months, metricMode, metricValue, metricLabel } = useChronos()
   const years = computed(() => Array.from({ length: Number(filters.value.to.slice(0,4)) - Number(filters.value.from.slice(0,4)) + 1 }, (_,i) => Number(filters.value.from.slice(0,4)) + i))
@@ -30,9 +29,9 @@ export function useCalendar() {
     const value = metricValue(cell)
     const anomaly = metricMode.value === 'cells' ? cell?.anomaly ?? null : null
     const vsMedian = value !== null && anomaly !== null ? anomaly - 1 : null
-    const deltaText = vsMedian === null ? '' : `, ${vsMedian > 0 ? '+' : ''}${Math.round(vsMedian * 100)}% frente a la mediana de otros años completos`
+    const deltaText = vsMedian === null ? '' : t('cell.delta', { sign: vsMedian > 0 ? '+' : '', pct: Math.round(vsMedian * 100) })
     return { cell, value, bucket: bucketOf(value), norm: value === null ? 0 : Math.log1p(value)/Math.log1p(maxVal.value), vsMedian, aboveMedian: vsMedian !== null && vsMedian > 0,
-      label: `${NAMES[month]} ${year}: ${value === null ? 'sin datos para esta serie' : `${format(value)} ${metricLabel.value}${cell?.partial ? ', período parcial' : ''}${deltaText}`}` }
+      label: `${monthName(month)} ${year}: ${value === null ? t('cell.noData') : `${format(value)} ${metricLabel.value}${cell?.partial ? t('cell.partial') : ''}${deltaText}`}` }
   }
-  return { years, maxVal, minVal, thresholds, cellMeta, monthName: (m: number) => NAMES[m] ?? '', monthShort: (m: number) => MONTH_LABELS[m] ?? '', annualTotal: (y: number) => months.value.filter(m => m.year === y).reduce((s,m) => s + (metricValue(m) ?? 0), 0) }
+  return { years, maxVal, minVal, thresholds, cellMeta, monthName, monthShort, annualTotal: (y: number) => months.value.filter(m => m.year === y).reduce((s,m) => s + (metricValue(m) ?? 0), 0) }
 }

@@ -21,7 +21,9 @@ public class AlertRepository {
 
     public List<AlertRow> alerts(Bbox bbox, Instant since, int limit) {
         return jdbc.query("""
-                SELECT round(latitude / 0.05) * 0.05  AS cell_lat,
+                SELECT '0.05:' || CAST(round(latitude / 0.05) AS BIGINT) || ':' ||
+                       CAST(round(longitude / 0.05) AS BIGINT) AS grid_id,
+                       round(latitude / 0.05) * 0.05  AS cell_lat,
                        round(longitude / 0.05) * 0.05 AS cell_lon,
                        max(acquired_at)               AS last_detection,
                        count(*)::int                  AS n_detections,
@@ -37,10 +39,11 @@ public class AlertRepository {
                   AND longitude BETWEEN ? AND ?
                   AND confidence_class IN ('nominal', 'high')
                   AND (is_vegetation_effective IS NULL OR is_vegetation_effective)
-                GROUP BY 1, 2
+                GROUP BY 1, 2, 3
                 ORDER BY n_detections DESC, last_detection DESC
                 LIMIT ?
                 """, (rs, rowNum) -> new AlertRow(
+                rs.getString("grid_id"),
                 round(rs.getDouble("cell_lat"), 4),
                 round(rs.getDouble("cell_lon"), 4),
                 toInstant(rs.getObject("last_detection", OffsetDateTime.class)),
@@ -94,6 +97,7 @@ public class AlertRepository {
     }
 
     public record AlertRow(
+            String gridId,
             double cellLat,
             double cellLon,
             Instant lastDetection,

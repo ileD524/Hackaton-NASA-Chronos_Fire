@@ -18,6 +18,9 @@ public class MetaService {
 
     private static final Logger log = LoggerFactory.getLogger(MetaService.class);
 
+    private static final double BSS_THRESHOLD = 0.05;
+    private static final String PRIMARY_BACKTEST = "risk-v1";
+
     private final MetaRepository repository;
 
     public MetaService(MetaRepository repository) {
@@ -38,7 +41,13 @@ public class MetaService {
         t = mark("dateRange", t);
 
         MetaResponse.Counts counts = repository.counts();
-        mark("counts", t);
+        t = mark("counts", t);
+
+        String riskModelVersion = repository.riskModelVersion();
+        t = mark("riskModelVersion", t);
+
+        List<MetaResponse.RiskBacktest> backtests = repository.riskBacktest();
+        mark("riskBacktest", t);
 
         // Se deriva de sensorCoverage: evita un escaneo extra de 7 M de filas.
         List<String> sources = sensors.stream()
@@ -78,7 +87,66 @@ public class MetaService {
                 metricDefinitions(),
                 limitations(),
                 "NASA FIRMS: MODIS C6.1, VIIRS SNPP, VIIRS NOAA-20 y VIIRS NOAA-21.",
-                provisional);
+                provisional,
+                riskMethodology(riskModelVersion, backtests));
+    }
+
+    /**
+     * Publica la calibracion del modelo de riesgo (fase 4). Si el backtest no
+     * corrio (o el dump no trae las tablas), devuelve {@code null}.
+     */
+    private MetaResponse.RiskMethodology riskMethodology(
+            String riskModelVersion,
+            List<MetaResponse.RiskBacktest> backtests) {
+        if (backtests.isEmpty()) {
+            return null;
+        }
+        MetaResponse.RiskBacktest primary = backtests.stream()
+                .filter(row -> PRIMARY_BACKTEST.equals(row.modelVersion()))
+                .findFirst()
+                .orElse(backtests.get(0));
+        Double stabilityBss = backtests.stream()
+                .filter(row -> row.modelVersion() != null
+                        && row.modelVersion().startsWith(PRIMARY_BACKTEST + "-t"))
+                .map(MetaResponse.RiskBacktest::bss)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+
+        double bss = primary.bss() == null ? 0.0 : primary.bss();
+        String status = bss >= BSS_THRESHOLD ? "high" : "low";
+        String publishedAs = riskModelVersion == null
+                ? ("low".equals(status) ? "risk-v1-low" : "risk-v1")
+                : riskModelVersion;
+        String note = "low".equals(status)
+                ? String.format(java.util.Locale.ROOT,
+                        "BSS %.4f < %.2f en el holdout %d: se publica como %s. "
+                                + "Es frecuencia historica, no prediccion ni riesgo oficial.",
+                        bss, BSS_THRESHOLD, primary.holdoutYear(), publishedAs)
+                : String.format(java.util.Locale.ROOT,
+                        "BSS %.4f >= %.2f en el holdout %d. "
+                                + "Sigue siendo frecuencia historica, no prediccion ni riesgo oficial.",
+                        bss, BSS_THRESHOLD, primary.holdoutYear());
+
+        return new MetaResponse.RiskMethodology(
+                publishedAs,
+                status,
+                primary.holdoutYear(),
+                round(primary.brier(), 5),
+                round(primary.bss(), 4),
+                round(primary.auc(), 3),
+                primary.cellsWeek(),
+                round(stabilityBss, 4),
+                BSS_THRESHOLD,
+                note);
+    }
+
+    private Double round(Double value, int decimals) {
+        if (value == null) {
+            return null;
+        }
+        double factor = Math.pow(10, decimals);
+        return Math.round(value * factor) / factor;
     }
 
     private long mark(String name, long start) {
@@ -105,6 +173,12 @@ public class MetaService {
                 "observed, no_data o unknown. no_data indica que coverage_daily no registra cobertura para ese periodo; unknown se usa cuando no hay informacion de cobertura.");
         definitions.put("provisional",
                 "TRUE para 2026 o para periodos cubiertos por NRT.");
+        definitions.put("fire_probability",
+                "Frecuencia historica estimada de actividad por celda 0,05 y semana ISO: p = (k + alpha) / (n + alpha + beta). No es prediccion ni riesgo oficial.");
+        definitions.put("probability_reliability",
+                "high con n >= 10; low con 5 <= n < 10; insufficient con n < 5. Sin n no se muestra p.");
+        definitions.put("activity_percentile",
+                "Fraccion de anios de referencia con n_detections semanal menor o igual al observado. Solo se calcula con days = 7.");
         return definitions;
     }
 
@@ -115,6 +189,7 @@ public class MetaService {
                 "Una semana sin filas no confirma ausencia de fuego.",
                 "No hay calibracion fisica de eficiencia de deteccion ni de FRP.",
                 "2026 es NRT provisional y no se usa como baseline.",
-                "MODIS y VIIRS no deben sumarse como si fueran el mismo sensor.");
+                "MODIS y VIIRS no deben sumarse como si fueran el mismo sensor.",
+                "La capa de riesgo se publica como risk-v1-low: su BSS en el holdout 2025 queda debajo de 0,05.");
     }
 }

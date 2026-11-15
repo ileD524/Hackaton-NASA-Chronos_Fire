@@ -102,14 +102,17 @@ La anomalia no es una prediccion ni un nivel de riesgo.
 
 ## 6. Cobertura: "sin datos" no es "sin fuego"
 
-`coverage_daily` esta vacia y `n_data_years` es `NULL`. Por lo tanto:
+`coverage_daily` se poblo con un proxy regional (fase 0 del plan de riesgo):
+un dia cuenta como cubierto si el sensor registro al menos una deteccion.
 
 - una semana sin filas puede ser "sin fuego" o "sin overpass / nubes";
 - la UI muestra `—` para "sin datos" y `0` solo cuando hay una observacion;
-- no se debe interpretar la ausencia de filas como ausencia de fuego.
+- no se debe interpretar la ausencia de filas como ausencia de fuego;
+- `calendar_weekly.n_data_years` sigue en `NULL`: el calendario no se
+  reconstruyo contra la cobertura.
 
-Cerrar esta brecha requiere poblar `coverage_daily` con disponibilidad real de
-FIRMS. Es trabajo pendiente y esta documentado como limite.
+El proxy no prueba ausencia de nubes. Reemplazarlo por cobertura real de FIRMS
+(`coverage_type = 'observed'`) no cambia el esquema.
 
 ---
 
@@ -159,6 +162,12 @@ entonces, la unidad correcta es hotspot o celda con actividad.
 - Comparacion contra la mediana multianual con confianza.
 - Detalle diario.
 - Alertas NRT y validacion de eventos.
+- Cada alerta muestra la probabilidad historica (`%`), sus anos de referencia
+  (`n`) y el intervalo en el tooltip; con `insufficient` muestra `—`.
+- El popup del mapa muestra la probabilidad historica del rango consultado.
+- El panel de metodologia declara formula, cobertura proxy y limites.
+- El panel de metodologia muestra Brier, BSS y AUC del holdout 2025 y declara
+  la etiqueta `risk-v1-low`.
 - Descarga CSV de calendario y hotspots con aviso de truncamiento.
 - La UI usa `ALL`; la API permite filtrar por sensor. El selector de sensor es
   trabajo pendiente (F-01).
@@ -167,7 +176,60 @@ entonces, la unidad correcta es hotspot o celda con actividad.
 
 ---
 
-## 11. Registro de decisiones
+## 11. Probabilidad por celda-semana
+
+La capa se materializa con `backend/db/rebuild_risk.sql` (fases 0 y 1) y se
+expone en `/api/alerts` y `/api/calendar/heatmap` (fase 2).
+
+| Concepto | Definicion |
+|---|---|
+| `k` | Anos de referencia en que la celda tuvo al menos un `fire_day` en la semana ISO. |
+| `n` | Anos de referencia con cobertura para esa semana (`coverage_daily`). |
+| `p` | Media posterior Beta-Binomial `(k + alpha) / (n + alpha + beta)`. |
+| `alpha`, `beta` | Prior empirico por semana ISO: `mu_w * 8` y `(1 - mu_w) * 8`. |
+| Intervalo | Wilson al 90 % sobre `k/n` (z = 1,6449). |
+| `reliability` | `high` con `n >= 10`; `low` con `5 <= n < 10`; `insufficient` con `n < 5`. |
+
+Decisiones:
+
+- `p` es una **frecuencia historica**, no una prediccion ni riesgo oficial.
+- `n` sale de una cobertura **proxy** regional: cota inferior. Una celda
+  nublada puede tener `fire_days = 0` sin estar libre de fuego.
+- Eras separadas: MODIS 2003-2011 y SNPP 2013-2025. No se mezclan.
+- La semana 53 tiene solo 2 anos de referencia en ambas eras: queda
+  `insufficient` y la UI muestra `—`.
+- `activityPercentile` solo se calcula con `days = 7`; la unidad historica es
+  semanal y no se escala.
+- Con `insufficient` no se muestra `p`, aunque exista, porque no hay respaldo.
+
+Niveles de alerta (regla del MVP, umbrales provisionales hasta la fase 4):
+
+```text
+warning : p >= 0,50
+       o percentil >= 0,90 con (p >= 0,10 o >= 10 detecciones)
+watch   : p >= 0,25
+       o percentil >= 0,75 con (p >= 0,10 o >= 3 detecciones)
+info    : resto
+sin percentil (days != 7): >= 10 detecciones warning, >= 3 watch
+```
+
+El percentil solo escala cuando la celda-semana tiene base historica o el
+evento tiene volumen, para no sepultar un evento intenso y sin precedente.
+
+Calibracion (fase 4, holdout 2025, entrenamiento sin fuga):
+
+| Entrenamiento | Brier | BSS | AUC |
+|---|---|---|---|
+| 2013-2024 | 0,0115 | **0,0286** | 0,740 |
+| 2019-2024 | 0,0115 | **0,0236** | 0,713 |
+
+`BSS < 0,05`: la tabla se publica como `risk-v1-low` y la UI lo declara. El
+desvio del decil superior (0,025) esta dentro del limite de 0,10. No se promete
+calibracion.
+
+---
+
+## 12. Registro de decisiones
 
 | Fecha | Decision | Motivo |
 |---|---|---|
@@ -177,4 +239,8 @@ entonces, la unidad correcta es hotspot o celda con actividad.
 | 2026-11-15 | Agregar `hotspots` y `hotspotsBySensor` | Métrica literal del challenge sin sumar sensores |
 | 2026-11-15 | Anomalia mensual en backend | Una sola metodologia y confianza declarada |
 | 2026-11-15 | Headers de truncamiento CSV | Evitar descargas incompletas silenciosas |
+| 2026-11-15 | Capa de riesgo materializada (`risk_cell_week`, `risk_prior_week`) | Calculo auditables y backend de solo lectura |
+| 2026-11-15 | `p` con denominador de cobertura, no de deteccion | Evita el sesgo "dado que hubo deteccion" |
+| 2026-11-15 | Nivel hibrido (`p` + percentil + volumen) | No sepultar eventos intensos sin precedente |
+| 2026-11-15 | Backtest 2025 y publicacion `risk-v1-low` | BSS 0,029 < 0,05: declarar calibracion baja |
 | 2026-11-15 | Export de detecciones hasta 10.000 dias | El rango por defecto 2012-2026 debe funcionar |

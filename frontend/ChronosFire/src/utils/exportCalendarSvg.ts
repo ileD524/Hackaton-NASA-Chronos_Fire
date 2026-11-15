@@ -267,8 +267,8 @@ export function buildCalendarSvg(input: CalendarExportInput): string {
   return out.join('\n')
 }
 
-/** Nombre de archivo estable y sin acentos: chronos-fire-calendario-<área>-<desde>-<hasta>.<ext> */
-export function calendarExportFilename(area: string, from: string, to: string, extension: 'svg' | 'png' = 'svg'): string {
+/** Nombre de archivo estable y sin acentos: chronos-fire-<prefijo>-<área>-<desde>-<hasta>.<ext> */
+export function calendarExportFilename(area: string, from: string, to: string, extension: 'svg' | 'png' = 'svg', prefix = 'calendario'): string {
   const slug =
     area
       .normalize('NFD')
@@ -278,11 +278,11 @@ export function calendarExportFilename(area: string, from: string, to: string, e
       .replace(/^-+|-+$/g, '')
       .slice(0, 48)
       .replace(/-+$/g, '') || 'area'
-  return `chronos-fire-calendario-${slug}-${from}-${to}.${extension}`
+  return `chronos-fire-${prefix}-${slug}-${from}-${to}.${extension}`
 }
 
-export function calendarSvgFilename(area: string, from: string, to: string): string {
-  return calendarExportFilename(area, from, to, 'svg')
+export function calendarSvgFilename(area: string, from: string, to: string, prefix = 'calendario'): string {
+  return calendarExportFilename(area, from, to, 'svg', prefix)
 }
 
 /** Descarga un Blob con un enlace temporal (usado por SVG y PNG). */

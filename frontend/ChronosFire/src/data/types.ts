@@ -73,6 +73,12 @@ export interface MapPoint {
   nDetections: number
   hotspots: number
   hotspotsBySensor: Record<string, number>
+  anomaly: number | null
+  fireProbability: number | null
+  probabilityLow: number | null
+  probabilityHigh: number | null
+  probabilityRefYears: number | null
+  probabilityReliability: 'high' | 'low' | 'insufficient'
 }
 
 export interface MapData {
@@ -98,6 +104,19 @@ export interface MetaProvisional {
   reason: string
 }
 
+export interface RiskCalibration {
+  modelVersion: string
+  calibrationStatus: 'high' | 'low'
+  holdoutYear: number | null
+  brier: number | null
+  bss: number | null
+  auc: number | null
+  cellsWeek: number | null
+  stabilityBss: number | null
+  bssThreshold: number
+  note: string
+}
+
 export interface Meta {
   first_date: string
   last_date: string
@@ -109,6 +128,7 @@ export interface Meta {
   sensors: MetaSensor[]
   coverage_known: boolean
   provisional: MetaProvisional | null
+  risk: RiskCalibration | null
 }
 
 export interface Alert {
@@ -123,6 +143,12 @@ export interface Alert {
   aoiAnomaly: number | null
   level: 'info' | 'watch' | 'warning'
   industrialMasked: boolean
+  fireProbability: number | null
+  probabilityLow: number | null
+  probabilityHigh: number | null
+  probabilityRefYears: number | null
+  probabilityReliability: 'high' | 'low' | 'insufficient'
+  activityPercentile: number | null
 }
 
 export interface AlertResponse {
@@ -149,18 +175,10 @@ export interface ValidationEvent {
   verdict: 'pass' | 'fail' | 'insufficient'
 }
 
-export const SERIES: Record<Metric, string> = {
-  all: 'Todos los sensores · 0,05°',
-  MODIS: 'MODIS observado',
-  VIIRS_SNPP: 'VIIRS SNPP',
-  VIIRS_NOAA20: 'VIIRS NOAA-20',
-  VIIRS_NOAA21: 'VIIRS NOAA-21',
-}
-
-export const SENSOR_OPTIONS: { id: Metric; label: string }[] = [
-  { id: 'all', label: 'Todos los sensores (dominado por VIIRS)' },
-  { id: 'MODIS', label: 'MODIS' },
-  { id: 'VIIRS_SNPP', label: 'VIIRS SNPP' },
-  { id: 'VIIRS_NOAA20', label: 'VIIRS NOAA-20' },
-  { id: 'VIIRS_NOAA21', label: 'VIIRS NOAA-21' },
+export const SENSOR_OPTIONS: { id: Metric }[] = [
+  { id: 'all' },
+  { id: 'MODIS' },
+  { id: 'VIIRS_SNPP' },
+  { id: 'VIIRS_NOAA20' },
+  { id: 'VIIRS_NOAA21' },
 ]
