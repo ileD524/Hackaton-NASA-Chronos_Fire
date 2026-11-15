@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as L from 'leaflet'
 import { useChronos, fetchJSON, params } from '@/composables/useChronos'
 import { useCalendar, format } from '@/composables/useCalendar'
@@ -13,6 +13,9 @@ const mapEl = ref<HTMLDivElement | null>(null)
 const data = ref<MapData | null>(null)
 const busy = ref(false)
 const error = ref('')
+const expanded = ref(false)
+const expandButton = ref<HTMLButtonElement | null>(null)
+const closeButton = ref<HTMLButtonElement | null>(null)
 let map: L.Map | undefined
 let points: L.LayerGroup | undefined
 let bboxLayer: L.Rectangle | undefined
@@ -101,8 +104,19 @@ function useView() {
   const b = map.getBounds()
   load({ ...filters.value, bbox: [Math.max(-180, b.getWest()), Math.max(-90, b.getSouth()), Math.min(180, b.getEast()), Math.min(90, b.getNorth())] })
 }
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && expanded.value) expanded.value = false
+}
+watch(expanded, async (open) => {
+  document.body.style.overflow = open ? 'hidden' : ''
+  await nextTick()
+  map?.invalidateSize()
+  if (open) closeButton.value?.focus()
+  else expandButton.value?.focus()
+})
 onMounted(async () => {
   if (!mapEl.value) return
+  window.addEventListener('keydown', onKeydown)
   map = L.map(mapEl.value, { preferCanvas: true, minZoom: 3, maxZoom: 13, zoomControl: false, attributionControl: true })
   L.control.zoom({ position: 'bottomright' }).addTo(map)
   map.attributionControl.addAttribution('Cartografía: Natural Earth · Datos: NASA FIRMS')
@@ -118,11 +132,18 @@ onMounted(async () => {
 })
 watch([timeWindow, () => filters.value.metric, () => filters.value.bbox], () => refresh())
 watch(() => filters.value.bbox, () => { updateBox(); fitArea() })
-onBeforeUnmount(() => { controller?.abort(); resize?.disconnect(); map?.remove() })
+onBeforeUnmount(() => {
+  controller?.abort()
+  resize?.disconnect()
+  map?.remove()
+  window.removeEventListener('keydown', onKeydown)
+  document.body.style.overflow = ''
+})
 </script>
 <template>
-<section class="panel map-panel" id="mapa" aria-labelledby="mapa-title">
-  <header class="map-head"><div><span class="section-kicker">ACTIVIDAD DEL MES</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><button class="chip" @click="emit('open-calendar')">Elegir otro mes ↗</button></header>
+<div v-if="expanded" class="map-backdrop" aria-hidden="true" @click="expanded = false"></div>
+<section class="panel map-panel" :class="{ 'is-expanded': expanded }" id="mapa" aria-labelledby="mapa-title" :role="expanded ? 'dialog' : undefined" :aria-modal="expanded ? 'true' : undefined">
+  <header class="map-head"><div><span class="section-kicker">ACTIVIDAD DEL MES</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><div class="map-actions"><button v-if="!expanded" ref="expandButton" class="link-btn" type="button" @click="expanded = true">Ampliar mapa</button><button v-if="!expanded" class="chip" @click="emit('open-calendar')">Elegir otro mes ↗</button><button v-else ref="closeButton" class="chip" type="button" @click="expanded = false">Cerrar</button></div></header>
   <div class="map-toolbar"><span v-if="data" :title="'Las detecciones de distintos sensores no se suman'">{{format(data.shown_groups)}} celdas con actividad · {{format(data.total_hotspots)}} hotspots (todas las fuentes)</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><span class="sensor-tag">Serie: {{ sensorLabel }}</span><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
   <div class="map-canvas"><div ref="mapEl" class="map" role="region" aria-label="Mapa interactivo de celdas con actividad"></div><div v-if="busy" class="map-notice" role="status">Consultando el mes…</div><div v-if="error" class="map-notice" role="alert">{{error}}</div><div v-else-if="data&&!data.points.length" class="map-notice">No hay celdas con actividad en este mes y área.</div></div>
   <div class="map-legend"><span class="ramp-caption">Intensidad de hotspots · quintiles de lo mostrado</span><span class="ramp" role="img" aria-label="Escala de intensidad de hotspots de menor a mayor"><i v-for="bg in SEQUENTIAL_STOPS" :key="bg" :style="{ background: bg }"></i></span><span class="ramp-minmax" aria-hidden="true">bajo → alto</span><span class="size-key"><i class="dot size-small" aria-hidden="true"></i><i class="dot size-big" aria-hidden="true"></i>Tamaño: días con actividad</span></div>
@@ -130,5 +151,5 @@ onBeforeUnmount(() => { controller?.abort(); resize?.disconnect(); map?.remove()
 </section>
 </template>
 <style scoped>
-.map-panel{padding:0;overflow:hidden}.map-head{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;padding:22px 24px 12px}.map-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 24px 14px;font-size:13px;flex-wrap:wrap}.map-toolbar>div{display:flex;gap:16px;align-items:center}.sensor-tag{font-size:12px;opacity:.9;white-space:nowrap}.map-canvas{position:relative}.map{height:400px;background:#07173F;z-index:1}.map-notice{position:absolute;left:16px;bottom:16px;z-index:450;padding:10px 14px;background:#07173F;border:1px solid #2E96F5;border-radius:6px;font-size:13px;max-width:80%}.map-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:14px 24px 0;font-size:12px}.map-legend span{display:flex;gap:7px;align-items:center}.ramp-caption{font-weight:700}.ramp{display:inline-flex;width:90px;height:12px;border:1px solid #2E96F5;border-radius:3px;overflow:hidden;gap:0!important}.ramp i{flex:1;height:100%}.ramp-minmax{opacity:.85}.size-key{gap:5px!important}.dot{width:9px;height:9px;display:inline-block;border-radius:50%;background:#FDE725;border:1px solid #FFFFFF}.size-small{width:6px;height:6px}.size-big{width:12px;height:12px}.map-foot{padding:8px 24px 16px;font-size:12px}.map-foot p{margin:6px 0}:deep(.leaflet-control-attribution){background:#07173F;color:white}:deep(.leaflet-control-attribution a){color:white}:deep(.leaflet-control-zoom a){background:#07173F;color:white}:deep(.leaflet-popup-content-wrapper),:deep(.leaflet-popup-tip){background:white;color:#07173F}:deep(.leaflet-tooltip){background:white;color:#07173F}@media(max-width:720px){.map{height:330px}.map-head,.map-toolbar{padding-left:16px;padding-right:16px}}
+.map-panel{padding:0;overflow:hidden}.map-head{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap;padding:22px 24px 12px}.map-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.map-backdrop{position:fixed;inset:0;background:rgba(3,12,30,.78);backdrop-filter:blur(3px);z-index:1000}.map-panel.is-expanded{position:fixed;inset:20px;z-index:1001;max-width:none;overflow:auto;display:flex;flex-direction:column}.map-panel.is-expanded .map{height:calc(100vh - 300px);min-height:420px}.map-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 24px 14px;font-size:13px;flex-wrap:wrap}.map-toolbar>div{display:flex;gap:16px;align-items:center}.sensor-tag{font-size:12px;opacity:.9;white-space:nowrap}.map-canvas{position:relative}.map{height:400px;background:#07173F;z-index:1}.map-notice{position:absolute;left:16px;bottom:16px;z-index:450;padding:10px 14px;background:#07173F;border:1px solid #2E96F5;border-radius:6px;font-size:13px;max-width:80%}.map-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:14px 24px 0;font-size:12px}.map-legend span{display:flex;gap:7px;align-items:center}.ramp-caption{font-weight:700}.ramp{display:inline-flex;width:90px;height:12px;border:1px solid #2E96F5;border-radius:3px;overflow:hidden;gap:0!important}.ramp i{flex:1;height:100%}.ramp-minmax{opacity:.85}.size-key{gap:5px!important}.dot{width:9px;height:9px;display:inline-block;border-radius:50%;background:#FDE725;border:1px solid #FFFFFF}.size-small{width:6px;height:6px}.size-big{width:12px;height:12px}.map-foot{padding:8px 24px 16px;font-size:12px}.map-foot p{margin:6px 0}:deep(.leaflet-control-attribution){background:#07173F;color:white}:deep(.leaflet-control-attribution a){color:white}:deep(.leaflet-control-zoom a){background:#07173F;color:white}:deep(.leaflet-popup-content-wrapper),:deep(.leaflet-popup-tip){background:white;color:#07173F}:deep(.leaflet-tooltip){background:white;color:#07173F}@media(max-width:720px){.map{height:330px}.map-panel.is-expanded{inset:8px}.map-panel.is-expanded .map{height:calc(100vh - 360px);min-height:320px}.map-head,.map-toolbar{padding-left:16px;padding-right:16px}}
 </style>

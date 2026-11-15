@@ -5,6 +5,8 @@ import { useAlerts } from '@/composables/useAlerts'
 import { format } from '@/composables/useCalendar'
 const { filters } = useChronos()
 const { alerts, alertsLoading, alertsError, alertsUpdatedAt, loadAlerts } = useAlerts()
+const ALERTS_PER_PAGE = 5
+const alertsPage = ref(0)
 const now = ref(Date.now())
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let clockTimer: ReturnType<typeof setInterval> | undefined
@@ -23,7 +25,27 @@ onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (clockTimer) clearInterval(clockTimer)
 })
-watch(() => filters.value.bbox, (bbox) => loadAlerts(bbox), { deep: true })
+watch(() => filters.value.bbox, (bbox) => {
+  alertsPage.value = 0
+  loadAlerts(bbox)
+}, { deep: true })
+watch(() => alerts.value?.alerts.length, (length) => {
+  const pages = Math.max(1, Math.ceil((length ?? 0) / ALERTS_PER_PAGE))
+  if (alertsPage.value >= pages) alertsPage.value = pages - 1
+})
+const alertPageCount = computed(() =>
+  Math.max(1, Math.ceil((alerts.value?.alerts.length ?? 0) / ALERTS_PER_PAGE)))
+const pagedAlerts = computed(() => {
+  const start = alertsPage.value * ALERTS_PER_PAGE
+  return (alerts.value?.alerts ?? []).slice(start, start + ALERTS_PER_PAGE)
+})
+const alertRange = computed(() => {
+  const total = alerts.value?.alerts.length ?? 0
+  if (!total) return ''
+  const start = alertsPage.value * ALERTS_PER_PAGE + 1
+  const end = Math.min(total, start + ALERTS_PER_PAGE - 1)
+  return `${start}–${end} de ${total}`
+})
 const updatedLabel = computed(() => {
   if (!alertsUpdatedAt.value) return ''
   const seconds = Math.max(0, Math.floor((now.value - alertsUpdatedAt.value.getTime()) / 1000))
@@ -44,15 +66,20 @@ const aoiAnomaly = computed(() => alerts.value?.alerts[0]?.aoiAnomaly ?? null)
   <p v-else-if="alertsError" class="small-note error" role="alert">{{ alertsError }}</p>
   <p v-else-if="alerts && !alerts.alerts.length" class="small-note">Sin alertas NRT en el área y período.</p>
   <ol v-else-if="alerts" class="alert-list">
-    <li v-for="(alert, index) in alerts.alerts" :key="`${alert.cellLat}-${alert.cellLon}-${index}`">
+    <li v-for="(alert, index) in pagedAlerts" :key="`${alert.cellLat}-${alert.cellLon}-${alert.lastDetection}-${index}`">
       <span class="level" :class="`level-${alert.level}`">{{ alert.level }}</span>
       <div class="alert-main"><strong>{{ format(alert.nDetections) }} {{ alert.nDetections === 1 ? 'detección' : 'detecciones' }} · {{ alert.sensors.join(' · ') }}</strong><small>{{ alert.cellLat }}, {{ alert.cellLon }} · {{ time(alert.lastDetection) }}</small></div>
       <span class="alert-frp">{{ alert.frpMaxMw === null ? '—' : `${format(alert.frpMaxMw)} MW` }}</span>
     </li>
   </ol>
+  <nav v-if="alerts && alertPageCount > 1" class="pager" aria-label="Paginación de alertas">
+    <button class="link-btn" type="button" :disabled="alertsPage === 0" aria-label="Página anterior de alertas" @click="alertsPage--">Anterior</button>
+    <span class="small-note">Página {{ alertsPage + 1 }} de {{ alertPageCount }} · {{ alertRange }}</span>
+    <button class="link-btn" type="button" :disabled="alertsPage >= alertPageCount - 1" aria-label="Siguiente página de alertas" @click="alertsPage++">Siguiente</button>
+  </nav>
   <p v-if="aoiAnomaly !== null" class="small-note">Anomalía del AOI: {{ format(aoiAnomaly) }}×.</p>
 </section>
 </template>
 <style scoped>
-.panel-head{display:flex;justify-content:space-between;align-items:center;gap:16px}.alert-actions{display:flex;gap:10px;align-items:center}.badge{border:1px solid var(--warm-lime);color:var(--warm-lime);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700}.alert-list{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}.alert-list li{display:grid;grid-template-columns:70px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--blue-100);font-size:13px}.alert-main{display:flex;flex-direction:column;gap:3px;min-width:0}.alert-main small{color:var(--blue-100)}.alert-frp{font-weight:700;white-space:nowrap}.level{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:4px 6px;border-radius:4px;text-align:center}.level-info{background:#0B2A6B;color:#fff}.level-watch{background:#F08A00;color:#07173F}.level-warning{background:#E03000;color:#fff}.error{color:#ffb4a8}@media(max-width:600px){.alert-list li{grid-template-columns:64px minmax(0,1fr)}.alert-frp{display:none}}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:16px}.alert-actions{display:flex;gap:10px;align-items:center}.badge{border:1px solid var(--warm-lime);color:var(--warm-lime);border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700}.alert-list{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}.alert-list li{display:grid;grid-template-columns:70px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--blue-100);font-size:13px}.alert-main{display:flex;flex-direction:column;gap:3px;min-width:0}.alert-main small{color:var(--blue-100)}.alert-frp{font-weight:700;white-space:nowrap}.level{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:4px 6px;border-radius:4px;text-align:center}.level-info{background:#0B2A6B;color:#fff}.level-watch{background:#F08A00;color:#07173F}.level-warning{background:#E03000;color:#fff}.error{color:#ffb4a8}.pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;flex-wrap:wrap}.pager .link-btn:disabled{opacity:.45;cursor:not-allowed}@media(max-width:600px){.alert-list li{grid-template-columns:64px minmax(0,1fr)}.alert-frp{display:none}}
 </style>
