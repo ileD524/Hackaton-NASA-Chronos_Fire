@@ -54,7 +54,7 @@ await expect(page.locator('section[aria-labelledby="comparison-title"]')).toCont
 const initialCsv = await hotspotsCsvURL()
 const initialFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
 const initialTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
-if (initialFrom !== '2003-01-01') throw new Error(`inicio histórico inesperado: ${initialFrom}`)
+if (initialFrom !== '2013-01-01') throw new Error(`inicio histórico inesperado: ${initialFrom}`)
 if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Error('CSV inicial sin bbox del AOI')
 if (initialCsv.searchParams.get('from') !== initialFrom) throw new Error('CSV inicial sin fecha desde')
 await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
