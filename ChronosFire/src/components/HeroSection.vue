@@ -78,7 +78,6 @@ onUnmounted(() => motionQuery?.removeEventListener('change', syncMotion))
           stroke-width="10"
           stroke-linecap="round"
           stroke-linejoin="round"
-          opacity="0.16"
         />
         <ellipse
           cx="50"
