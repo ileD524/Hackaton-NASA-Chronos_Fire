@@ -158,13 +158,14 @@ Las definiciones completas están en `docs/DECISIONES.md`.
 - Demo Docker: `docker/README.md`
 - Datos y ETL: `data/README.md`
 - Decisiones y definiciones: `docs/DECISIONES.md`
-- Arquitectura y contrato: `backend/CONTRATO_API.md`
+- Arquitectura y contrato: `backend/planes/CONTRATO_API.md`
 - OpenAPI: `backend/openapi/chronosfire-api.yaml`
-- Plan de backend: `backend/PLAN_BACKEND.md`
-- Armonización: `backend/PLAN_ARMONIZACION.md`
+- Plan de backend: `backend/planes/PLAN_BACKEND.md`
+- Armonización: `backend/planes/PLAN_ARMONIZACION.md`
 - Validación: `backend/VALIDACION_6_8.md`
 - Frontend local: `frontend/ChronosFire/README-LOCAL.md`
 - Funcionalidad del frontend: `frontend/ChronosFire/docs/FUNCIONALIDAD.md`
-- Brechas y plan de cierre: `INFORME_BRECHAS_Y_PLAN_BACKEND_FRONTEND.md`
+- Alineación con el challenge: `informes/INFORME_ALINEACION_CHALLENGE.md`
+- Brechas y plan de cierre: `informes/INFORME_BRECHAS_Y_PLAN_BACKEND_FRONTEND.md`
 
 La base se usa en modo lectura: el backend no crea ni modifica tablas.
