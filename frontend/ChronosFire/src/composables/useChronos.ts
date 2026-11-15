@@ -35,15 +35,26 @@ interface ApiDaily {
   dataStatus: string
 }
 
+interface ApiSensor {
+  sensor?: string
+  source?: string
+  rows?: number
+  from?: string | null
+  to?: string | null
+}
+
 interface ApiMeta {
+  gridResolutionDeg?: number
+  sensors?: ApiSensor[]
   dateRange?: { from?: string; to?: string }
-  counts?: { detections?: number }
+  counts?: { detections?: number; coverageDaily?: number }
+  provisional?: { from?: string; to?: string; reason?: string } | null
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
 const filters = ref<Filters>({
-  from: '2012-01-01',
-  to: '2026-11-14',
+  from: '',
+  to: '',
   metric: 'all',
   bbox: DELTA_BBOX,
 })
@@ -217,6 +228,14 @@ async function loadDaily() {
 }
 
 async function load(next: Filters = filters.value) {
+  if (!next.from || !next.to) {
+    if (metadata.value) {
+      error.value = 'El servidor no informó el rango de fechas.'
+      return
+    }
+    await initialize()
+    return
+  }
   controller?.abort()
   const current = new AbortController()
   controller = current
@@ -228,7 +247,7 @@ async function load(next: Filters = filters.value) {
     const rows = await fetchJSON<ApiMonthly[]>(`/api/calendar/monthly?${params(next)}`, current.signal)
     if (current.signal.aborted) return
     const months = rows.map(monthCell)
-    calendar.value = { ...next, months, daily: [], coverage_known: false }
+    calendar.value = { ...next, months, daily: [], coverage_known: metadata.value?.coverage_known ?? false }
     const currentSelection = selectedMonth.value
     const keep = currentSelection && months.some(
       (m) => m.year === currentSelection.year && m.month === currentSelection.month && metricValue(m) !== null,
@@ -287,6 +306,47 @@ const selectedDaily = computed(() => calendar.value?.daily ?? [])
 
 watch(selectedMonth, () => { void loadDaily() }, { deep: true })
 
+async function initialize() {
+  try {
+    const meta = await fetchJSON<ApiMeta>('/api/meta')
+    const sensors = (meta.sensors ?? []).map((sensor) => ({
+      sensor: sensor.sensor ?? '',
+      source: sensor.source ?? '',
+      rows: sensor.rows ?? 0,
+      from: sensor.from ?? null,
+      to: sensor.to ?? null,
+    }))
+    const viirsFirst = sensors
+      .filter((sensor) => sensor.sensor.startsWith('VIIRS') && sensor.from)
+      .map((sensor) => sensor.from as string)
+      .sort()[0] ?? ''
+    const from = meta.dateRange?.from ?? ''
+    const to = meta.dateRange?.to ?? ''
+    filters.value = { ...filters.value, from, to }
+    metadata.value = {
+      first_date: from,
+      last_date: to,
+      viirs_first: viirsFirst,
+      rows: meta.counts?.detections ?? 0,
+      selected_rows: meta.counts?.detections ?? 0,
+      calibration: null,
+      grid_resolution_deg: meta.gridResolutionDeg ?? 0,
+      sensors,
+      coverage_known: (meta.counts?.coverageDaily ?? 0) > 0,
+      provisional: meta.provisional?.from
+        ? {
+            from: meta.provisional.from,
+            to: meta.provisional.to ?? '',
+            reason: meta.provisional.reason ?? '',
+          }
+        : null,
+    }
+    await load()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : 'Servidor no disponible.'
+  }
+}
+
 export function useChronos() {
   return {
     filters,
@@ -313,23 +373,7 @@ export function useChronos() {
       return 'Área personalizada · recorte rectangular'
     }),
     load,
-    async initialize() {
-      try {
-        const meta = await fetchJSON<ApiMeta>('/api/meta')
-        metadata.value = {
-          first_date: meta.dateRange?.from ?? '',
-          last_date: meta.dateRange?.to ?? '',
-          viirs_first: '2012-01-20',
-          rows: meta.counts?.detections ?? 0,
-          selected_rows: meta.counts?.detections ?? 0,
-          calibration: null,
-          bounds: [-73.6, -55.1, -53.6, -21.8],
-        }
-        await load()
-      } catch (e) {
-        error.value = e instanceof Error ? e.message : 'Servidor no disponible.'
-      }
-    },
+    initialize,
     csvNotice,
     csvError,
     csvChecking,

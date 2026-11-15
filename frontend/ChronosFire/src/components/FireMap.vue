@@ -5,7 +5,7 @@ import { useChronos, fetchJSON, params } from '@/composables/useChronos'
 import { useCalendar, format } from '@/composables/useCalendar'
 import type { MapData, MapPoint } from '@/data/types'
 const emit = defineEmits<{ (e: 'open-calendar'): void }>()
-const { selectedMonth, filters, load } = useChronos()
+const { selectedMonth, filters, load, metadata } = useChronos()
 const { monthName } = useCalendar()
 const mapEl = ref<HTMLDivElement | null>(null)
 const data = ref<MapData | null>(null)
@@ -57,7 +57,7 @@ async function refresh() {
       shown_groups: rows.length,
       total_hotspots: total,
       shown_hotspots: total,
-      aggregation_km: 0.05,
+      aggregation_km: metadata.value?.grid_resolution_deg ?? 0,
     }
     for (const p of rows) {
       const breakdown = Object.entries(p.hotspotsBySensor ?? {})

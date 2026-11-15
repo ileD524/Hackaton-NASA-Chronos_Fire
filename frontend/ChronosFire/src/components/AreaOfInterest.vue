@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import type { Bbox } from '@/data/types'
 const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv, metricMode } = useChronos()
@@ -8,6 +8,13 @@ const checkHotspotsCsv = () => checkCsv(hotspotsExportURL.value)
 const from = ref(filters.value.from), to = ref(filters.value.to)
 const area = ref('delta'), west = ref(-61), south = ref(-34), east = ref(-59.5), north = ref(-32.5)
 const validation = ref('')
+const dateMin = computed(() => metadata.value?.first_date || undefined)
+const dateMax = computed(() => metadata.value?.last_date || undefined)
+const archiveLabel = computed(() => {
+  const first = metadata.value?.first_date?.slice(0, 4)
+  const last = metadata.value?.last_date?.slice(0, 4)
+  return first && last ? `Ver todo el archivo ${first}–${last}` : 'Ver todo el archivo'
+})
 watch(filters, (f) => {
   from.value = f.from
   to.value = f.to
@@ -37,8 +44,8 @@ function apply() {
 }
 function reset() {
   area.value = 'all'
-  from.value = '2003-01-01'
-  to.value = '2026-11-14'
+  from.value = metadata.value?.first_date ?? ''
+  to.value = metadata.value?.last_date ?? ''
   apply()
 }
 </script>
@@ -54,10 +61,10 @@ function reset() {
         <div class="field"><label for="north">Norte · latitud</label><input id="north" v-model.number="north" type="number" step="any" min="-90" max="90" required></div>
         <p class="small-note bbox-note">Recorte por coordenadas; no representa los límites oficiales de una provincia.</p>
       </div>
-      <div class="date-fields"><div class="field"><label for="from">Desde</label><input id="from" v-model="from" type="date" min="2003-01-01" max="2026-12-31" required></div><div class="field"><label for="to">Hasta</label><input id="to" v-model="to" type="date" min="2003-01-01" max="2026-12-31" required></div></div>
+      <div class="date-fields"><div class="field"><label for="from">Desde</label><input id="from" v-model="from" type="date" :min="dateMin" :max="dateMax" required></div><div class="field"><label for="to">Hasta</label><input id="to" v-model="to" type="date" :min="dateMin" :max="dateMax" required></div></div>
       <p v-if="validation" class="notice" role="alert">{{ validation }}</p>
       <button class="btn btn-primary full-width" type="submit" :disabled="loading">{{ loading ? 'Consultando…' : 'Actualizar calendario' }} <span aria-hidden="true">↗</span></button>
-      <button class="link-btn" type="button" @click="reset">Ver todo el archivo 2003–2026</button>
+      <button class="link-btn" type="button" @click="reset">{{ archiveLabel }}</button>
     </form>
     <div class="source-box" id="datos"><span class="section-kicker">DATOS REALES · NASA FIRMS</span><p>MODIS Terra/Aqua<br>VIIRS Suomi-NPP / NOAA-20 / NOAA-21</p><p class="small-note">Vegetación presunta · confianza nominal/alta · días UTC · celdas 0,05°.</p><p v-if="metadata" class="small-note">{{ new Intl.NumberFormat('es-AR').format(metadata.selected_rows) }} detecciones en el archivo.</p></div>
     <a

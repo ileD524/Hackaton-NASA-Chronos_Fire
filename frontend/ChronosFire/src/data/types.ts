@@ -84,6 +84,20 @@ export interface MapData {
   aggregation_km: number
 }
 
+export interface MetaSensor {
+  sensor: string
+  source: string
+  rows: number
+  from: string | null
+  to: string | null
+}
+
+export interface MetaProvisional {
+  from: string
+  to: string
+  reason: string
+}
+
 export interface Meta {
   first_date: string
   last_date: string
@@ -91,7 +105,10 @@ export interface Meta {
   rows: number
   selected_rows: number
   calibration: unknown | null
-  bounds: Bbox
+  grid_resolution_deg: number
+  sensors: MetaSensor[]
+  coverage_known: boolean
+  provisional: MetaProvisional | null
 }
 
 export interface Alert {
