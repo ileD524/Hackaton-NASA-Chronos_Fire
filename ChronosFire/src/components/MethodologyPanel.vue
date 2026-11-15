@@ -1,0 +1,9 @@
+<template>
+<section class="panel" id="metodologia" aria-labelledby="method-title"><span class="section-kicker">DE LA OBSERVACIÓN A LA COMPARACIÓN</span><h2 class="panel-title" id="method-title">Qué estás viendo</h2>
+<p>MODIS <strong>2003–2025</strong> · VIIRS <strong>2012–2025</strong>. Solo vegetación presunta con confianza nominal o alta.</p>
+<ol class="method-steps"><li><strong>Una grilla común.</strong> Detecciones asignadas por su centro a celdas de igual área de 1 km².</li><li><strong>Un día común.</strong> Agregación diaria en UTC; varias detecciones de un sensor en una celda cuentan una vez.</li><li><strong>Una escala de referencia.</strong> VIIRS calibrado usa factores mensuales para estimar la actividad agregada en escala MODIS.</li></ol>
+<details><summary>Calibración y límites de la comparación</summary><p>Modelo ajustado hasta 2021, intervalos estimados en 2022 y prueba reservada 2023–2025. El RMSE diario baja de 172,6 a 65,8 celdas en 760 días elegibles.</p><p>Los intervalos nominales del 90% cubrieron el 82,8% de los casos de prueba. Son empíricos y subestiman la incertidumbre. La transferencia solo se validó para toda la extensión de DSv2.</p><p>La unión de sensores cambia de sensibilidad desde 2012. Ni los conteos ni el tamaño de una celda representan superficie quemada. Sin máscaras de nubes, la ausencia de registros no confirma ausencia de fuego.</p></details>
+<a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Conocer NASA FIRMS ↗</a>
+</section>
+</template>
+<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}</style>
