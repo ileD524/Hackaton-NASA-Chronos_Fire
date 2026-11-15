@@ -132,6 +132,18 @@ await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad'
 await expect(page.locator('.daily-table thead')).toContainText('Celdas con actividad')
 await expect(page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()).toHaveText(cellsValue)
 
+// F-01: selector de sensor
+const sensorSelect = page.getByLabel('Sensor', { exact: true })
+const allCell = page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()
+const allCellValue = (await allCell.textContent())?.trim()
+if (!allCellValue) throw new Error('sin valor inicial para Agosto 2020')
+await sensorSelect.selectOption('MODIS')
+await expect(page.locator('.series-badge').first()).toContainText('MODIS observado')
+await expect(allCell).not.toHaveText(allCellValue)
+await sensorSelect.selectOption('all')
+await expect(page.locator('.series-badge').first()).toContainText('Todos los sensores')
+await expect(allCell).toHaveText(allCellValue)
+
 await page.getByRole('button', { name: 'Abrir el calendario', exact: true }).click()
 await expect(page.getByRole('dialog')).toBeVisible()
 await page.getByRole('dialog').getByRole('button', { name: /Febrero 2022:/ }).click()
@@ -217,6 +229,7 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
     'calendar SVG follows hotspot mode',
     'cells and hotspots metric toggle',
     'hotspots daily table by sensor',
+    'sensor selector changes series and calendar',
     'backend monthly anomaly',
     'hotspots CSV button follows active filters',
     'month selection updates map',

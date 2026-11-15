@@ -383,6 +383,12 @@ VIIRS NOAA-21
 - El selector no ofrece sensores sin datos para el rango (opcional, recomendado).
 - Test de navegador: el badge de serie cambia.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `SENSOR_OPTIONS` en `types.ts`; selector en `AreaOfInterest.vue` sincronizado con `filters.metric`; `apply()` deja de pisar `metric: 'all'`; el cambio de sensor llama `load({ ...filters.value, metric })` y usa el área/rango ya aplicados. Notas para `ALL` (“no es un promedio; dominada por VIIRS”) y para alertas NRT (no se filtran por sensor). Verificado: MODIS cambia el badge y el calendario (Agosto 2020 `324 → 222`) y dispara `/monthly`, `/heatmap` y `/daily` con `sensor=MODIS`. `npm run build`, `npm run test:api` y `npm run test:browser` pasan.
+
+**Nota:** no se implementó persistencia en URL ni deshabilitado de sensores sin datos para el rango (opcional en el plan).
+
 ---
 
 ### F-02. Modo “Celdas” / “Hotspots” en el calendario
@@ -801,7 +807,7 @@ X-Truncated: false
 
 - [x] Calendario muestra hotspots además de celdas.
 - [ ] Rango visible desde 2003 (o 2000) por defecto.
-- [ ] Selector de sensor disponible.
+- [x] Selector de sensor disponible.
 - [x] Descarga de hotspots CSV desde la UI.
 - [x] Descarga de visualización (SVG).
 - [ ] Rampa accesible.

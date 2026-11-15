@@ -156,3 +156,11 @@ export const SERIES: Record<Metric, string> = {
   VIIRS_NOAA20: 'VIIRS NOAA-20',
   VIIRS_NOAA21: 'VIIRS NOAA-21',
 }
+
+export const SENSOR_OPTIONS: { id: Metric; label: string }[] = [
+  { id: 'all', label: 'Todos los sensores (dominado por VIIRS)' },
+  { id: 'MODIS', label: 'MODIS' },
+  { id: 'VIIRS_SNPP', label: 'VIIRS SNPP' },
+  { id: 'VIIRS_NOAA20', label: 'VIIRS NOAA-20' },
+  { id: 'VIIRS_NOAA21', label: 'VIIRS NOAA-21' },
+]
