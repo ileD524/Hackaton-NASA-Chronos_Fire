@@ -1,6 +1,159 @@
+
 # Datos crudos de FIRMS (descargables, no versionar)
 /data/
 
 # Material de referencia pesado
 /Space_Apps_Brand_Guide_VUGpVJm.pdf
 /imagen armonizacion.jpg
+=======
+# ============================================================
+# Chronos Fire - .gitignore
+# ============================================================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+wheels/
+*.egg-info/
+*.egg
+.installed.cfg
+MANIFEST
+
+# Entornos virtuales
+.venv/
+venv/
+ENV/
+env/
+.python-version
+
+# Herramientas / caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# ---------- Secretos y configuración local ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.yaml
+secrets.yml
+
+# ---------- Datos (FIRMS / NASA) ----------
+# Los JSON/CSV descargados pueden pesar GB: no van al repo.
+# Se conservan los Readme.txt de cada carpeta.
+data/**
+!data/**/Readme.txt
+!data/**/readme.txt
+
+# Descargas y exports generados
+downloads/
+exports/
+tmp/
+temp/
+*.zip
+*.tar.gz
+*.7z
+
+# Formatos de datos generados / intermedios
+*.parquet
+*.duckdb
+*.duckdb.wal
+*.feather
+*.arrow
+*.avro
+*.h5
+*.hdf5
+*.nc
+*.tif
+*.tiff
+
+# ---------- PostgreSQL local ----------
+# Cluster de desarrollo: README indica ..\chronos_pgdata (fuera del repo),
+# pero se ignora por si se crea dentro.
+chronos_pgdata/
+pgdata/
+postgres-data/
+pg_wal/
+pg_log/
+*.pid
+*.pgpass
+pg_hba.conf
+
+# Bases SQLite / volcados
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+*.bak
+
+# ---------- Logs ----------
+*.log
+logs/
+log/
+
+# ---------- Backend / Node (si se agrega) ----------
+node_modules/
+.npm/
+.pnpm-store/
+yarn-error.log
+npm-debug.log*
+pnpm-debug.log*
+.next/
+.nuxt/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+
+# ---------- IDEs y editores ----------
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-workspace
+
+# ---------- Sistema operativo ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# ---------- Temporales ----------
+*.tmp
+*.temp
+*.crdownload
+*.part
+~$*
+
