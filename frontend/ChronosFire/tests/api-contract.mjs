@@ -63,6 +63,48 @@ if (!csvHeader.startsWith('sensor,source,acquired_at,acq_date,latitude,longitude
 }
 const csvRows = csvLines.filter(Boolean).length - 1
 if (csvRows <= 0 || csvRows > 50000) throw new Error(`filas CSV fuera de rango: ${csvRows}`)
+if (csvResponse.headers.get('x-row-limit') !== '50000') throw new Error('X-Row-Limit inesperado')
+if (csvResponse.headers.get('x-truncated') !== 'false') throw new Error('X-Truncated inesperado')
+if (Number(csvResponse.headers.get('x-returned-rows')) !== csvRows) {
+  throw new Error('X-Returned-Rows no coincide con las filas')
+}
+
+const truncatedResponse = await fetch(
+  `${BASE}/api/detections/export.csv?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`,
+)
+if (!truncatedResponse.ok) throw new Error(`export.csv truncado -> HTTP ${truncatedResponse.status}`)
+if (truncatedResponse.headers.get('x-truncated') !== 'true') {
+  throw new Error('X-Truncated no marco la descarga limitada')
+}
+if (Number(truncatedResponse.headers.get('x-returned-rows')) !== 10) {
+  throw new Error('X-Returned-Rows no respeto el limite')
+}
+await truncatedResponse.text()
+
+const calendarCsv = await fetch(
+  `${BASE}/api/calendar/export.csv?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`,
+)
+if (!calendarCsv.ok) throw new Error(`calendar export.csv -> HTTP ${calendarCsv.status}`)
+if (calendarCsv.headers.get('x-truncated') !== 'true') {
+  throw new Error('calendar X-Truncated no marco la descarga limitada')
+}
+if (Number(calendarCsv.headers.get('x-returned-rows')) !== 10) {
+  throw new Error('calendar X-Returned-Rows no respeto el limite')
+}
+await calendarCsv.text()
+
+const longCsvHead = await fetch(
+  `${BASE}/api/detections/export.csv?bbox=${bbox}&from=2012-01-01&to=2026-11-14&sensor=ALL`
+  + '&vegetation=true&confidence=nominal&confidence=high&limit=50000',
+  { method: 'HEAD' },
+)
+if (!longCsvHead.ok) throw new Error(`long export.csv HEAD -> HTTP ${longCsvHead.status}`)
+if (longCsvHead.headers.get('x-truncated') !== 'true') {
+  throw new Error('long export.csv sin X-Truncated=true')
+}
+if (Number(longCsvHead.headers.get('x-returned-rows')) !== 50000) {
+  throw new Error('long export.csv sin 50.000 filas')
+}
 
 const alerts = await get(`/api/alerts?bbox=${bbox}&days=7&limit=5`)
 if (typeof alerts.count !== 'number' || !Array.isArray(alerts.alerts)) throw new Error('alerts inválido')
@@ -83,6 +125,8 @@ console.log(JSON.stringify({
   heatmapHotspots,
   heatmapModisHotspots,
   hotspotsCsvRows: csvRows,
+  csvTruncationHeaders: true,
+  longCsvHead: true,
   alerts: alerts.count,
   validationEvents: validation.length,
 }, null, 2))

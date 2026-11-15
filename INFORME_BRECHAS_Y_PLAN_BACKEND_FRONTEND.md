@@ -293,6 +293,10 @@ X-Truncated: true|false
 - Una búsqueda menor descarga todas las filas.
 - Tests de controlador para los headers.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `CsvExport` devuelve contenido, filas, límite y `truncated`; ambos controladores agregan `X-Row-Limit`, `X-Returned-Rows` y `X-Truncated`; CORS los expone. La UI hace un `HEAD` antes de la descarga y muestra “Descarga completa: N filas” o “Descarga limitada a 50.000 filas…”. El test de navegador destapó un bug: el export de detecciones limitaba el rango a 3.660 días y el default 2012-2026 devolvía 400. Se elevó el máximo de export a 10.000 días (paginado y GeoJSON siguen en 3.660). 36 tests backend, 0 fallos; build, `test:api` y `test:browser` pasan.
+
 **Archivos:** `DetectionController.java`, `CalendarController.java`, `AreaOfInterest.vue`.
 
 ---

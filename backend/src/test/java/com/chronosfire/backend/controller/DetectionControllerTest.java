@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.Detection;
 import com.chronosfire.backend.dto.DetectionPage;
 import com.chronosfire.backend.dto.GeoJsonFeatureCollection;
@@ -68,7 +69,7 @@ class DetectionControllerTest {
 
     @Test
     void exportsCsv() throws Exception {
-        detectionService.csv = "\uFEFFsensor,source\nMODIS,SP\n";
+        detectionService.csv = new CsvExport("\uFEFFsensor,source\nMODIS,SP\n", 1, 50000, false);
 
         mockMvc.perform(get("/api/detections/export.csv")
                         .param("from", "2020-09-01")
@@ -76,7 +77,24 @@ class DetectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
+                .andExpect(header().string("X-Row-Limit", "50000"))
+                .andExpect(header().string("X-Returned-Rows", "1"))
+                .andExpect(header().string("X-Truncated", "false"))
                 .andExpect(content().string(containsString("sensor,source")));
+    }
+
+    @Test
+    void reportsCsvTruncation() throws Exception {
+        detectionService.csv = new CsvExport("\uFEFFsensor,source\nMODIS,SP\n", 2, 2, true);
+
+        mockMvc.perform(get("/api/detections/export.csv")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Row-Limit", "2"))
+                .andExpect(header().string("X-Returned-Rows", "2"))
+                .andExpect(header().string("X-Truncated", "true"));
     }
 
     private Detection sampleDetection() {
@@ -113,7 +131,7 @@ class DetectionControllerTest {
 
         private DetectionPage page;
         private GeoJsonFeatureCollection geoJson;
-        private String csv;
+        private CsvExport csv;
 
         StubDetectionService() {
             super(null);
@@ -149,7 +167,7 @@ class DetectionControllerTest {
         }
 
         @Override
-        public String exportCsv(
+        public CsvExport exportCsv(
                 String bbox,
                 LocalDate from,
                 LocalDate to,

@@ -2,7 +2,9 @@
 import { ref, watch } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import type { Bbox } from '@/data/types'
-const { filters, loading, load, exportURL, hotspotsExportURL, metadata } = useChronos()
+const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv } = useChronos()
+const checkCalendarCsv = () => checkCsv(exportURL.value)
+const checkHotspotsCsv = () => checkCsv(hotspotsExportURL.value)
 const from = ref(filters.value.from), to = ref(filters.value.to)
 const area = ref('delta'), west = ref(-61), south = ref(-34), east = ref(-59.5), north = ref(-32.5)
 const validation = ref('')
@@ -58,17 +60,27 @@ function reset() {
       <button class="link-btn" type="button" @click="reset">Ver todo el archivo 2003–2026</button>
     </form>
     <div class="source-box" id="datos"><span class="section-kicker">DATOS REALES · NASA FIRMS</span><p>MODIS Terra/Aqua<br>VIIRS Suomi-NPP / NOAA-20 / NOAA-21</p><p class="small-note">Vegetación presunta · confianza nominal/alta · días UTC · celdas 0,05°.</p><p v-if="metadata" class="small-note">{{ new Intl.NumberFormat('es-AR').format(metadata.selected_rows) }} detecciones en el archivo.</p></div>
-    <a class="btn export-btn" :href="exportURL" download>↓ Exportar calendario CSV</a>
+    <a
+      class="btn export-btn"
+      :href="exportURL"
+      download="chronosfire-calendario-semanal.csv"
+      :aria-busy="csvChecking"
+      @click="checkCalendarCsv"
+    >↓ Exportar calendario CSV</a>
     <a
       class="btn export-btn"
       :href="hotspotsExportURL"
-      download
+      download="chronosfire-detecciones.csv"
+      :aria-busy="csvChecking"
       aria-label="Descargar hotspots CSV: hasta 50000 filas de vegetación nominal o alta, sin focos industriales"
+      @click="checkHotspotsCsv"
     >↓ Descargar hotspots CSV</a>
     <p class="small-note export-note">Hasta 50.000 filas. Solo vegetación nominal/alta, sin focos industriales. Usa el área, el rango y el sensor activos.</p>
+    <p v-if="csvNotice" class="small-note export-note" role="status">{{ csvNotice }}</p>
+    <p v-if="csvError" class="small-note export-error" role="alert">{{ csvError }}</p>
     <p class="small-note">Cero registros no confirma ausencia de fuego. El calendario usa todos los sensores; la capa de detalle conserva el desglose.</p>
   </aside>
 </template>
 <style scoped>
-.aoi{padding:22px}.filter-form{display:flex;flex-direction:column;gap:18px;margin-top:24px}.bbox-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bbox-note{grid-column:1/-1}.date-fields{display:flex;flex-direction:column;gap:14px}.source-box{border-top:1px solid var(--blue-100);margin-top:22px;padding-top:22px}.source-box p{margin:10px 0}.export-btn{width:100%;margin-top:16px;font-size:14px;text-align:center}.export-btn+.export-btn{margin-top:8px}.export-note{margin-top:10px}.full-width{width:100%;justify-content:space-between}@media(min-width:720px) and (max-width:1100px){.filter-form{display:grid;grid-template-columns:1fr 1fr}.date-fields{flex-direction:row}.source-box{display:none}}
+.aoi{padding:22px}.filter-form{display:flex;flex-direction:column;gap:18px;margin-top:24px}.bbox-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.bbox-note{grid-column:1/-1}.date-fields{display:flex;flex-direction:column;gap:14px}.source-box{border-top:1px solid var(--blue-100);margin-top:22px;padding-top:22px}.source-box p{margin:10px 0}.export-btn{width:100%;margin-top:16px;font-size:14px;text-align:center}.export-btn+.export-btn{margin-top:8px}.export-note{margin-top:10px}.export-error{color:#ffb4a8}.full-width{width:100%;justify-content:space-between}@media(min-width:720px) and (max-width:1100px){.filter-form{display:grid;grid-template-columns:1fr 1fr}.date-fields{flex-direction:row}.source-box{display:none}}
 </style>

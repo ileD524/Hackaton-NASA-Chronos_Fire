@@ -1,5 +1,6 @@
 package com.chronosfire.backend.controller;
 
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
@@ -91,7 +92,7 @@ public class CalendarController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(defaultValue = "ALL") String sensor,
             @RequestParam(defaultValue = "50000") int limit) {
-        String csv = calendarService.exportCsv(bbox, from, to, sensor, limit);
+        CsvExport export = calendarService.exportCsv(bbox, from, to, sensor, limit);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, "text/csv; charset=utf-8")
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -99,6 +100,9 @@ public class CalendarController {
                                 .filename("chronosfire-calendario-semanal.csv")
                                 .build()
                                 .toString())
-                .body(csv.getBytes(StandardCharsets.UTF_8));
+                .header("X-Row-Limit", Integer.toString(export.limit()))
+                .header("X-Returned-Rows", Integer.toString(export.rows()))
+                .header("X-Truncated", Boolean.toString(export.truncated()))
+                .body(export.csv().getBytes(StandardCharsets.UTF_8));
     }
 }

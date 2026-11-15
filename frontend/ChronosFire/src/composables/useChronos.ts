@@ -49,6 +49,9 @@ const loading = ref(false)
 const error = ref('')
 const selectedMonth = ref<{ year: number; month: number } | null>(null)
 const calendarOpen = ref(false)
+const csvNotice = ref('')
+const csvError = ref('')
+const csvChecking = ref(false)
 let controller: AbortController | undefined
 let dailyController: AbortController | undefined
 let lastDailyKey = ''
@@ -222,6 +225,31 @@ async function load(next: Filters = filters.value) {
   }
 }
 
+function formatRows(value: string | null) {
+  const rows = Number(value)
+  return Number.isFinite(rows) ? new Intl.NumberFormat('es-AR').format(rows) : '—'
+}
+
+async function checkCsv(url: string) {
+  if (csvChecking.value) return
+  csvNotice.value = ''
+  csvError.value = ''
+  csvChecking.value = true
+  try {
+    const response = await fetch(url, { method: 'HEAD' })
+    if (!response.ok) throw new Error(`No se pudo verificar el CSV (HTTP ${response.status}).`)
+    const returned = formatRows(response.headers.get('X-Returned-Rows'))
+    const truncated = response.headers.get('X-Truncated') === 'true'
+    csvNotice.value = truncated
+      ? `Descarga limitada a ${returned === '—' ? '50.000' : returned} filas. Acotá el área o el rango para obtener el resto.`
+      : `Descarga completa${returned === '—' ? '' : `: ${returned} filas`}.`
+  } catch (e) {
+    csvError.value = e instanceof Error ? e.message : 'No se pudo verificar el CSV.'
+  } finally {
+    csvChecking.value = false
+  }
+}
+
 const months = computed(() => calendar.value?.months ?? [])
 const selected = computed(() =>
   months.value.find((m) => m.year === selectedMonth.value?.year && m.month === selectedMonth.value?.month),
@@ -270,6 +298,10 @@ export function useChronos() {
         error.value = e instanceof Error ? e.message : 'Servidor no disponible.'
       }
     },
+    csvNotice,
+    csvError,
+    csvChecking,
+    checkCsv,
     exportURL: computed(() => `/api/calendar/export.csv?${params(filters.value)}`),
     hotspotsExportURL: computed(() => `/api/detections/export.csv?${hotspotsParams(filters.value)}`),
   }

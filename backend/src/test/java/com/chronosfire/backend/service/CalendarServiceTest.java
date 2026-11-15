@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
@@ -408,12 +409,33 @@ class CalendarServiceTest {
                 2020, 40, "0.05:-660:-1200", -33.0, -60.0,
                 "VIIRS_SNPP", 1, 3, 12, 45.5));
 
-        String csv = new CalendarService(repository)
+        CsvExport export = new CalendarService(repository)
                 .exportCsv("-61,-34,-59.5,-32.5", LocalDate.parse("2020-09-28"), LocalDate.parse("2020-10-04"), "ALL", 10);
 
-        assertTrue(csv.contains("isoyear,week_of_year"));
-        assertTrue(csv.contains("2020,40,0.05:-660:-1200"));
-        assertTrue(csv.contains("VIIRS_SNPP,1,3,12,45.5"));
+        assertTrue(export.csv().contains("isoyear,week_of_year"));
+        assertTrue(export.csv().contains("2020,40,0.05:-660:-1200"));
+        assertTrue(export.csv().contains("VIIRS_SNPP,1,3,12,45.5"));
+        assertEquals(1, export.rows());
+        assertFalse(export.truncated());
+    }
+
+    @Test
+    void weeklyCsvTruncatesAtLimit() {
+        StubRepository repository = new StubRepository();
+        repository.weeklyRows = List.of(
+                new CalendarRepository.WeeklyExportRow(2020, 40, "a", -33.0, -60.0, "MODIS", 1, 1, 1, null),
+                new CalendarRepository.WeeklyExportRow(2020, 40, "b", -33.1, -60.1, "MODIS", 1, 1, 1, null),
+                new CalendarRepository.WeeklyExportRow(2020, 40, "c", -33.2, -60.2, "MODIS", 1, 1, 1, null));
+
+        CsvExport export = new CalendarService(repository)
+                .exportCsv("-61,-34,-59.5,-32.5", LocalDate.parse("2020-09-28"), LocalDate.parse("2020-10-04"), "ALL", 2);
+
+        assertTrue(export.truncated());
+        assertEquals(2, export.rows());
+        assertEquals(2, export.limit());
+        assertTrue(export.csv().contains(",a,"));
+        assertTrue(export.csv().contains(",b,"));
+        assertFalse(export.csv().contains(",c,"));
     }
 
     @Test

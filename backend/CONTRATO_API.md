@@ -183,6 +183,12 @@ Reglas:
 - `detections` devuelve `total`, `limit` y `offset`.
 - `limit` por defecto 1.000; máximo 50.000.
 - Exportaciones: máximo 50.000 filas.
+- `/api/detections/export.csv` acepta rangos de hasta 10.000 días;
+  `detections` y `geojson` hasta 3.660. El rango inicial de la UI
+  (2012-2026) entra en el límite de exportación.
+- Las exportaciones devuelven `X-Row-Limit`, `X-Returned-Rows` y
+  `X-Truncated`. El frontend lee esos headers con un `HEAD` y avisa si la
+  descarga se truncó.
 - `confidence` acepta `low`, `nominal`, `high`; se puede repetir o separar por coma.
 - `vegetation=true` usa la misma logica que `v_vegetation_detections`.
 - La UI descarga hotspots con
@@ -202,6 +208,10 @@ Verificado:
 - GeoJSON con `limit=1`: 200, 0,11 s.
 - CSV de detecciones: `Content-Disposition` y cabecera correcta.
 - CSV semanal: 200, 0,08 s.
+- Export con `limit=10`: `X-Row-Limit: 10`, `X-Returned-Rows: 10`,
+  `X-Truncated: true`.
+- Export Delta 2012-2026: 200, `X-Truncated: true` y 50.000 filas.
+- Rango mayor a 10.000 días en export: 400 con el máximo en el mensaje.
 
 ### Fase 5 - alertas, AOIs y validacion
 

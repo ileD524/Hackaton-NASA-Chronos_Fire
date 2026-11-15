@@ -2,10 +2,12 @@ package com.chronosfire.backend.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
 import com.chronosfire.backend.dto.WeeklyResponse;
@@ -133,6 +135,26 @@ class CalendarControllerTest {
                 .andExpect(jsonPath("$[0].nDetections").value(10));
     }
 
+    @Test
+    void exportsCalendarCsvWithTruncationHeaders() throws Exception {
+        calendarService.setExportResponse(new CsvExport(
+                "\uFEFFisoyear,week_of_year\n2020,40\n",
+                10,
+                10,
+                true));
+
+        mockMvc.perform(get("/api/calendar/export.csv")
+                        .param("bbox", "-61,-34,-59.5,-32.5")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("sensor", "ALL")
+                        .param("limit", "10"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Row-Limit", "10"))
+                .andExpect(header().string("X-Returned-Rows", "10"))
+                .andExpect(header().string("X-Truncated", "true"));
+    }
+
     @TestConfiguration
     static class TestConfig {
 
@@ -148,6 +170,7 @@ class CalendarControllerTest {
         private List<MonthlyCell> monthlyResponse = List.of();
         private String monthlySensor;
         private List<HeatmapCell> heatmapResponse = List.of();
+        private CsvExport exportResponse;
 
         StubCalendarService() {
             super(null);
@@ -163,6 +186,10 @@ class CalendarControllerTest {
 
         void setHeatmapResponse(List<HeatmapCell> heatmapResponse) {
             this.heatmapResponse = heatmapResponse;
+        }
+
+        void setExportResponse(CsvExport exportResponse) {
+            this.exportResponse = exportResponse;
         }
 
         String getMonthlySensor() {
@@ -192,6 +219,16 @@ class CalendarControllerTest {
                 String sensor,
                 int limit) {
             return heatmapResponse;
+        }
+
+        @Override
+        public CsvExport exportCsv(
+                String bbox,
+                LocalDate from,
+                LocalDate to,
+                String sensor,
+                int limit) {
+            return exportResponse;
         }
     }
 }

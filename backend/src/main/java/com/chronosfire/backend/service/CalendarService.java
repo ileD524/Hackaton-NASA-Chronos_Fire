@@ -1,6 +1,7 @@
 package com.chronosfire.backend.service;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
@@ -417,7 +418,7 @@ public class CalendarService {
         return result;
     }
 
-    public String exportCsv(
+    public CsvExport exportCsv(
             String bboxParam,
             LocalDate from,
             LocalDate to,
@@ -434,7 +435,11 @@ public class CalendarService {
         int toWeek = to.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
 
         List<WeeklyExportRow> rows = repository.weeklyExport(
-                queryBbox, fromYear, fromWeek, toYear, toWeek, sensor, safeLimit);
+                queryBbox, fromYear, fromWeek, toYear, toWeek, sensor, safeLimit + 1);
+        boolean truncated = rows.size() > safeLimit;
+        if (truncated) {
+            rows = rows.subList(0, safeLimit);
+        }
 
         StringBuilder csv = new StringBuilder("\uFEFF");
         csv.append("isoyear,week_of_year,grid_id,cell_lat,cell_lon,sensor,")
@@ -451,7 +456,7 @@ public class CalendarService {
                     .append(row.nDetections()).append(',')
                     .append(row.frpSumMw() == null ? "" : row.frpSumMw()).append('\n');
         }
-        return csv.toString();
+        return new CsvExport(csv.toString(), rows.size(), safeLimit, truncated);
     }
 
     private Bbox queryBbox(String bboxParam) {

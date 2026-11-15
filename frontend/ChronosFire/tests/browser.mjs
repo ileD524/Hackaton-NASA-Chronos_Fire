@@ -42,6 +42,14 @@ const initialCsv = await hotspotsCsvURL()
 if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Error('CSV inicial sin bbox del AOI')
 if (initialCsv.searchParams.get('from') !== '2012-01-01') throw new Error('CSV inicial sin fecha desde')
 await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
+
+const downloadPromise = page.waitForEvent('download')
+await page.getByRole('link', { name: /Descargar hotspots CSV/ }).click()
+const download = await downloadPromise
+expect(download.url()).toContain('/api/detections/export.csv')
+expect(download.suggestedFilename()).toBe('chronosfire-detecciones.csv')
+await expect(page.locator('.export-note[role="status"]')).toContainText(/Descarga (completa|limitada)/)
+
 await page.screenshot({ path: `${ARTIFACTS}/desktop.png`, fullPage: true })
 
 await page.getByRole('button', { name: 'Abrir el calendario', exact: true }).click()
@@ -105,6 +113,7 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
   checks: [
     'initial monthly calendar',
     'map hotspots by sensor',
+    'CSV download with truncation notice',
     'backend monthly anomaly',
     'hotspots CSV button follows active filters',
     'month selection updates map',
