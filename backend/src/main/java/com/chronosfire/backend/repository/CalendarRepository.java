@@ -7,8 +7,10 @@ import java.sql.Array;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -137,6 +139,68 @@ public class CalendarRepository {
                 year, week,
                 bbox.minLat(), bbox.maxLat(),
                 bbox.minLon(), bbox.maxLon());
+    }
+
+    /**
+     * Anios con cobertura para una semana ISO y sensor. {@code coverage_daily}
+     * es un proxy regional (AR): cada fila representa un dia con al menos una
+     * deteccion, no cobertura real por nubosidad/overpass.
+     */
+    public Integer nDataYears(int week, String sensor) {
+        Integer value = jdbc.queryForObject("""
+                SELECT count(DISTINCT extract(isoyear FROM acq_date))::int
+                FROM coverage_daily
+                WHERE has_data
+                  AND sensor = ?
+                  AND extract(week FROM acq_date) = ?
+                """, Integer.class, sensor, week);
+        return value == null ? 0 : value;
+    }
+
+    public boolean hasCoverage(int year, int week, String sensor) {
+        Boolean value = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM coverage_daily
+                    WHERE has_data
+                      AND sensor = ?
+                      AND extract(isoyear FROM acq_date) = ?
+                      AND extract(week FROM acq_date) = ?
+                )
+                """, Boolean.class, sensor, year, week);
+        return Boolean.TRUE.equals(value);
+    }
+
+    public boolean coverageKnown() {
+        Boolean value = jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM coverage_daily WHERE has_data)",
+                Boolean.class);
+        return Boolean.TRUE.equals(value);
+    }
+
+    /**
+     * Meses (clave {@code anio-mes}, mes base 0) con cobertura para el sensor.
+     * Con {@code ALL} se toma la union de sensores.
+     */
+    public Set<String> coverageMonths(LocalDate from, LocalDate to, String sensor) {
+        String sql = """
+                SELECT DISTINCT extract(year FROM acq_date)::int AS year,
+                                (extract(month FROM acq_date)::int - 1) AS month
+                FROM coverage_daily
+                WHERE has_data
+                  AND acq_date BETWEEN ? AND ?
+                """
+                + ("ALL".equals(sensor) ? "" : "  AND sensor = ?\n");
+        List<Object> params = new ArrayList<>();
+        params.add(java.sql.Date.valueOf(from));
+        params.add(java.sql.Date.valueOf(to));
+        if (!"ALL".equals(sensor)) {
+            params.add(sensor);
+        }
+        return new HashSet<>(jdbc.query(
+                sql,
+                (rs, rowNum) -> rs.getInt("year") + "-" + rs.getInt("month"),
+                params.toArray()));
     }
 
     public int detectionCellDays(

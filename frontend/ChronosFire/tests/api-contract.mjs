@@ -24,6 +24,19 @@ if (weekly.confidence !== 'high') throw new Error(`weekly confidence ${weekly.co
 if (weekly.fireCellsBySensor?.VIIRS_SNPP !== 66) {
   throw new Error(`weekly fireCellsBySensor.VIIRS_SNPP ${weekly.fireCellsBySensor?.VIIRS_SNPP} != 66`)
 }
+if (weekly.dataStatus !== 'observed') throw new Error(`weekly dataStatus ${weekly.dataStatus} != observed`)
+if (typeof weekly.nDataYears !== 'number' || weekly.nDataYears <= 0) {
+  throw new Error(`weekly nDataYears invalido: ${weekly.nDataYears}`)
+}
+
+// D-01: una semana previa a la era del sensor no debe mostrarse como "sin fuego".
+const weeklyNoData = await get(`/api/calendar/weekly?bbox=${bbox}&year=2000&week=1&sensor=VIIRS_SNPP`)
+if (weeklyNoData.dataStatus !== 'no_data') {
+  throw new Error(`weekly pre-SNPP dataStatus ${weeklyNoData.dataStatus} != no_data`)
+}
+if (typeof weeklyNoData.nDataYears !== 'number') {
+  throw new Error(`weekly pre-SNPP nDataYears invalido: ${weeklyNoData.nDataYears}`)
+}
 
 // F-10: tendencia anual 2019-2020 con anomalia calculable.
 const trend = await get(`/api/calendar/trend?bbox=${bbox}&from=2019-01-01&to=2020-12-31&sensor=AUTO`)
@@ -74,6 +87,13 @@ for (const row of [allMonth, snppMonth]) {
   for (const field of ['hotspots', 'hotspotsBySensor', 'detectionsBySensor']) {
     if (!(field in row)) throw new Error(`monthly 2020-09 sin ${field}`)
   }
+}
+
+// D-01: un mes previo a la era del sensor debe quedar como no_data, no como cero.
+const monthlyNoData = await get(
+  `/api/calendar/monthly?bbox=${bbox}&from=2000-01-01&to=2000-01-31&sensor=VIIRS_NOAA21`)
+if (monthlyNoData.length !== 1 || monthlyNoData[0].dataStatus !== 'no_data') {
+  throw new Error(`monthly pre-NOAA21 dataStatus ${monthlyNoData[0]?.dataStatus} != no_data`)
 }
 
 const daily = await get(`/api/calendar/daily?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`)
@@ -170,9 +190,17 @@ console.log(JSON.stringify({
   health: health.status,
   sensors: meta.sensors.length,
   months: monthly.length,
-  weekly: { fireCells: weekly.observedFireCells, baseline: weekly.baselineFireCells, anomaly: weekly.anomaly },
+  weekly: {
+    fireCells: weekly.observedFireCells,
+    baseline: weekly.baselineFireCells,
+    anomaly: weekly.anomaly,
+    nDataYears: weekly.nDataYears,
+    dataStatus: weekly.dataStatus,
+  },
+  weeklyNoData: weeklyNoData.dataStatus,
   trendYears: trend.map((row) => row.year),
   monthlySeptember: { allHotspots: allMonth.hotspots, snppHotspots: snppMonth.hotspots },
+  monthlyNoData: monthlyNoData[0].dataStatus,
   anomaly2020: september2020.anomaly,
   anomalyConfidence: september2020.confidence,
   dailyRows: daily.length,

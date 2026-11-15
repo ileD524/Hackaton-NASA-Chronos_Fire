@@ -575,9 +575,9 @@ Para quién
 
 **Aceptación:** ningún total cross-sensor aparece sin la aclaración.
 
-**Estado:** 🟡 parcial (15/11/2026).
+**Estado:** ✅ implementado el 15/11/2026.
 
-**Implementación:** `FireMap.vue` muestra el desglose por sensor en el popup y el pie aclara que “los hotspots de distintos sensores no se suman como promedio”. La aceptación se cumple; falta mostrar el sensor activo en el mapa y alinear la etiqueta “X hotspots en Y celdas mostradas” al formato “X celdas con actividad · Y hotspots (todas las fuentes)”.
+**Implementación:** `FireMap.vue` muestra “X celdas con actividad · Y hotspots (todas las fuentes)”, el sensor activo (`Serie: ...`) y un tooltip que aclara que las detecciones de distintos sensores no se suman. El popup conserva el desglose por sensor y el pie explica la doble codificación color/tamaño.
 
 ---
 
@@ -591,7 +591,9 @@ Para quién
 
 **Aceptación:** el panel no queda con datos viejos sin aviso.
 
-**Estado:** ⏳ pendiente (15/11/2026). Es una mejora P2/opcional.
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `AlertsPanel.vue` agrega el botón “Actualizar”, refresco automático cada 5 minutos y la etiqueta “Actualizado hace X” alimentada por `alertsUpdatedAt` en `useAlerts.ts`. Los intervalos se cancelan en `onBeforeUnmount`. El test de navegador verifica el botón, la etiqueta y una recarga manual.
 
 ---
 
@@ -696,9 +698,9 @@ X-Truncated: false
 
 **Aceptación:** una semana sin datos no se muestra como “sin fuego”.
 
-**Estado:** ⏳ pendiente (15/11/2026).
+**Estado:** ✅ implementado el 15/11/2026.
 
-**Nota:** `coverage_daily` sigue vacía; `nDataYears` queda `null` y `dataStatus = unknown`.
+**Implementación:** `backend/db/migraciones/populate_coverage.sql` puebla `coverage_daily` con el proxy sensor/fuente/fecha con detecciones y `rebuild_coverage.sql` calcula `calendar_weekly.n_data_years` (0 si no hay cobertura). `CalendarRepository` expone `nDataYears`, `hasCoverage`, `coverageKnown` y `coverageMonths`; `weekly` devuelve `nDataYears` y `dataStatus = no_data` cuando no hay cobertura; `monthly` distingue `observed` (incluye ceros con cobertura) de `no_data`/`unknown`. La UI ya dibuja trama y no cero para valores nulos, y `MethodologyPanel` documenta que la cobertura es un proxy. Verificado: Delta 2020-W40 `nDataYears=15`; pre-SNPP 2000-W1 `no_data`; NOAA-21 2000-01 `no_data`; `mvn test`, `npm run build`, `test:api` y `test:browser` pasan.
 
 ### D-02. Reproducibilidad
 

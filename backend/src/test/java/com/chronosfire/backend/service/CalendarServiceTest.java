@@ -18,6 +18,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class CalendarServiceTest {
@@ -48,10 +49,44 @@ class CalendarServiceTest {
         assertEquals("high", response.confidence());
         assertFalse(response.provisional());
         assertEquals("observed", response.dataStatus());
-        assertNull(response.nDataYears());
+        assertEquals(15, response.nDataYears());
         assertEquals(66, response.fireCellsBySensor().get("VIIRS_SNPP"));
         assertEquals(2355, response.detectionsBySensor().get("VIIRS_SNPP"));
         assertEquals(0.593, response.fireDayRateGivenDetection());
+    }
+
+    @Test
+    void weeklyMarksNoDataWhenCoverageIsMissing() {
+        StubRepository repository = new StubRepository();
+        repository.rows = List.of();
+        repository.flags = new CalendarRepository.WeekFlags(0, false);
+        repository.hasCoverage = false;
+        repository.nDataYears = 0;
+
+        WeeklyResponse response = new CalendarService(repository)
+                .getWeekly("-61,-34,-59.5,-32.5", 2020, 40, "AUTO");
+
+        assertEquals("no_data", response.dataStatus());
+        assertEquals(0, response.nDataYears());
+        assertEquals(0, response.observedFireCells());
+    }
+
+    @Test
+    void monthlyMarksUnknownWhenCoverageTableIsEmpty() {
+        StubRepository repository = new StubRepository();
+        repository.coverageKnown = false;
+        repository.monthlyFire = List.of(
+                new CalendarRepository.MonthFire(2020, 0, 10, 20, 100));
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2020-01-01"),
+                        LocalDate.parse("2020-03-31"),
+                        "ALL");
+
+        assertEquals("observed", months.get(0).dataStatus());
+        assertEquals("unknown", months.get(1).dataStatus());
     }
 
     @Test
@@ -89,7 +124,7 @@ class CalendarServiceTest {
         assertEquals(20, months.get(0).fireDays());
         assertEquals(100, months.get(0).nDetections());
         assertFalse(months.get(0).partial());
-        assertEquals("unknown", months.get(1).dataStatus());
+        assertEquals("no_data", months.get(1).dataStatus());
         assertEquals(0, months.get(1).fireCells());
         assertEquals("observed", months.get(2).dataStatus());
         assertEquals("ALL", repository.monthlyFireSensor);
@@ -571,6 +606,10 @@ class CalendarServiceTest {
         private String heatmapHotspotsSensor;
         private List<AnnualSensor> annual = List.of();
         private List<WeeklyExportRow> weeklyRows = List.of();
+        private boolean coverageKnown = true;
+        private boolean hasCoverage = true;
+        private int nDataYears = 15;
+        private Set<String> coverageMonths = Set.of();
 
         StubRepository() {
             super(null);
@@ -687,6 +726,26 @@ class CalendarServiceTest {
                 String sensor,
                 int limit) {
             return weeklyRows;
+        }
+
+        @Override
+        public Integer nDataYears(int week, String sensor) {
+            return nDataYears;
+        }
+
+        @Override
+        public boolean hasCoverage(int year, int week, String sensor) {
+            return hasCoverage;
+        }
+
+        @Override
+        public boolean coverageKnown() {
+            return coverageKnown;
+        }
+
+        @Override
+        public Set<String> coverageMonths(LocalDate from, LocalDate to, String sensor) {
+            return coverageMonths;
         }
     }
 }

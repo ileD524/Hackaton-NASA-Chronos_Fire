@@ -70,8 +70,9 @@ Las definiciones completas están en [docs/DECISIONES.md](../../../docs/DECISION
 
 ## Límites
 
-- `coverage_daily` está vacía y `n_data_years` es `NULL`: una semana sin filas
-  no confirma ausencia de fuego.
+- `coverage_daily` usa un proxy por días con detecciones y `n_data_years` se
+  deriva de él: una semana sin filas no confirma ausencia de fuego y la
+  cobertura no descuenta nubosidad ni overpass.
 - No hay calibración física de eficiencia de detección ni de FRP.
 - No hay área quemada ni cantidad de incendios únicos.
 - 2026 es NRT provisional y queda fuera del baseline.

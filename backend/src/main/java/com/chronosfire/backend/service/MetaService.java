@@ -102,7 +102,7 @@ public class MetaService {
         definitions.put("confidence",
                 "high si nRefYears >= 10 y baseline >= 10; low si cumple los minimos; insufficient si no hay anomalia valida.");
         definitions.put("data_status",
-                "observed, no_data o unknown. unknown se usa porque coverage_daily esta vacia y n_data_years es NULL.");
+                "observed, no_data o unknown. no_data indica que coverage_daily no registra cobertura para ese periodo; unknown se usa cuando no hay informacion de cobertura.");
         definitions.put("provisional",
                 "TRUE para 2026 o para periodos cubiertos por NRT.");
         return definitions;
@@ -111,7 +111,7 @@ public class MetaService {
     private List<String> limitations() {
         return List.of(
                 "La grilla es de 0,05 grados (~5 km); no representa area quemada ni perimetros.",
-                "No hay cobertura real: coverage_daily esta vacia y n_data_years es NULL.",
+                "La cobertura es un proxy por dias con detecciones en coverage_daily; no descuenta nubosidad ni overpass.",
                 "Una semana sin filas no confirma ausencia de fuego.",
                 "No hay calibracion fisica de eficiencia de deteccion ni de FRP.",
                 "2026 es NRT provisional y no se usa como baseline.",
