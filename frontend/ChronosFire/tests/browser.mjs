@@ -39,9 +39,63 @@ await expect(page.locator('.map-foot')).toContainText('no se suman como promedio
 await expect(page.locator('.comparison-number')).not.toHaveText('—')
 await expect(page.getByText(/años de referencia/).first()).toBeVisible()
 const initialCsv = await hotspotsCsvURL()
+const initialFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
+const initialTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
 if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Error('CSV inicial sin bbox del AOI')
-if (initialCsv.searchParams.get('from') !== '2012-01-01') throw new Error('CSV inicial sin fecha desde')
+if (initialCsv.searchParams.get('from') !== initialFrom) throw new Error('CSV inicial sin fecha desde')
 await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
+
+const downloadPromise = page.waitForEvent('download')
+await page.getByRole('link', { name: /Descargar hotspots CSV/ }).click()
+const download = await downloadPromise
+expect(download.url()).toContain('/api/detections/export.csv')
+expect(download.suggestedFilename()).toBe('chronosfire-detecciones.csv')
+await expect(page.locator('.export-note[role="status"]')).toContainText(/Descarga (completa|limitada)/)
+
+await page.screenshot({ path: `${ARTIFACTS}/desktop.png`, fullPage: true })
+
+const svgDownloadPromise = page.waitForEvent('download')
+await page.getByRole('button', { name: 'Descargar el calendario en SVG' }).click()
+const svgDownload = await svgDownloadPromise
+const svgFilename = svgDownload.suggestedFilename()
+if (svgFilename !== `chronos-fire-calendario-delta-del-parana-${initialFrom}-${initialTo}.svg`) {
+  throw new Error(`nombre de SVG inesperado: ${svgFilename}`)
+}
+const svgPath = await svgDownload.path()
+if (!svgPath) throw new Error('descarga SVG sin archivo temporal')
+const svg = fs.readFileSync(svgPath, 'utf8')
+if (!svg.startsWith('<?xml')) throw new Error('SVG sin declaracion XML')
+if (!/<svg[^>]+viewBox="0 0 1120 \d+"/.test(svg)) throw new Error('SVG sin viewBox esperado')
+if (!svg.includes('Calendario de actividad de fuego')) throw new Error('SVG sin titulo')
+if (!svg.includes('Delta del Paraná')) throw new Error('SVG sin AOI')
+if (!svg.includes('Todos los sensores')) throw new Error('SVG sin sensor activo')
+if (!svg.includes('No mide área quemada')) throw new Error('SVG sin nota metodologica')
+if (!svg.includes('<desc id="calendar-svg-desc">')) throw new Error('SVG sin descripcion accesible')
+if (!svg.includes('Celdas con actividad · quintiles de la selección')) throw new Error('SVG sin leyenda')
+const cellsOnScreen = await page.locator('.cal-cell').count()
+const cellsInSvg = (svg.match(/class="calendar-cell-value"/g) || []).length
+if (cellsInSvg !== cellsOnScreen) throw new Error(`SVG ${cellsInSvg} celdas != pantalla ${cellsOnScreen}`)
+if ((svg.match(/class="calendar-cell-bg"/g) || []).length !== cellsOnScreen) {
+  throw new Error('SVG sin fondo para cada celda')
+}
+if ((svg.match(/class="calendar-legend-item"/g) || []).length !== 5) {
+  throw new Error('SVG sin los cinco tramos de leyenda')
+}
+
+const selectedLabel = (await page.locator('#mapa-title').textContent())?.trim() ?? ''
+const selectedCell = page.locator(`.cal-cell[aria-label^="${selectedLabel}:"]`).first()
+const screenValue = (await selectedCell.textContent())?.trim().replace('*', '')
+const screenColor = await selectedCell.evaluate((element) => getComputedStyle(element).backgroundColor)
+const screenHex = `#${(screenColor.match(/\d+/g) ?? []).slice(0, 3)
+  .map((part) => Number(part).toString(16).padStart(2, '0')).join('').toUpperCase()}`
+const selectedGroup = svg.split('<g>').find((chunk) => chunk.includes(`<title>${selectedLabel}:`))
+const svgValue = selectedGroup?.match(/class="calendar-cell-value"[^>]*>([^<]*)</)?.[1]
+if (!selectedGroup) throw new Error(`SVG sin la celda seleccionada ${selectedLabel}`)
+if (svgValue !== screenValue) throw new Error(`SVG "${svgValue}" != pantalla "${screenValue}"`)
+if (!selectedGroup.includes(`fill="${screenHex}"`)) {
+  throw new Error(`SVG con color ${selectedGroup.match(/fill="(#[0-9A-F]{6})"/)?.[1]} != pantalla ${screenHex}`)
+}
+await expect(page.locator('.export-status')).toContainText('SVG descargado')
 
 // F-02: modo celdas / hotspots
 const augustCell = page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()
@@ -56,6 +110,20 @@ const hotspotsValue = (await augustCell.textContent())?.trim()
 if (!cellsValue || !hotspotsValue || cellsValue === hotspotsValue) {
   throw new Error(`el calendario no cambió de métrica: ${cellsValue} -> ${hotspotsValue}`)
 }
+const hotspotsSvgPromise = page.waitForEvent('download')
+await page.getByRole('button', { name: 'Descargar el calendario en SVG' }).click()
+const hotspotsSvgDownload = await hotspotsSvgPromise
+const hotspotsSvgPath = await hotspotsSvgDownload.path()
+const hotspotsSvg = hotspotsSvgPath ? fs.readFileSync(hotspotsSvgPath, 'utf8') : ''
+if (!hotspotsSvg.includes('hotspots detectados por mes')) throw new Error('SVG de hotspots sin metrica')
+if (!hotspotsSvg.includes('Hotspots detectados · quintiles de la selección')) {
+  throw new Error('SVG de hotspots sin leyenda de su metrica')
+}
+if (!hotspotsSvg.includes('sin focos industriales')) throw new Error('SVG de hotspots sin definicion')
+if (!hotspotsSvg.includes('no se suman')) throw new Error('SVG de hotspots sin aviso cross-sensor')
+if (hotspotsSvg.includes('Desviación respecto de la mediana')) {
+  throw new Error('SVG de hotspots conserva la anomalia de celdas')
+}
 await page.getByText('Ver valores diarios accesibles').click()
 await expect(page.locator('.daily-table thead')).toContainText('Hotspots MODIS')
 await expect(page.locator('.daily-table thead')).toContainText('Total hotspots')
@@ -63,15 +131,6 @@ await page.getByRole('button', { name: 'Celdas con actividad', exact: true }).cl
 await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad')
 await expect(page.locator('.daily-table thead')).toContainText('Celdas con actividad')
 await expect(page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()).toHaveText(cellsValue)
-
-const downloadPromise = page.waitForEvent('download')
-await page.getByRole('link', { name: /Descargar hotspots CSV/ }).click()
-const download = await downloadPromise
-expect(download.url()).toContain('/api/detections/export.csv')
-expect(download.suggestedFilename()).toBe('chronosfire-detecciones.csv')
-await expect(page.locator('.export-note[role="status"]')).toContainText(/Descarga (completa|limitada)/)
-
-await page.screenshot({ path: `${ARTIFACTS}/desktop.png`, fullPage: true })
 
 await page.getByRole('button', { name: 'Abrir el calendario', exact: true }).click()
 await expect(page.getByRole('dialog')).toBeVisible()
@@ -89,13 +148,31 @@ if (corrientesCsv.searchParams.get('bbox') !== '-60,-30.8,-55.5,-27') {
 }
 await page.screenshot({ path: `${ARTIFACTS}/corrientes.png`, fullPage: true })
 
-await page.getByRole('button', { name: 'Ver todo el archivo 2003–2026' }).click()
-await expect(page.locator('.cal-cell')).toHaveCount(288, { timeout: 60000 })
+await page.getByRole('button', { name: /Ver todo el archivo \d{4}–\d{4}/ }).click()
+const archiveFrom = await page.getByLabel('Desde', { exact: true }).inputValue()
+const archiveTo = await page.getByLabel('Hasta', { exact: true }).inputValue()
+const expectedCells = (Number(archiveTo.slice(0, 4)) - Number(archiveFrom.slice(0, 4)) + 1) * 12
+await expect(page.locator('.cal-cell')).toHaveCount(expectedCells, { timeout: 60000 })
 const fullCsv = await hotspotsCsvURL()
 if (fullCsv.searchParams.has('bbox')) throw new Error('CSV nacional conserva bbox')
-if (fullCsv.searchParams.get('from') !== '2003-01-01') throw new Error('CSV nacional sin fecha desde')
+if (fullCsv.searchParams.get('from') !== archiveFrom) throw new Error('CSV nacional sin fecha desde')
 await page.getByRole('button', { name: 'Diferencia histórica', exact: true }).click()
 await expect(page.locator('.legend')).toContainText('Desviación')
+
+const anomalySvgPromise = page.waitForEvent('download')
+await page.getByRole('button', { name: 'Descargar el calendario en SVG' }).click()
+const anomalySvgDownload = await anomalySvgPromise
+const anomalyFilename = anomalySvgDownload.suggestedFilename()
+if (anomalyFilename !== `chronos-fire-calendario-extension-completa-argentina-${archiveFrom}-${archiveTo}.svg`) {
+  throw new Error(`nombre de SVG de anomalia inesperado: ${anomalyFilename}`)
+}
+const anomalySvgPath = await anomalySvgDownload.path()
+const anomalySvg = anomalySvgPath ? fs.readFileSync(anomalySvgPath, 'utf8') : ''
+if (!anomalySvg.includes('Desviación respecto de la mediana')) {
+  throw new Error('SVG de anomalia sin titulo de leyenda')
+}
+if (!anomalySvg.includes('≥ +50%')) throw new Error('SVG de anomalia sin cortes')
+if (!anomalySvg.includes('▲')) throw new Error('SVG de anomalia sin simbolo accesible')
 
 await expect(page.locator('#alertas')).toContainText('Alertas recientes')
 await expect(page.locator('#validacion')).toContainText('Eventos conocidos')
@@ -135,6 +212,9 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
     'initial monthly calendar',
     'map hotspots by sensor',
     'CSV download with truncation notice',
+    'calendar SVG download with values, legend and note',
+    'calendar SVG anomaly palette',
+    'calendar SVG follows hotspot mode',
     'cells and hotspots metric toggle',
     'hotspots daily table by sensor',
     'backend monthly anomaly',
