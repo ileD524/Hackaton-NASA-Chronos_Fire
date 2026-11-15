@@ -125,6 +125,7 @@ pg_hba.conf
 
 # ---------- Logs ----------
 *.log
+*.err
 logs/
 log/
 
