@@ -145,6 +145,12 @@ await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad'
 await expect(page.locator('.daily-table thead')).toContainText('Celdas con actividad')
 await expect(page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()).toHaveText(cellsValue)
 
+// Regresion: recargar con los mismos filtros no debe vaciar el detalle diario
+// y el eje debe cubrir todos los dias del mes (31 en agosto de 2020).
+await expect(page.locator('.daily-chart .day-column')).toHaveCount(31)
+await page.getByRole('button', { name: /Actualizar calendario/ }).click()
+await expect(page.locator('.daily-chart .day-column')).toHaveCount(31, { timeout: 30000 })
+
 // F-01: selector de sensor
 const sensorSelect = page.getByLabel('Sensor', { exact: true })
 const allCell = page.locator('#calendario .cal-cell[aria-label^="Agosto 2020:"]').first()

@@ -231,23 +231,58 @@ public class CalendarRepository {
             LocalDate to,
             String sensor,
             int limit) {
-        String sql = """
-                SELECT day, grid_id, cell_lat, cell_lon, fire_day, n_detections, sensors, frp_max_mw
-                FROM grid_daily
-                WHERE day BETWEEN ? AND ?
-                  AND cell_lat BETWEEN ? AND ?
-                  AND cell_lon BETWEEN ? AND ?
+        boolean bySensor = !"ALL".equals(sensor);
+        // grid_daily.sensors lista los sensores con alguna deteccion, pero
+        // fire_day es global: para un sensor puntual hay que exigir que ESE
+        // sensor tenga una deteccion de vegetacion nominal/alta, igual que
+        // grid_weekly_sensor. Sin esto la serie diaria por sensor sobrecuenta.
+        String sql = (bySensor ? """
+                WITH sensor_fire AS (
+                    SELECT '0.05:' || CAST(round(latitude / 0.05) AS BIGINT) || ':' ||
+                           CAST(round(longitude / 0.05) AS BIGINT) AS grid_id,
+                           acq_date AS day,
+                           sensor
+                    FROM v_detections_analysis
+                    WHERE acq_date BETWEEN ? AND ?
+                      AND latitude BETWEEN ? AND ?
+                      AND longitude BETWEEN ? AND ?
+                      AND confidence_class IN ('nominal','high')
+                      AND coalesce(is_vegetation_effective, true)
+                    GROUP BY 1, 2, 3
+                )
+                """ : "")
+                + """
+                SELECT gd.day, gd.grid_id, gd.cell_lat, gd.cell_lon, gd.fire_day,
+                       gd.n_detections, gd.sensors, gd.frp_max_mw
+                FROM grid_daily gd
+                WHERE gd.day BETWEEN ? AND ?
+                  AND gd.cell_lat BETWEEN ? AND ?
+                  AND gd.cell_lon BETWEEN ? AND ?
                 """
-                + ("ALL".equals(sensor) ? "" : "  AND CAST(? AS TEXT) = ANY(sensors)\n")
-                + "ORDER BY day, grid_id\nLIMIT ?";
+                + (bySensor ? """
+                  AND gd.fire_day
+                  AND EXISTS (
+                      SELECT 1 FROM sensor_fire sf
+                      WHERE sf.grid_id = gd.grid_id AND sf.day = gd.day AND sf.sensor = ?
+                  )
+                """ : "")
+                + "ORDER BY gd.day, gd.grid_id\nLIMIT ?";
         List<Object> params = new ArrayList<>();
+        if (bySensor) {
+            params.add(java.sql.Date.valueOf(from));
+            params.add(java.sql.Date.valueOf(to));
+            params.add(bbox.minLat());
+            params.add(bbox.maxLat());
+            params.add(bbox.minLon());
+            params.add(bbox.maxLon());
+        }
         params.add(java.sql.Date.valueOf(from));
         params.add(java.sql.Date.valueOf(to));
         params.add(bbox.minLat());
         params.add(bbox.maxLat());
         params.add(bbox.minLon());
         params.add(bbox.maxLon());
-        if (!"ALL".equals(sensor)) {
+        if (bySensor) {
             params.add(sensor);
         }
         params.add(limit);

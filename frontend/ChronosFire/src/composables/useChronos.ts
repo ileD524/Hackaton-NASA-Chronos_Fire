@@ -80,9 +80,14 @@ const calendarOpen = ref(false)
 const csvNotice = ref('')
 const csvError = ref('')
 const csvChecking = ref(false)
+const dailyLoading = ref(false)
+const dailyError = ref('')
 let controller: AbortController | undefined
 let dailyController: AbortController | undefined
-let lastDailyKey = ''
+// Clave de los datos que hoy estan en calendar.daily y clave del request en curso.
+// Se separan para no descartar datos validos ni duplicar pedidos.
+let dailyLoadedKey = ''
+let dailyPendingKey = ''
 
 const MONTH_DAYS = (year: number, month: number) => new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
 const iso = (date: Date) => date.toISOString().slice(0, 10)
@@ -212,31 +217,91 @@ function metricValue(cell: MonthCell | null | undefined): number | null {
   return metricMode.value === 'cells' ? cell.value : cell.hotspots
 }
 
-async function loadDaily() {
-  if (!selectedMonth.value || !calendar.value) return
+/**
+ * Ventana diaria del mes seleccionado, recortada por el rango de filtros.
+ * Devuelve tambien la clave que identifica esos datos (mes + sensor + area).
+ */
+function dailyWindow() {
+  if (!selectedMonth.value) return null
   const { year, month } = selectedMonth.value
   const start = new Date(Date.UTC(year, month, 1))
   const end = new Date(Date.UTC(year, month + 1, 0))
   const from = iso(start) < filters.value.from ? filters.value.from : iso(start)
   const to = iso(end) > filters.value.to ? filters.value.to : iso(end)
-  const key = `${from}|${to}|${filters.value.metric}|${filters.value.bbox?.join(',') ?? ''}`
-  if (key === lastDailyKey) return
-  lastDailyKey = key
+  return { from, to, key: `${from}|${to}|${filters.value.metric}|${filters.value.bbox?.join(',') ?? ''}` }
+}
+
+/**
+ * Completa con ceros los dias sin detecciones para que el eje sea el mes real
+ * y no solo los dias que aparecen en la respuesta.
+ */
+function fillDailyDays(rows: DailyRow[], from: string, to: string): DailyRow[] {
+  const byDate = new Map(rows.map((row) => [row.date_utc, row]))
+  const filled: DailyRow[] = []
+  const cursor = new Date(`${from}T00:00:00Z`)
+  const last = iso(new Date(`${to}T00:00:00Z`))
+  while (iso(cursor) <= last) {
+    const date = iso(cursor)
+    filled.push(byDate.get(date) ?? {
+      date_utc: date,
+      active_cells_modis: 0,
+      active_cells_viirs: 0,
+      active_cells_union: 0,
+      active_cells_selected: 0,
+      modis_equivalent_cells: null,
+      modis_pi90_low: null,
+      modis_pi90_high: null,
+      fire_day: false,
+      n_detections: 0,
+      sensors: [],
+      hotspots: 0,
+      hotspots_by_sensor: {},
+      frp_max_mw: null,
+      frp_density_max_wm2: null,
+      data_status: 'observed',
+    })
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+  return filled
+}
+
+async function loadDaily(force = false) {
+  const range = dailyWindow()
+  if (!range || !calendar.value) return
+  const cached = range.key === dailyLoadedKey && calendar.value.daily.length > 0
+  if (!force && cached) return
+  if (!force && range.key === dailyPendingKey) return
 
   dailyController?.abort()
   const current = new AbortController()
   dailyController = current
+  dailyPendingKey = range.key
+  dailyLoading.value = true
+  dailyError.value = ''
+  // Los datos de otro mes/sensor/area no se muestran bajo este titulo.
+  calendar.value.daily = []
+  dailyLoadedKey = ''
   try {
-    const query = params({ ...filters.value, from, to })
+    const query = params({ ...filters.value, from: range.from, to: range.to })
     const rows = await fetchJSON<ApiDaily[]>(`/api/calendar/daily?${query}&limit=50000`, current.signal)
     if (current.signal.aborted || !calendar.value) return
-    calendar.value.daily = aggregateDaily(rows, filters.value.metric)
+    calendar.value.daily = fillDailyDays(aggregateDaily(rows, filters.value.metric), range.from, range.to)
+    dailyLoadedKey = range.key
   } catch (e) {
-    lastDailyKey = ''
-    if (!(e instanceof DOMException && e.name === 'AbortError')) {
-      error.value = e instanceof Error ? e.message : 'Error al cargar el detalle diario.'
+    if (current.signal.aborted) return
+    if (e instanceof DOMException && e.name === 'AbortError') return
+    dailyError.value = e instanceof Error ? e.message : 'No se pudo cargar el detalle diario.'
+  } finally {
+    if (dailyController === current) {
+      dailyController = undefined
+      dailyPendingKey = ''
+      dailyLoading.value = false
     }
   }
+}
+
+async function retryDaily() {
+  await loadDaily(true)
 }
 
 async function load(next: Filters = filters.value) {
@@ -385,6 +450,9 @@ export function useChronos() {
     months,
     selected,
     selectedDaily,
+    dailyLoading,
+    dailyError,
+    retryDaily,
     valueField,
     metricMode,
     metricValue,
