@@ -1,0 +1,81 @@
+-- ----------------------------------------------------------------------------
+-- 2. Agregado diario por celda (0.05 grados ~ 5 km)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS grid_daily (
+    grid_id        TEXT NOT NULL,                 -- '0.05:<lat_idx>:<lon_idx>'
+    cell_lat       DOUBLE PRECISION NOT NULL,     -- centro de celda
+    cell_lon       DOUBLE PRECISION NOT NULL,
+    day            DATE NOT NULL,
+    n_detections   INTEGER NOT NULL,
+    fire_day       BOOLEAN NOT NULL,              -- hubo fuego de vegetacion confiable
+    frp_sum_mw     REAL,
+    frp_max_mw     REAL,
+    sensors        TEXT[],                        -- sensores que detectaron ese dia/celda
+    confidence_max SMALLINT,
+    CONSTRAINT grid_daily_pk PRIMARY KEY (grid_id, day)
+);
+
+COMMENT ON TABLE grid_daily IS 'Agregado diario por celda de 0.05 grados; base del calendario.';
+COMMENT ON COLUMN grid_daily.fire_day IS 'TRUE si al menos una deteccion de vegetacion con confianza nominal/alta cae en la celda/dia.';
+
+CREATE INDEX IF NOT EXISTS grid_daily_day_idx    ON grid_daily (day);
+CREATE INDEX IF NOT EXISTS grid_daily_latlon_idx ON grid_daily (cell_lat, cell_lon);
+CREATE INDEX IF NOT EXISTS grid_daily_fire_idx   ON grid_daily (grid_id, day) WHERE fire_day;
+
+-- ----------------------------------------------------------------------------
+-- 3. Climatologia semanal por celda (calendario historico)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS calendar_weekly (
+    grid_id       TEXT NOT NULL,
+    cell_lat      DOUBLE PRECISION NOT NULL,
+    cell_lon      DOUBLE PRECISION NOT NULL,
+    week_of_year  SMALLINT NOT NULL,              -- ISO week 1..53
+    n_years       INTEGER,
+    fire_day_prob REAL,                           -- probabilidad historica de dia con fuego
+    frp_p50       REAL,
+    frp_p90       REAL,
+    CONSTRAINT calendar_weekly_pk PRIMARY KEY (grid_id, week_of_year)
+);
+
+COMMENT ON TABLE calendar_weekly IS 'Climatologia por celda y semana del anio; insumo de anomalias y calendario.';
+
+CREATE INDEX IF NOT EXISTS calendar_weekly_week_idx   ON calendar_weekly (week_of_year);
+CREATE INDEX IF NOT EXISTS calendar_weekly_latlon_idx ON calendar_weekly (cell_lat, cell_lon);
+
+-- ----------------------------------------------------------------------------
+-- 4. Trazabilidad de cargas (opcional, la usa el ETL)
+-- ----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS ingest_runs (
+    run_id       BIGSERIAL PRIMARY KEY,
+    dataset      TEXT NOT NULL,                   -- SV_ARCHIVE, J2V_NRT, etc.
+    sensor       TEXT NOT NULL,
+    source       TEXT NOT NULL,
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at  TIMESTAMPTZ,
+    rows_loaded  BIGINT NOT NULL DEFAULT 0,
+    status       TEXT NOT NULL DEFAULT 'running',
+    notes        TEXT,
+    CONSTRAINT ingest_runs_status_ck CHECK (status IN ('running', 'ok', 'error'))
+);
+
+-- ----------------------------------------------------------------------------
+-- 5. Vistas de consumo
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE VIEW v_latest_nrt AS
+SELECT *
+FROM detections
+WHERE source = 'NRT'
+  AND acquired_at >= now() - INTERVAL '7 days'
+  AND confidence_class IN ('nominal', 'high')
+  AND (is_vegetation IS NULL OR is_vegetation);
+
+COMMENT ON VIEW v_latest_nrt IS 'Alertas NRT de los ultimos 7 dias, sin focos industriales conocidos.';
+
+CREATE OR REPLACE VIEW v_vegetation_detections AS
+SELECT *
+FROM detections
+WHERE (is_vegetation IS TRUE OR (is_vegetation IS NULL AND confidence_class IN ('nominal', 'high')));
+
+COMMENT ON VIEW v_vegetation_detections IS 'Detecciones aptas para analisis de vegetacion (incluye NRT con confianza nominal/alta).';
+
+COMMIT;

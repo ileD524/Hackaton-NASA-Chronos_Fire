@@ -1,0 +1,22 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+import { useChronos } from '@/composables/useChronos'
+import { useCalendar, format } from '@/composables/useCalendar'
+const { selected, selectedDaily, valueField, seriesLabel } = useChronos()
+const { monthName } = useCalendar()
+const max = computed(() => Math.max(1, ...selectedDaily.value.map((d) => d[valueField.value] ?? 0)))
+const bars = computed(() => selectedDaily.value.map((d) => ({
+  date: d.date_utc,
+  value: d[valueField.value],
+  height: d[valueField.value] / max.value * 100,
+})))
+</script>
+<template>
+<section class="panel" aria-labelledby="daily-title"><header class="daily-head"><div><span class="section-kicker">ACERCARSE AL DETALLE</span><h2 class="panel-title" id="daily-title">{{selected?`${monthName(selected.month)} ${selected.year}`:'Detalle diario'}}</h2></div><span class="small-note">{{ seriesLabel }} · celdas con actividad / día</span></header>
+<div class="daily-chart" role="img" :aria-label="`Actividad diaria de ${selected?monthName(selected.month):'mes seleccionado'}`"><div class="day-column" v-for="bar in bars" :key="bar.date"><div class="bar-space"><span class="daily-bar" :style="{height:`${Math.max(bar.height,bar.value===0?1:2)}%`}" :title="`${bar.date}: ${format(bar.value)} celdas`"></span></div><span class="day-label">{{Number(bar.date.slice(-2))%5===0||bar.date.endsWith('01')?Number(bar.date.slice(-2)):''}}</span></div></div>
+<details><summary>Ver valores diarios accesibles</summary><div class="daily-table-wrap"><table class="daily-table"><thead><tr><th>Fecha UTC</th><th>MODIS</th><th>VIIRS</th><th>Total</th></tr></thead><tbody><tr v-for="d in selectedDaily" :key="d.date_utc"><th scope="row">{{d.date_utc}}</th><td>{{format(d.active_cells_modis)}}</td><td>{{d.active_cells_viirs===null?'—':format(d.active_cells_viirs)}}</td><td>{{format(d.active_cells_union)}}</td></tr></tbody></table></div></details>
+</section>
+</template>
+<style scoped>
+.daily-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:center}.daily-chart{display:flex;gap:4px;height:170px;margin:24px 0}.day-column{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}.bar-space{height:145px;display:flex;align-items:end;border-bottom:1px solid #2E96F5}.daily-bar{width:100%;display:block;background:#2E96F5;border-radius:3px 3px 0 0}.missing-bar{background:repeating-linear-gradient(135deg,#0042A6,#0042A6 3px,transparent 3px,transparent 6px);opacity:.7}.day-label{height:15px;text-align:center;font-size:10px}summary{cursor:pointer;font-weight:700;padding:12px 0;font-size:14px}.daily-table-wrap{max-height:300px;overflow:auto}.daily-table{border-collapse:collapse;width:100%;font-size:12px}.daily-table td,.daily-table th{padding:8px;text-align:right;border-bottom:1px solid #0042A6}.daily-table th:first-child{text-align:left;white-space:nowrap}@media(max-width:600px){.daily-chart{gap:2px}}
+</style>
