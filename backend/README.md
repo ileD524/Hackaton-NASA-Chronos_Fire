@@ -63,6 +63,8 @@ implementar.
 - Carga con DuckDB: `../etl/load_pg.py`
 - Plan del backend: `PLAN_BACKEND.md`
 - Plan de armonización: `PLAN_ARMONIZACION.md`
+- Scripts de validación §6.8: `db/validacion/`
+- Informe de validación §6.8: `VALIDACION_6_8.md`
 
 ### Instalación nueva
 

@@ -4,7 +4,7 @@
 **Objetivo:** armonizar las detecciones MODIS y VIIRS lo suficiente para construir un calendario de actividad de fuego comparable, reproducible y defendible.  
 **Base:** PostgreSQL 17, `chronos_fire`  
 **Cobertura:** Argentina, 2000–2026  
-**Estado:** implementación parcial. 6.2 (SP/NRT), 6.3 (máscara industrial) y corrección C0–C2 del calendario implementados en PostgreSQL.
+**Estado:** implementación parcial. 6.2 (SP/NRT), 6.3 (máscara industrial), corrección C0–C2 del calendario y validación §6.8 (V0–V4) implementados en PostgreSQL. Informe: `backend/VALIDACION_6_8.md`.
 
 ---
 
@@ -405,6 +405,12 @@ Reglas:
 
 La Pampa queda con confianza baja por baseline 3,5; el valor se muestra con advertencia.
 
+**Nota de consistencia (2026-11-14):** la fila del Delta usa observado y baseline
+VIIRS SNPP-only. Con todos los sensores, el observado de la semana 40 es 78 y la
+anomalía 7,80, no 6,60. La tabla debe declarar el conjunto de sensores. Las filas
+de Corrientes, Salta, Córdoba y La Pampa no tienen AOI registrada: se recalculan
+en `backend/VALIDACION_6_8.md` con bboxes preliminares y pueden diferir.
+
 ---
 
 ### 6.8 Validación
@@ -448,7 +454,31 @@ La Pampa queda con confianza baja por baseline 3,5; el valor se muestra con adve
   - ratio de detecciones,
   - diferencia de FRP.
 
-**Estado:** 🟡 pendiente.
+**Estado:** 🟡 parcial (V0–V4 implementados el 2026-11-14).
+
+**Implementado:**
+
+- V0: contrato de validación y registro de AOIs en `validation_aoi` y
+  `validation_aoi_window`.
+- V1: validación interna completa. 0 duplicados, 0 solapamiento SP/NRT,
+  3.719.116 filas de calendario, 1.828.709 días-celda consistentes.
+- V2: 6/6 ventanas de evento con anomalía > 1 y `n_ref_years >= 7`.
+  Delta 2020 reproduce 66/10/12/6,60 con VIIRS SNPP-only.
+- V3: sensibilidad nacional Spearman 0,969 y top-5 0,908. En el año del evento,
+  el top-5 coincide en 5/6 ventanas.
+- V4: coincidencia espacial MODIS/VIIRS (53–69% de MODIS, 42–49% de VIIRS;
+  mismo día, < 1 km, SNPP, 2013/2020/2024).
+
+**Pendiente:**
+
+- Confirmar las AOIs de Corrientes, Salta, Córdoba y La Pampa (hoy
+  `provisional`).
+- Barrido V4 completo 2013–2025 y para NOAA-20/NOAA-21.
+- Sensibilidad con `high` only y con grilla 0,1°.
+- `coverage_daily` y `n_data_years` siguen vacíos.
+
+**Scripts:** `backend/db/validacion/`.  
+**Informe:** `backend/VALIDACION_6_8.md`.
 
 ---
 
@@ -492,9 +522,9 @@ La Pampa queda con confianza baja por baseline 3,5; el valor se muestra con adve
 ### H2 — Validación (1–2 días)
 
 1. ✅ Validar eventos conocidos: Delta 2020, Corrientes 2022, Salta/Córdoba 2013 y La Pampa 2017.
-2. ⏳ Comparar MODIS-only vs VIIRS-only vs ambos.
-3. ⏳ Calcular coincidencia espacial.
-4. 🟡 Documentar resultados y limitaciones (parcial: baseline y eventos ya documentados).
+2. 🟡 Comparar MODIS-only vs VIIRS-only vs ambos (V3 implementado; falta cerrar AOIs y `high` only).
+3. 🟡 Calcular coincidencia espacial (V4 piloto 2013/2020/2024; falta barrido completo).
+4. 🟡 Documentar resultados y limitaciones (informe preliminar en `backend/VALIDACION_6_8.md`).
 
 **Entregable:** informe de validación y métricas.
 
@@ -540,8 +570,8 @@ La Pampa queda con confianza baja por baseline 3,5; el valor se muestra con adve
 | Duplicados exactos | 0 |
 | Solapamiento SP/NRT sin resolver | 0 |
 | Celdas con 53 semanas | 100% ✅ |
-| Celdas con `n_fire_years >= 7` | Reportar % (hoy 18.516 filas) |
-| Coincidencia MODIS/VIIRS | Reportar % (pendiente) |
+| Celdas-semana con `n_fire_years >= 7` | 18.516 (0,50%); 5.486 celdas (7,82%) |
+| Coincidencia MODIS/VIIRS | MODIS 53–69%; VIIRS 42–49% (SNPP, < 1 km, 2013/2020/2024) |
 | Eventos conocidos con anomalía > 1 | 4/4 ✅ |
 | Baseline mínimo | `n_ref_years >= 7`; `baseline >= 3` |
 
