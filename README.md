@@ -1,6 +1,8 @@
 # Chronos Fire
 
 ### DEMO ONLINE: https://chronosfire-frontend-production.up.railway.app/ 
+Debido a el volúmen de los datos, en la demo online se utilizó una base de datos acortada: 2013 a 2026
+Para una mejor experiencia se deberán cargar los datasets a una base de datos local. (Ver sección de base de datos)
 
 Calendario de actividad de fuego para Argentina: MODIS + VIIRS armonizados,
 backend Java/Spring Boot y frontend Vue 3.
@@ -82,6 +84,34 @@ Reglas de lectura:
 
 La especificación, fórmulas y validación completa están en
 `informes/INFORME_MODULO_ESTADISTICO_RIESGO.md` y `backend/db/README.md`.
+
+## Carga de datos en PostgreSQL (dataset completo)
+
+El repo no incluye el dataset completo: solo el dump acotado de la demo. El backend es de solo lectura, así que la base `chronos_fire` debe existir y estar cargada antes de levantar la app. Sin datos, el calendario, las alertas y `/api/meta` fallan o devuelven vacío.
+
+> Para ver la interfaz sin descargar datos: `docker compose up -d` y `.\run-app.ps1 -Demo`. Esa demo usa `chronos_fire_demo` en `:5433`, no incluye la capa de riesgo y no reemplaza esta carga.
+
+### Requisitos
+
+- PostgreSQL 17 en `127.0.0.1:5432`.
+- `psql` disponible.
+- Python 3 con DuckDB: `python -m pip install duckdb`.
+- Datos FIRMS descargados según `data/README.md`: JSON en `data/DL_FIRE_*` y CSV NRT en `data/tmp/`.
+- Varios GB libres para los archivos y el temporal de DuckDB.
+
+### 1. Crear la base y el esquema
+
+```powershell
+$env:PGPASSWORD = 'tu_clave'
+$psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe'
+$db = 'chronos_fire'
+
+# Solo la primera vez
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d postgres `
+  -c "CREATE DATABASE chronos_fire;"
+
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -f backend\db\ChronosFireDB.sql
 
 ## Demo con Docker (sin dataset completo)
 
