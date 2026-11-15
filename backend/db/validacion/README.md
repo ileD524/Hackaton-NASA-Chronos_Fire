@@ -14,6 +14,7 @@ Base: `chronos_fire` (PostgreSQL 17).
 | `03b_sensibilidad_high.sql` | V3b | Solo temp table | Sensibilidad con confianza `high` only |
 | `04_coincidencia.sql` | V4 | No | Coincidencia espacial MODIS-VIIRS por anio |
 | `05_smoke_delta_2020.sql` | Smoke | No | Delta 2020 semana 40 = 66/10/12/6,60 |
+| `06_riesgo.sql` | R | No | Capa de riesgo estadistico: cobertura, prior, rangos y claves |
 
 ## Comandos
 
@@ -39,6 +40,9 @@ $db = 'chronos_fire'
 
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
   -f backend\db\validacion\05_smoke_delta_2020.sql
+
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -f backend\db\validacion\06_riesgo.sql
 ```
 
 V4 se corre por anio y por sensor VIIRS:
@@ -122,4 +126,5 @@ El informe consolidado esta en `backend/VALIDACION_6_8.md`.
 - `00_contrato.sql` es el unico script que crea objetos. El resto es lectura o
   usa una tabla temporal de sesion.
 - Re-ejecutar V1-V4 despues de cada recarga del ETL y actualizar el informe.
-- `coverage_daily` sigue vacia: V1.2 mide dias con deteccion, no cobertura real.
+- `coverage_daily` se llena con `db/migraciones/populate_coverage.sql`
+  (proxy regional: dia con al menos una deteccion). Ver `db/README.md`.
