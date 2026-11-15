@@ -460,6 +460,76 @@ class CalendarServiceTest {
                 () -> new CalendarService(new StubRepository()).getWeekly("1,2,0,3", 2020, 40, "AUTO"));
     }
 
+    @Test
+    void rejectsInvalidYear() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new CalendarService(new StubRepository()).getWeekly(null, 1999, 1, "AUTO"));
+    }
+
+    @Test
+    void rejectsRangeTooLongForDaily() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new CalendarService(new StubRepository()).getDaily(
+                        null,
+                        LocalDate.parse("2020-01-01"),
+                        LocalDate.parse("2021-12-31"),
+                        "ALL",
+                        10));
+    }
+
+    @Test
+    void rejectsLimitAboveMaxForDaily() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new CalendarService(new StubRepository()).getDaily(
+                        null,
+                        LocalDate.parse("2020-01-01"),
+                        LocalDate.parse("2020-01-31"),
+                        "ALL",
+                        50001));
+    }
+
+    @Test
+    void autoIn2013UsesSnppAndSensorEraBaseline() {
+        StubRepository repository = new StubRepository();
+        repository.rows = List.of(new CalendarRepository.SensorWeek(
+                "VIIRS_SNPP", 20, 30, 100, 200.0));
+        repository.baseline = new CalendarRepository.Baseline(10.0, 12);
+        repository.flags = new CalendarRepository.WeekFlags(1, false);
+        repository.nCells = 100;
+        repository.detectionCellDays = 50;
+
+        WeeklyResponse response = new CalendarService(repository)
+                .getWeekly(null, 2013, 1, "AUTO");
+
+        assertEquals("VIIRS_SNPP", response.observedSensor());
+        assertEquals("VIIRS_SNPP", response.baselineSensor());
+        assertEquals("2013-2025", response.referenceWindow());
+        assertEquals(2.0, response.anomaly());
+        assertEquals("high", response.confidence());
+        assertFalse(response.provisional());
+    }
+
+    @Test
+    void autoIn2026IsProvisionalAndUses2013To2025Baseline() {
+        StubRepository repository = new StubRepository();
+        repository.rows = List.of(new CalendarRepository.SensorWeek(
+                "VIIRS_SNPP", 20, 30, 100, 200.0));
+        repository.baseline = new CalendarRepository.Baseline(10.0, 12);
+        repository.flags = new CalendarRepository.WeekFlags(1, true);
+        repository.nCells = 100;
+
+        WeeklyResponse response = new CalendarService(repository)
+                .getWeekly(null, 2026, 1, "AUTO");
+
+        assertEquals("VIIRS_SNPP", response.observedSensor());
+        assertEquals("2013-2025", response.referenceWindow());
+        assertTrue(response.provisional());
+        assertEquals("observed", response.dataStatus());
+    }
+
     private static List<CalendarRepository.MonthFire> septemberRows(
             int fromYear,
             int toYear,

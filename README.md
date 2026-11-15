@@ -3,6 +3,20 @@
 Calendario de actividad de fuego para Argentina: MODIS + VIIRS armonizados,
 backend Java/Spring Boot y frontend Vue 3.
 
+Grilla de **0,05° (~5 km)**, calendario mensual, hotspots por sensor,
+comparación contra la mediana multianual y exportación CSV con aviso de
+truncamiento.
+
+## Estado
+
+- 15 endpoints de solo lectura sobre PostgreSQL 17.
+- 7.082.474 detecciones armonizadas, 8 pares sensor/fuente.
+- Rango de datos: 2000-11-01 a 2026-11-14; la UI trabaja desde 2003.
+- Calendario, mapa, alertas NRT, validación de eventos y dos exportaciones CSV.
+- 48 tests backend (controladores, servicios, OpenAPI y smoke SQL) y pruebas de
+  contrato/navegador en el frontend.
+- La base se usa en modo lectura: el backend no crea ni modifica tablas.
+
 ## Requisitos
 
 - Java 21+
@@ -88,6 +102,15 @@ cd backend
 mvn test
 ```
 
+Incluye tests de controladores, servicios, contrato OpenAPI y el smoke SQL de
+Delta 2020. El script de datos se puede correr aparte:
+
+```powershell
+$env:PGPASSWORD = 'tu_clave'
+psql -h 127.0.0.1 -U postgres -d chronos_fire -v ON_ERROR_STOP=1 `
+  -f backend\db\validacion\05_smoke_delta_2020.sql
+```
+
 Frontend:
 
 ```powershell
@@ -97,13 +120,31 @@ npm run test:api
 npm run test:browser   # requiere backend y frontend activos
 ```
 
+## Métricas y límites
+
+- **Hotspot**: detección FIRMS de vegetación efectiva, confianza nominal/alta y
+  fuera de la máscara industrial. No es un incendio único.
+- **Celda con actividad (`fire_day`)**: celda de 0,05° con al menos un hotspot
+  armonizado en un día UTC.
+- **`ALL` no es un promedio**: la serie está dominada por VIIRS. La API permite
+  filtrar por sensor; la UI todavía usa todos los sensores.
+- **Sin calibración física** de eficiencia de detección ni de FRP.
+- **Sin datos no es sin fuego**: `coverage_daily` está vacía.
+- **CSV**: máximo 50.000 filas; las detecciones aceptan hasta 10.000 días. La
+  UI avisa si la descarga se truncó.
+
+Las definiciones completas están en `docs/DECISIONES.md`.
+
 ## Documentación
 
+- Decisiones y definiciones: `docs/DECISIONES.md`
 - Arquitectura y contrato: `backend/CONTRATO_API.md`
 - OpenAPI: `backend/openapi/chronosfire-api.yaml`
 - Plan de backend: `backend/PLAN_BACKEND.md`
 - Armonización: `backend/PLAN_ARMONIZACION.md`
 - Validación: `backend/VALIDACION_6_8.md`
 - Frontend local: `frontend/ChronosFire/README-LOCAL.md`
+- Funcionalidad del frontend: `frontend/ChronosFire/docs/FUNCIONALIDAD.md`
+- Brechas y plan de cierre: `INFORME_BRECHAS_Y_PLAN_BACKEND_FRONTEND.md`
 
 La base se usa en modo lectura: el backend no crea ni modifica tablas.

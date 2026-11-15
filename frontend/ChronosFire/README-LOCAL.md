@@ -57,9 +57,11 @@ Vite redirige `/api` a `http://127.0.0.1:8080`.
 - La vista inicial es **Delta del Paraná** para evitar la consulta nacional pesada;
   “Toda la extensión” sigue disponible en el selector de área.
 - Detalle diario de celdas y detecciones del mes seleccionado.
-- Mapa de celdas con actividad del mes.
-- Comparación con la mediana del mismo mes en otros años completos.
-- Exportación CSV semanal.
+- Mapa de celdas con hotspots del mes y desglose por sensor en el popup.
+- Comparación con la mediana del mismo mes en otros años completos, con años de
+  referencia y confianza.
+- Descarga CSV del calendario y de hotspots. La UI avisa si la descarga se
+  truncó en el tope de 50.000 filas.
 - Alertas NRT, AOIs y validación disponibles en la API.
 
 El calendario usa todos los sensores. El backend conserva el desglose por

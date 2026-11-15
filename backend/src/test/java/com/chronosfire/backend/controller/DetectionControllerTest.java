@@ -1,6 +1,7 @@
 package com.chronosfire.backend.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -51,6 +52,33 @@ class DetectionControllerTest {
                 .andExpect(jsonPath("$.total").value(1))
                 .andExpect(jsonPath("$.items[0].sensor").value("MODIS"))
                 .andExpect(jsonPath("$.items[0].industrialMask").value(false));
+    }
+
+    @Test
+    void forwardsDetectionFilters() throws Exception {
+        detectionService.page = new DetectionPage(
+                List.of(sampleDetection()),
+                1,
+                10,
+                0);
+
+        mockMvc.perform(get("/api/detections")
+                        .param("bbox", "-61,-34,-59.5,-32.5")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("sensor", "MODIS")
+                        .param("confidence", "high")
+                        .param("type", "0")
+                        .param("source", "SP")
+                        .param("vegetation", "true")
+                        .param("limit", "10"))
+                .andExpect(status().isOk());
+
+        assertEquals("MODIS", detectionService.lastSensor);
+        assertEquals(List.of("high"), detectionService.lastConfidence);
+        assertEquals(0, detectionService.lastType);
+        assertEquals("SP", detectionService.lastSource);
+        assertEquals(true, detectionService.lastVegetation);
     }
 
     @Test
@@ -132,6 +160,11 @@ class DetectionControllerTest {
         private DetectionPage page;
         private GeoJsonFeatureCollection geoJson;
         private CsvExport csv;
+        private String lastSensor;
+        private List<String> lastConfidence;
+        private Integer lastType;
+        private String lastSource;
+        private Boolean lastVegetation;
 
         StubDetectionService() {
             super(null);
@@ -149,6 +182,11 @@ class DetectionControllerTest {
                 Boolean vegetation,
                 int limit,
                 int offset) {
+            lastSensor = sensor;
+            lastConfidence = confidence;
+            lastType = type;
+            lastSource = source;
+            lastVegetation = vegetation;
             return page;
         }
 

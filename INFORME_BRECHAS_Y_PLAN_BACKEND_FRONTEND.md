@@ -312,6 +312,10 @@ X-Truncated: true|false
 
 **Aceptación:** ningún documento del repo menciona backend Python, DuckDB ni calibración como parte del producto actual.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `CONTRATO_API.md` y OpenAPI actualizados con hotspots, baseline, anomalía y headers CSV. `backend/README.md`, `README.md` y `README-LOCAL.md` reflejan el estado actual. `frontend/ChronosFire/docs/FUNCIONALIDAD.md` fue reescrito sin Python/DuckDB/1 km²/calibración. Se agregó `docs/DECISIONES.md` con definiciones, eras, confianza, cobertura, exportaciones y límites.
+
 ---
 
 ### B-07. Tests backend
@@ -327,6 +331,10 @@ Agregar o ampliar:
 | Script SQL de validación | Delta 2020 semana 40 = 66/10/12/6,60 |
 
 No hace falta Testcontainers para el MVP: los tests de controlador usan `@WebMvcTest`. Para SQL, mantener el script `backend/db/validacion/` reproducible con `psql`.
+
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** 48 tests backend, 0 fallos. Se agregaron `trend`, año/rango/límite inválidos, AUTO 2013 y 2026, pruebas de `DetectionService` para truncamiento y rango largo, forwarding de filtros, smoke de OpenAPI (15 paths y campos nuevos) y `05_smoke_delta_2020.sql` (66/10/12/6,60). El smoke SQL se ejecutó con `psql` y pasó.
 
 ---
 
@@ -457,6 +465,12 @@ hotspots → "hotspots detectados"
 - Los valores y colores coinciden con la pantalla.
 - El archivo incluye la nota metodológica.
 - Test de navegador: el click dispara una descarga.
+
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `src/utils/exportCalendarSvg.ts` genera un SVG autónomo (1120 px de ancho) con `<title>`/`<desc>`, grilla año × mes, valores formateados, colores y texto de contraste tomados de `useCalendar`/`useColorRamp`, trama para meses sin datos, asterisco para meses parciales, borde blanco para anomalías extremas, leyenda con los mismos cortes de la pantalla y nota metodológica. `FireCalendar.vue` incorpora el botón “↓ Descargar SVG” junto a las rampas y un estado `role="status"` con el nombre del archivo. Se descarga con `Blob` + `URL.createObjectURL` como `chronos-fire-calendario-<área>-<desde>-<hasta>.svg`. El generador recibe la instantánea ya resuelta, así que el modo “hotspots” de F-02 solo tendrá que pasar otra unidad y otros valores. `npm run build` pasa; el test de navegador descarga el SVG en las dos rampas y verifica nombre, `viewBox`, AOI, sensor, leyenda, cinco tramos, una celda por cada celda visible y la nota. Se mantiene solo SVG: no se agregó PNG para no depender de la carga de fuentes ni del canvas.
+
+**Archivos:** `src/utils/exportCalendarSvg.ts`, `FireCalendar.vue`, `tests/browser.mjs`.
 
 ---
 
@@ -777,7 +791,7 @@ X-Truncated: false
 - [ ] Rango visible desde 2003 (o 2000) por defecto.
 - [ ] Selector de sensor disponible.
 - [x] Descarga de hotspots CSV desde la UI.
-- [ ] Descarga de visualización (SVG/PNG).
+- [x] Descarga de visualización (SVG).
 - [ ] Rampa accesible.
 - [ ] Público objetivo explícito.
 - [ ] Comparación histórica y anomalía visibles.

@@ -310,47 +310,46 @@ demo inicia en el Delta.
 
 ---
 
-## 3. Adaptacion del frontend
+## 3. Frontend adaptado al contrato
 
-El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracion que la base no tiene. Debe adaptarse a este contrato.
+El frontend `frontend/ChronosFire` ya consume este contrato. La version
+anterior con backend Python/DuckDB, celdas de 1 km² y calibracion fue retirada
+y no forma parte del producto actual.
 
-| Frontend actual | Nuevo contrato |
+### 3.1. Estado actual
+
+| Componente | Implementacion |
+|---|---|
+| Calendario | Mensual, celdas de 0,05°, `fireCells` y hotspots |
+| Mapa | Leaflet, `/api/calendar/heatmap`, `hotspots` + `hotspotsBySensor` |
+| Comparacion | `baselineFireCells`, `anomaly`, `referenceYears`, `confidence` |
+| Detalle diario | Celdas y detecciones del mes |
+| Filtros | bbox por lat/lon, presets y rango de fechas |
+| Descargas | CSV de calendario y hotspots, con aviso de truncamiento |
+| Alertas / validacion | Paneles que consumen `/api/alerts` y `/api/validation` |
+| Sensor | La UI usa `ALL`; la API permite filtrar; selector pendiente (F-01) |
+
+### 3.2. Migracion aplicada (historico)
+
+| Version anterior (retirada) | Contrato actual |
 |---|---|
 | celda-dia de 1 km² | celda de 0,05° (~5 km) |
 | `active_cells_modis/viirs/union` | `fireCells` + `fireCellsBySensor` |
-| `calibrated` | **se elimina** |
-| `modis_equivalent_cells` | **se elimina** |
-| `paired_days`, `paired_modis`, `paired_viirs`, `paired_calibrated` | **se eliminan** |
+| `calibrated` | eliminado |
+| `modis_equivalent_cells` | eliminado |
+| `paired_days`, `paired_modis`, `paired_viirs`, `paired_calibrated` | eliminados |
 | `/api/calendar` mensual | `/api/calendar/weekly` + `/api/calendar/monthly` |
 | `/api/map` | `/api/calendar/heatmap` + `/api/detections/geojson` |
-| `/api/export` | `/api/calendar/export.csv` |
+| `/api/export` | `/api/calendar/export.csv` + `/api/detections/export.csv` |
 | 2003-2025 | 2000/2003-2026, con 2026 `provisional` |
 | mediana en cliente | `baselineFireCells`, `referenceYears`, `confidence` desde el backend |
 | `coverage_known: false` | `dataStatus` y `nDataYears` (hoy `null`/`unknown`) |
 
-### 3.1. Mapeo por componente
+### 3.3. Pendientes de frontend
 
-| Componente | Cambio |
-|---|---|
-| `src/data/types.ts` | Reemplazar `Metric`, `MonthCell`, `DailyRow`, `MapData` por los DTOs del OpenAPI |
-| `src/composables/useChronos.ts` | Nuevos endpoints y parametros |
-| `FireCalendar.vue` | Semanas ISO 1-53 o meses con `fireCells`; quitar calibracion |
-| `KpiStrip.vue` | `fireCells`, `nDetectionsBySensor`; no “celda-dia 1 km²” |
-| `MonthComparison.vue` | `baselineFireCells`, `anomaly`, `referenceYears`, `confidence` |
-| `DailyDetail.vue` | `fireDay`, `nDetections`, `sensors`, `frp` |
-| `FireMap.vue` | `/api/calendar/heatmap` o `/api/detections/geojson` |
-| `AreaOfInterest.vue` | `/api/aois`, bbox, fechas hasta 2026 |
-| `MethodologyPanel.vue` | Nueva metodologia: 0,05°, sin calibracion, sin cobertura real |
-| `tests/` | Reescribir contra el contrato Java |
-
-### 3.2. Funciones que se eliminan
-
-- `calibrated` y `serie_calibrada_2012_2025.csv`.
-- `modis_equivalent_cells`, `modis_pi90_low`, `modis_pi90_high`.
-- Comparacion pareada MODIS/VIIRS/calibrado.
-- Celdas-dia de 1 km².
-- `/api/map` con grupos de 5×5 km y 6.000 puntos.
-- `firms.ts` si no se usa; contiene una `MAP_KEY` hardcodeada.
+- Selector de sensor (F-01).
+- Rampa de anomalia accesible (F-05).
+- Limpieza de `src/data/firms.ts` y `sampleCalendar.ts` (F-11).
 
 ---
 
