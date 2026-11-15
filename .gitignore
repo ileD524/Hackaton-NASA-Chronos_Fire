@@ -1,3 +1,11 @@
+
+# Datos crudos de FIRMS (descargables, no versionar)
+/data/
+
+# Material de referencia pesado
+/Space_Apps_Brand_Guide_VUGpVJm.pdf
+/imagen armonizacion.jpg
+
 # ============================================================
 # Chronos Fire - .gitignore
 # ============================================================
