@@ -47,7 +47,7 @@ onMounted(initialize)
 .main,.content { display: flex; flex-direction: column; gap: 24px; min-width: 0 }
 .layout { display: grid; grid-template-columns: 280px minmax(0,1fr); gap: 24px; align-items: start }
 .sidebar { position: sticky; top: 108px }
-.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 24px }
+.side-by-side { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start }
 .initial-state { min-height: 400px }
 .loading-note { margin: 0; color: var(--warm-lime) }
 @media(max-width:1100px) { .layout { grid-template-columns: 1fr } .sidebar {position:static} }
