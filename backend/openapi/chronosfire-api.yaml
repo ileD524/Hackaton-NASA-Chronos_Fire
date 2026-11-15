@@ -104,6 +104,14 @@ paths:
         nominal/alta y fuera de la mascara industrial. `hotspotsBySensor`
         conserva el desglose y no debe presentarse como un promedio.
         `nDetections` sigue siendo el conteo crudo all-sensor de la celda.
+
+        `fireProbability` agrega `fire_years` y `ref_years` de las semanas ISO
+        del rango y recalcula `p = (k + alpha) / (n + alpha + beta)`; el
+        intervalo es Wilson 90 % sobre el `k/n` agregado. `anomaly` pasa a ser
+        `fireProbability` relativo a la tasa AOI de las mismas semanas, en la
+        misma escala. Es frecuencia historica, **no prediccion ni riesgo
+        oficial**. La era se resuelve como `AUTO` sobre la fecha final del
+        rango; NOAA-20/21 no tienen tabla de riesgo.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
@@ -222,6 +230,25 @@ paths:
       tags: [Alertas]
       operationId: getAlerts
       summary: Alertas NRT agrupadas por celda
+      description: |
+        Campos de probabilidad **aditivos y nullable**: `fireProbability`,
+        `probabilityLow`, `probabilityHigh`, `probabilityRefYears`,
+        `probabilityReliability` y `activityPercentile`.
+
+        Formula: `p = (k + alpha) / (n + alpha + beta)` con `k` = anios de
+        referencia con fuego y `n` = anios con cobertura
+        (`coverage_type = proxy`, regional). `n` es una **cota inferior**: una
+        celda nublada puede tener `fire_days = 0` sin estar libre de fuego.
+        `activityPercentile` solo es valido con `days = 7`.
+
+        `level` se deriva de `fireProbability` y `activityPercentile`:
+        `warning` con percentil >= 0,90 o p >= 0,50; `watch` con percentil
+        >= 0,75 o p >= 0,25; `info` en el resto. Con
+        `probabilityReliability = insufficient` siempre es `info` y `p` es
+        `null`.
+
+        Advertencia: es frecuencia historica estimada, **no prediccion ni
+        riesgo oficial**.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/Days'
@@ -782,8 +809,37 @@ components:
         anomaly:
           type: number
           nullable: true
+          description: |
+            `fireProbability` de la celda dividido por la tasa AOI de las
+            mismas semanas ISO (misma escala). `null` sin respaldo historico.
         dataStatus:
           type: string
+        fireProbability:
+          type: number
+          nullable: true
+          description: |
+            Probabilidad historica del rango consultado. Suma `fire_years` y
+            `ref_years` de las semanas ISO incluidas y recalcula
+            `p = (k + alpha) / (n + alpha + beta)`. Frecuencia historica, no
+            prediccion ni riesgo oficial. `null` si no hay respaldo.
+        probabilityLow:
+          type: number
+          nullable: true
+          description: Wilson 90 % sobre el `k/n` agregado del rango.
+        probabilityHigh:
+          type: number
+          nullable: true
+          description: Wilson 90 % sobre el `k/n` agregado del rango.
+        probabilityRefYears:
+          type: integer
+          nullable: true
+          description: |
+            Minimo de anios de referencia entre las semanas del rango. Se usa
+            el minimo, no la suma, para no inflar la confiabilidad.
+        probabilityReliability:
+          type: string
+          enum: [high, low, insufficient]
+          description: Derivada del minimo de anios de referencia del rango.
 
     MonthlyCell:
       type: object
@@ -915,6 +971,45 @@ components:
           enum: [info, watch, warning]
         industrialMasked:
           type: boolean
+        fireProbability:
+          type: number
+          nullable: true
+          description: |
+            Frecuencia historica estimada de actividad de fuego en la celda
+            para la semana ISO consultada:
+            `p = (k + alpha) / (n + alpha + beta)`, con `k` = anios de
+            referencia con `fire_days > 0` y `n` = anios con cobertura.
+            Es una frecuencia historica, **no una prediccion ni riesgo
+            oficial**. `null` si `probabilityReliability = insufficient`.
+        probabilityLow:
+          type: number
+          nullable: true
+          description: Limite inferior del intervalo de Wilson al 90 % sobre `k/n`.
+        probabilityHigh:
+          type: number
+          nullable: true
+          description: Limite superior del intervalo de Wilson al 90 % sobre `k/n`.
+        probabilityRefYears:
+          type: integer
+          nullable: true
+          description: |
+            `n`: anios de referencia con cobertura (`coverage_type = proxy`).
+            Es la cota inferior: la cobertura es regional, no por celda.
+            Nunca mostrar `fireProbability` sin este campo.
+        probabilityReliability:
+          type: string
+          enum: [high, low, insufficient]
+          description: |
+            `high` con `n >= 10`; `low` con `5 <= n < 10`;
+            `insufficient` con `n < 5` (la UI muestra `—`).
+        activityPercentile:
+          type: number
+          nullable: true
+          description: |
+            Fraccion de anios de referencia con `nDetections` semanal menor o
+            igual al observado: "cuan inusual es lo observado". Solo se
+            calcula si `days = 7`; en otro caso es `null` porque la unidad
+            historica es semanal y no se escala.
 
     Detection:
       type: object

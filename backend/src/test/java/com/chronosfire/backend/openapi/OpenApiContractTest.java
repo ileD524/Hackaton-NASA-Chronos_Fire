@@ -52,6 +52,20 @@ class OpenApiContractTest {
                 "components", "schemas", "HeatmapCell", "properties");
         assertTrue(heatmap.containsKey("hotspots"));
         assertTrue(heatmap.containsKey("hotspotsBySensor"));
+        assertTrue(heatmap.containsKey("fireProbability"));
+        assertTrue(heatmap.containsKey("probabilityLow"));
+        assertTrue(heatmap.containsKey("probabilityHigh"));
+        assertTrue(heatmap.containsKey("probabilityRefYears"));
+        assertTrue(heatmap.containsKey("probabilityReliability"));
+
+        Map<String, Object> alert = at(root,
+                "components", "schemas", "Alert", "properties");
+        assertTrue(alert.containsKey("fireProbability"));
+        assertTrue(alert.containsKey("probabilityLow"));
+        assertTrue(alert.containsKey("probabilityHigh"));
+        assertTrue(alert.containsKey("probabilityRefYears"));
+        assertTrue(alert.containsKey("probabilityReliability"));
+        assertTrue(alert.containsKey("activityPercentile"));
 
         Map<String, Object> detectionsHeaders = at(root,
                 "paths", "/api/detections/export.csv", "get", "responses", "200", "headers");

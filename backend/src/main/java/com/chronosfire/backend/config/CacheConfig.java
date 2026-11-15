@@ -25,6 +25,8 @@ public class CacheConfig {
                 cache("monthly", 10),
                 cache("trend", 10),
                 cache("validation", 10),
+                // La tabla de riesgo es historica: cambia solo con el rebuild.
+                cache("risk", 60),
                 // Las alertas son NRT: 60 s para no mostrar datos viejos.
                 cache("alerts", 1)));
         return manager;

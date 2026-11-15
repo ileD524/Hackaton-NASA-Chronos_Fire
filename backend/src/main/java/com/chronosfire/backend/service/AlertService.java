@@ -8,6 +8,7 @@ import com.chronosfire.backend.dto.GeoJsonFeatureCollection.GeoJsonFeature;
 import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.repository.AlertRepository;
 import com.chronosfire.backend.repository.AlertRepository.AlertRow;
+import com.chronosfire.backend.service.RiskService.Probability;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -28,10 +29,15 @@ public class AlertService {
 
     private final AlertRepository repository;
     private final CalendarService calendarService;
+    private final RiskService riskService;
 
-    public AlertService(AlertRepository repository, CalendarService calendarService) {
+    public AlertService(
+            AlertRepository repository,
+            CalendarService calendarService,
+            RiskService riskService) {
         this.repository = repository;
         this.calendarService = calendarService;
+        this.riskService = riskService;
     }
 
     @Cacheable(value = "alerts", key = "#bboxParam + '|' + #days + '|' + #limit")
@@ -42,16 +48,27 @@ public class AlertService {
         Instant now = Instant.now();
         Instant since = now.minus(safeDays, ChronoUnit.DAYS);
 
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        int isoWeek = today.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+        int isoYear = today.get(IsoFields.WEEK_BASED_YEAR);
+        String riskEra = isoYear >= 2013 ? "SNPP" : "MODIS";
+
         WeeklyResponse weekly = calendarService.getWeekly(
-                bboxString(bbox),
-                LocalDate.now(ZoneOffset.UTC).get(IsoFields.WEEK_BASED_YEAR),
-                LocalDate.now(ZoneOffset.UTC).get(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
-                "AUTO");
+                bboxString(bbox), isoYear, isoWeek, "AUTO");
         Double aoiAnomaly = weekly.anomaly();
 
         List<AlertRow> rows = repository.alerts(bbox, since, safeLimit);
+
+        Map<String, Integer> observedByCell = new LinkedHashMap<>();
+        for (AlertRow row : rows) {
+            observedByCell.put(row.gridId(), row.nDetections());
+        }
+        Map<String, Probability> probabilities = riskService.alertProbabilities(
+                observedByCell, isoWeek, riskEra, safeDays);
+
         List<Alert> alerts = new ArrayList<>(rows.size());
         for (AlertRow row : rows) {
+            Probability probability = probabilities.getOrDefault(row.gridId(), Probability.unknown());
             alerts.add(new Alert(
                     row.cellLat(),
                     row.cellLon(),
@@ -62,8 +79,14 @@ public class AlertService {
                     row.sensors(),
                     confidenceClass(row.confidenceMax()),
                     aoiAnomaly,
-                    level(row.nDetections(), aoiAnomaly),
-                    false));
+                    RiskMath.level(probability.fireProbability(), probability.activityPercentile()),
+                    false,
+                    probability.fireProbability(),
+                    probability.probabilityLow(),
+                    probability.probabilityHigh(),
+                    probability.probabilityRefYears(),
+                    probability.probabilityReliability(),
+                    probability.activityPercentile()));
         }
 
         return new AlertResponse(
@@ -94,19 +117,15 @@ public class AlertService {
             properties.put("aoiAnomaly", alert.aoiAnomaly());
             properties.put("level", alert.level());
             properties.put("industrialMasked", alert.industrialMasked());
+            properties.put("fireProbability", alert.fireProbability());
+            properties.put("probabilityLow", alert.probabilityLow());
+            properties.put("probabilityHigh", alert.probabilityHigh());
+            properties.put("probabilityRefYears", alert.probabilityRefYears());
+            properties.put("probabilityReliability", alert.probabilityReliability());
+            properties.put("activityPercentile", alert.activityPercentile());
             features.add(GeoJsonFeature.point(alert.cellLon(), alert.cellLat(), properties));
         }
         return GeoJsonFeatureCollection.of(features);
-    }
-
-    private String level(int nDetections, Double anomaly) {
-        if (nDetections >= 10 || (anomaly != null && anomaly >= 2.0)) {
-            return "warning";
-        }
-        if (nDetections >= 3 || (anomaly != null && anomaly >= 1.5)) {
-            return "watch";
-        }
-        return "info";
     }
 
     private String confidenceClass(int confidenceNorm) {

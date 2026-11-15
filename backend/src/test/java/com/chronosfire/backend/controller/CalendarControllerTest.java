@@ -122,7 +122,12 @@ class CalendarControllerTest {
                 7,
                 Map.of("MODIS", 2, "VIIRS_SNPP", 5),
                 null,
-                "observed")));
+                "observed",
+                0.41,
+                0.18,
+                0.68,
+                13,
+                "high")));
 
         mockMvc.perform(get("/api/calendar/heatmap")
                         .param("bbox", "-61,-34,-59.5,-32.5")
@@ -133,7 +138,11 @@ class CalendarControllerTest {
                 .andExpect(jsonPath("$[0].hotspots").value(7))
                 .andExpect(jsonPath("$[0].hotspotsBySensor.MODIS").value(2))
                 .andExpect(jsonPath("$[0].hotspotsBySensor.VIIRS_SNPP").value(5))
-                .andExpect(jsonPath("$[0].nDetections").value(10));
+                .andExpect(jsonPath("$[0].nDetections").value(10))
+                .andExpect(jsonPath("$[0].fireProbability").value(0.41))
+                .andExpect(jsonPath("$[0].probabilityLow").value(0.18))
+                .andExpect(jsonPath("$[0].probabilityRefYears").value(13))
+                .andExpect(jsonPath("$[0].probabilityReliability").value("high"));
     }
 
     @Test

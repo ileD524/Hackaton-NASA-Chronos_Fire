@@ -52,7 +52,13 @@ class AlertControllerTest {
                         "high",
                         1.8,
                         "watch",
-                        false)));
+                        false,
+                        0.41,
+                        0.18,
+                        0.68,
+                        13,
+                        "high",
+                        0.92)));
 
         mockMvc.perform(get("/api/alerts")
                         .param("bbox", "-61,-34,-59.5,-32.5")
@@ -61,7 +67,12 @@ class AlertControllerTest {
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.provisional").value(true))
                 .andExpect(jsonPath("$.alerts[0].level").value("watch"))
-                .andExpect(jsonPath("$.alerts[0].nDetections").value(14));
+                .andExpect(jsonPath("$.alerts[0].nDetections").value(14))
+                .andExpect(jsonPath("$.alerts[0].fireProbability").value(0.41))
+                .andExpect(jsonPath("$.alerts[0].probabilityLow").value(0.18))
+                .andExpect(jsonPath("$.alerts[0].probabilityRefYears").value(13))
+                .andExpect(jsonPath("$.alerts[0].probabilityReliability").value("high"))
+                .andExpect(jsonPath("$.alerts[0].activityPercentile").value(0.92));
     }
 
     @Test
@@ -90,7 +101,7 @@ class AlertControllerTest {
         private GeoJsonFeatureCollection geoJson;
 
         StubAlertService() {
-            super(null, null);
+            super(null, null, null);
         }
 
         @Override
