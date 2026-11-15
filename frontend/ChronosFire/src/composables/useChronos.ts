@@ -66,6 +66,20 @@ export function params(f: Filters): URLSearchParams {
   return p
 }
 
+/**
+ * Filtros del CSV de hotspots. Usa el mismo bbox, rango y sensor que la vista
+ * activa y agrega la definicion armonizada: vegetacion efectiva, confianza
+ * nominal/alta y, por la logica de la vista, sin focos industriales.
+ */
+export function hotspotsParams(f: Filters): URLSearchParams {
+  const p = params(f)
+  p.set('vegetation', 'true')
+  p.append('confidence', 'nominal')
+  p.append('confidence', 'high')
+  p.set('limit', '50000')
+  return p
+}
+
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
   const result = await response.json()
@@ -257,6 +271,7 @@ export function useChronos() {
       }
     },
     exportURL: computed(() => `/api/calendar/export.csv?${params(filters.value)}`),
+    hotspotsExportURL: computed(() => `/api/detections/export.csv?${hotspotsParams(filters.value)}`),
   }
 }
 

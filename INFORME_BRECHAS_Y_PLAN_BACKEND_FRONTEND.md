@@ -423,6 +423,10 @@ hotspots → "hotspots detectados"
 - El bbox y las fechas coinciden con los filtros activos.
 - Test de contrato: `Content-Disposition` y primera línea.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `hotspotsParams` en `useChronos.ts` agrega `vegetation=true`, `confidence=nominal,high` y `limit=50000` a los filtros activos (bbox, rango y sensor). `AreaOfInterest.vue` expone un segundo botón con `download`, `aria-label` y la nota de alcance. Verificado en vivo: Delta 2020-09 `ALL` devuelve 6.628 filas, idéntico al conteo de hotspots del backend, con BOM UTF-8 y cabecera correcta. `npm run build`, `npm run test:api` y `npm run test:browser` pasan.
+
 ---
 
 ### F-04. Exportar visualizaciones
@@ -764,7 +768,7 @@ X-Truncated: false
 - [ ] Calendario muestra hotspots además de celdas.
 - [ ] Rango visible desde 2003 (o 2000) por defecto.
 - [ ] Selector de sensor disponible.
-- [ ] Descarga de hotspots CSV desde la UI.
+- [x] Descarga de hotspots CSV desde la UI.
 - [ ] Descarga de visualización (SVG/PNG).
 - [ ] Rampa accesible.
 - [ ] Público objetivo explícito.

@@ -28,6 +28,30 @@ if (!september2020 || september2020.anomaly === null || september2020.confidence
 const daily = await get(`/api/calendar/daily?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`)
 if (!daily.length) throw new Error('daily vacío')
 
+const csvResponse = await fetch(
+  `${BASE}/api/detections/export.csv?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL`
+  + '&vegetation=true&confidence=nominal&confidence=high&limit=50000',
+)
+if (!csvResponse.ok) throw new Error(`export.csv -> HTTP ${csvResponse.status}`)
+if (!/text\/csv/.test(csvResponse.headers.get('content-type') || '')) {
+  throw new Error('export.csv no es text/csv')
+}
+const disposition = csvResponse.headers.get('content-disposition') || ''
+if (!/attachment/.test(disposition) || !/chronosfire-detecciones\.csv/.test(disposition)) {
+  throw new Error(`Content-Disposition inesperado: ${disposition}`)
+}
+const csvBytes = Buffer.from(await csvResponse.arrayBuffer())
+if (csvBytes[0] !== 0xef || csvBytes[1] !== 0xbb || csvBytes[2] !== 0xbf) {
+  throw new Error('export.csv sin BOM UTF-8')
+}
+const csvLines = csvBytes.toString('utf8').replace(/^\uFEFF/, '').split(/\r?\n/)
+const csvHeader = csvLines[0]
+if (!csvHeader.startsWith('sensor,source,acquired_at,acq_date,latitude,longitude')) {
+  throw new Error(`cabecera CSV inesperada: ${csvHeader}`)
+}
+const csvRows = csvLines.filter(Boolean).length - 1
+if (csvRows <= 0 || csvRows > 50000) throw new Error(`filas CSV fuera de rango: ${csvRows}`)
+
 const alerts = await get(`/api/alerts?bbox=${bbox}&days=7&limit=5`)
 if (typeof alerts.count !== 'number' || !Array.isArray(alerts.alerts)) throw new Error('alerts inválido')
 
@@ -44,6 +68,7 @@ console.log(JSON.stringify({
   anomaly2020: september2020.anomaly,
   anomalyConfidence: september2020.confidence,
   dailyRows: daily.length,
+  hotspotsCsvRows: csvRows,
   alerts: alerts.count,
   validationEvents: validation.length,
 }, null, 2))

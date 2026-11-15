@@ -180,6 +180,11 @@ Reglas:
 - Exportaciones: máximo 50.000 filas.
 - `confidence` acepta `low`, `nominal`, `high`; se puede repetir o separar por coma.
 - `vegetation=true` usa la misma logica que `v_vegetation_detections`.
+- La UI descarga hotspots con
+  `export.csv?bbox=...&from=...&to=...&sensor=...&vegetation=true&confidence=nominal&confidence=high&limit=50000`.
+  Esa combinacion equivale a la definicion de hotspot: vegetacion efectiva,
+  confianza nominal/alta y sin focos industriales. El CSV conserva las columnas
+  `industrial_mask` e `is_vegetation` para auditar cada fila.
 - `source` acepta `SP` o `NRT`.
 - `type` acepta 0-3.
 - `bbox` por defecto es Argentina para proteger la consulta.

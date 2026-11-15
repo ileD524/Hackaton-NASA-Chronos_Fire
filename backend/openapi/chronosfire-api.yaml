@@ -280,12 +280,21 @@ paths:
     get:
       tags: [Detecciones]
       operationId: exportDetectionsCsv
-      summary: Exporta detecciones en CSV
+      summary: Exporta detecciones o hotspots en CSV
+      description: |
+        CSV UTF-8 con BOM. Para descargar los hotspots armonizados, usar
+        `vegetation=true`, `confidence=nominal`, `confidence=high` y
+        `limit=50000`: vegetacion efectiva, confianza nominal/alta y sin focos
+        industriales. Maximo 50.000 filas.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
         - $ref: '#/components/parameters/To'
         - $ref: '#/components/parameters/Sensor'
+        - $ref: '#/components/parameters/Confidence'
+        - $ref: '#/components/parameters/Type'
+        - $ref: '#/components/parameters/Source'
+        - $ref: '#/components/parameters/Vegetation'
         - $ref: '#/components/parameters/Limit'
       responses:
         '200':

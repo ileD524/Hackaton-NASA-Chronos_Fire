@@ -15,12 +15,33 @@ const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
 page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()) })
 
+async function hotspotsCsvURL() {
+  const link = page.getByRole('link', { name: /Descargar hotspots CSV/ })
+  if (!(await link.isVisible())) throw new Error('boton de hotspots CSV no visible')
+  const href = await link.getAttribute('href')
+  if (!href) throw new Error('boton de hotspots CSV sin href')
+  const url = new URL(href, BASE_URL)
+  if (url.pathname !== '/api/detections/export.csv') throw new Error(`ruta CSV inesperada: ${url.pathname}`)
+  if (url.searchParams.get('vegetation') !== 'true') throw new Error('CSV sin vegetation=true')
+  if (url.searchParams.getAll('confidence').join(',') !== 'nominal,high') {
+    throw new Error('CSV sin confianza nominal/alta')
+  }
+  if (url.searchParams.get('limit') !== '50000') throw new Error('CSV sin limit=50000')
+  return url
+}
+
 await page.goto(BASE_URL, { waitUntil: 'networkidle' })
 await expect(page.locator('.kpi-value').first()).toContainText(/\d/)
 await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad')
 await expect(page.locator('#mapa-title')).toHaveText('Agosto 2020')
+await expect(page.locator('.map-toolbar')).toContainText('hotspots en')
+await expect(page.locator('.map-foot')).toContainText('no se suman como promedio')
 await expect(page.locator('.comparison-number')).not.toHaveText('—')
 await expect(page.getByText(/años de referencia/).first()).toBeVisible()
+const initialCsv = await hotspotsCsvURL()
+if (initialCsv.searchParams.get('bbox') !== '-61,-34,-59.5,-32.5') throw new Error('CSV inicial sin bbox del AOI')
+if (initialCsv.searchParams.get('from') !== '2012-01-01') throw new Error('CSV inicial sin fecha desde')
+await expect(page.getByText(/Hasta 50\.000 filas/)).toBeVisible()
 await page.screenshot({ path: `${ARTIFACTS}/desktop.png`, fullPage: true })
 
 await page.getByRole('button', { name: 'Abrir el calendario', exact: true }).click()
@@ -33,10 +54,17 @@ await page.getByLabel('Área', { exact: true }).selectOption('corrientes')
 await page.getByRole('button', { name: /Actualizar calendario/ }).click()
 await expect(page.locator('.hero-context')).toContainText('Área personalizada')
 await expect(page.locator('.series-badge').first()).toContainText('Todos los sensores')
+const corrientesCsv = await hotspotsCsvURL()
+if (corrientesCsv.searchParams.get('bbox') !== '-60,-30.8,-55.5,-27') {
+  throw new Error(`CSV no sigue el AOI activo: ${corrientesCsv.searchParams.get('bbox')}`)
+}
 await page.screenshot({ path: `${ARTIFACTS}/corrientes.png`, fullPage: true })
 
 await page.getByRole('button', { name: 'Ver todo el archivo 2003–2026' }).click()
 await expect(page.locator('.cal-cell')).toHaveCount(288, { timeout: 60000 })
+const fullCsv = await hotspotsCsvURL()
+if (fullCsv.searchParams.has('bbox')) throw new Error('CSV nacional conserva bbox')
+if (fullCsv.searchParams.get('from') !== '2003-01-01') throw new Error('CSV nacional sin fecha desde')
 await page.getByRole('button', { name: 'Diferencia histórica', exact: true }).click()
 await expect(page.locator('.legend')).toContainText('Desviación')
 
@@ -76,7 +104,9 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
   heatmapContrastFailures: badContrast,
   checks: [
     'initial monthly calendar',
+    'map hotspots by sensor',
     'backend monthly anomaly',
+    'hotspots CSV button follows active filters',
     'month selection updates map',
     'AOI filter',
     'full history',
