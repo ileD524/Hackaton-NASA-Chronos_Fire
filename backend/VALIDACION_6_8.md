@@ -4,7 +4,7 @@
 **Base:** `chronos_fire` (PostgreSQL 17, 127.0.0.1:5432)  
 **Scripts:** `backend/db/validacion/`  
 **Salidas:** `reports/validacion_6_8_20261114/`  
-**Estado:** V0 ✅ · V1 ✅ · V2 🟡 · V3 ✅ · V4 🟡 · V5 🟡
+**Estado:** V0 ✅ · V1 ✅ · V2 🟡 · V3 ✅ · V3b ✅ · V4 ✅ · V5 🟡
 
 ---
 
@@ -23,8 +23,9 @@ ejecutadas. Los resultados permiten afirmar que:
    VIIRS SNPP-only. Con todos los sensores da **78 / 10 / 7,80**: el titular
    depende del conjunto de sensores y debe declararse.
 5. La coincidencia espacial es estable y coherente con las diferencias de
-   sensibilidad: MODIS coincide con VIIRS en 53-69% de sus detecciones;
-   VIIRS coincide con MODIS en 42-49%. VIIRS ve mas focos y de menor FRP.
+   sensibilidad: con SNPP, MODIS coincide en 52-69% de sus detecciones y
+   VIIRS en 37-49%; con NOAA-20/21 los rangos son similares. VIIRS ve mas
+   focos y de menor FRP.
 
 Lo que **no** se puede afirmar todavia:
 
@@ -204,6 +205,26 @@ MODIS (ratio 1,45 vs 3,28). La razon es que hay tres sensores VIIRS y uno
 MODIS. Para la UI y la API hay que etiquetarlo como "todos los sensores" y no
 presentarlo como un promedio.
 
+### High only (V3b)
+
+| Ambito | Spearman | Top-5 | Ratio SNPP/MODIS |
+|---|---:|---:|---:|
+| Nacional | 0,949 | 0,877 | 0,854 |
+| Corrientes / Ibera | 0,828 | 0,769 | 0,903 |
+| Salta / Jujuy | 0,877 | 0,800 | 0,714 |
+| La Pampa | 0,812 | 0,815 | 0,779 |
+| Cordoba | 0,586 | 0,646 | 0,861 |
+| Delta del Parana | 0,658 | 0,446 | 1,257 |
+
+En el anio del evento, el top-5 high-only es: Delta 0,600; Cordoba 0,800;
+Corrientes 1,000; La Pampa 2016 0,800; La Pampa 2017 1,000; Salta 0,800.
+
+**Hallazgo:** con `high` only el ratio SNPP/MODIS cae de 2,26 a **0,85**. Es
+decir, MODIS queda con mas celdas "high" que SNPP. La causa es que la
+confianza alta no es homologa: MODIS usa un umbral 0-100 (>= 80) y VIIRS una
+clase discreta (`h`). **No usar `high` only para el calendario**; la serie
+titular debe ser `nominal + high`.
+
 ---
 
 ## 7. V4 - Coincidencia espacial
@@ -211,17 +232,39 @@ presentarlo como un promedio.
 Metodo: solo SP, mismo dia, 3×3 bins de 0,02°, distancia equirectangular
 < 1 km, detecciones distintas.
 
-| Anio | Sensor VIIRS | MODIS total | VIIRS total | % MODIS | % VIIRS | Pares | FRP med MODIS | FRP med VIIRS | Densidad MODIS | Densidad VIIRS |
-|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 2013 | SNPP | 66.553 | 237.553 | 64,1% | 47,4% | 234.376 | 29,9 | 7,12 | 17,01 | 32,36 |
-| 2020 | SNPP | 124.103 | 448.313 | 68,8% | 49,0% | 435.350 | 32,9 | 8,27 | 17,82 | 37,36 |
-| 2024 | SNPP | 49.843 | 152.971 | 53,5% | 41,8% | 126.718 | 27,7 | 7,51 | 15,70 | 32,41 |
-| 2020 | SNPP, <= 3 h | 124.103 | 448.313 | 57,3% | 40,4% | 291.231 | 34,7 | 9,37 | 18,76 | 41,82 |
+### Serie completa VIIRS SNPP
+
+| Anio | % MODIS con match | % VIIRS con match | FRP med MODIS | FRP med VIIRS |
+|---:|---:|---:|---:|---:|
+| 2013 | 64,1% | 47,4% | 29,9 | 7,12 |
+| 2014 | 60,0% | 42,7% | 34,0 | 7,93 |
+| 2015 | 58,0% | 41,5% | 31,0 | 7,58 |
+| 2016 | 60,8% | 47,5% | 36,1 | 8,02 |
+| 2017 | 61,6% | 49,3% | 37,9 | 8,39 |
+| 2018 | 60,2% | 44,0% | 32,5 | 7,76 |
+| 2019 | 57,8% | 42,7% | 33,2 | 8,02 |
+| 2020 | 68,8% | 49,0% | 32,9 | 8,27 |
+| 2021 | 61,0% | 42,4% | 31,9 | 8,23 |
+| 2022 | 68,0% | 48,2% | 34,2 | 7,92 |
+| 2023 | 63,2% | 45,8% | 32,9 | 8,24 |
+| 2024 | 53,5% | 41,8% | 27,7 | 7,51 |
+| 2025 | 51,7% | 36,8% | 27,3 | 7,14 |
+
+### Otros VIIRS
+
+| Sensor | Periodo | % MODIS | % VIIRS | FRP med MODIS | FRP med VIIRS |
+|---|---|---|---|---|---|
+| NOAA-20 | 2018-2025 | 44,8-70,4% | 36,5-49,0% | 26,1-33,9 | 7,39-8,49 |
+| NOAA-21 | 2023-2025 | 50,1-55,3% | 36,0-44,2% | 27,4-29,7 | 8,81-9,40 |
+
+Detalle completo: `reports/validacion_6_8_20261114/05_resumen_coincidencia.csv`.
 
 Lectura:
 
-- MODIS coincide con VIIRS en 53-69% de sus detecciones; VIIRS con MODIS en
-  42-49%. VIIRS tiene mas detecciones y menor FRP por deteccion.
+- MODIS coincide con VIIRS en 52-69% de sus detecciones con SNPP, 45-70% con
+  NOAA-20 y 50-55% con NOAA-21. VIIRS coincide con MODIS en 37-49% (SNPP),
+  36-49% (NOAA-20) y 36-44% (NOAA-21).
+- VIIRS tiene mas detecciones y menor FRP por deteccion.
 - La densidad de FRP de VIIRS es casi el doble: su pixel es mas chico
   (375 m vs 1 km), no necesariamente el fuego es mas intenso.
 - Las detecciones coincidentes tienen mayor FRP que las no coincidentes:
@@ -244,9 +287,12 @@ Lectura:
 4. **"Todos" esta dominado por VIIRS.** No es un promedio neutral.
 5. **VIIRS detecta mas y con menor FRP.** La coincidencia espacial confirma la
    diferencia de sensibilidad; no es un error de armonizacion.
-6. **La cobertura sigue siendo el bloqueo principal.** `coverage_daily` vacia
+6. **`high` only no es homologo.** El ratio SNPP/MODIS cae de 2,26 a 0,85
+   porque MODIS usa un umbral 0-100 y VIIRS una clase discreta. El calendario
+   debe usar `nominal + high`.
+7. **La cobertura sigue siendo el bloqueo principal.** `coverage_daily` vacia
    y `n_data_years` NULL impiden distinguir "sin datos" de "sin fuego".
-7. **Las AOIs de 4 eventos son provisionales.** Sin bbox confirmado, sus
+8. **Las AOIs de 4 eventos son provisionales.** Sin bbox confirmado, sus
    valores no son auditables.
 
 ---
@@ -261,7 +307,8 @@ Lectura:
 - La distancia es equirectangular; el error a 1 km es despreciable, pero no es
   Haversine.
 - 2026 es NRT parcial y queda fuera de V3/V4.
-- No se corrio la sensibilidad con `high` only; queda pendiente.
+- `high` only no es homologo: MODIS usa umbral 0-100 y VIIRS una clase
+  discreta. El calendario usa `nominal + high`.
 - No se corrio la sensibilidad 0,05° vs 0,1° de §6.4.
 
 ---
@@ -278,11 +325,10 @@ Lectura:
 
 ### P1
 
-4. Completar V4 para todos los anios 2013-2025 y los tres sensores VIIRS.
-5. Poblar `coverage_daily` o documentar formalmente que `n_data_years` queda
+4. Poblar `coverage_daily` o documentar formalmente que `n_data_years` queda
    NULL y que la UI no debe interpretar ausencia de filas como ausencia de fuego.
-6. Correr la sensibilidad con `high` only.
-7. Actualizar §6.8, §8 y §9 del plan con estos resultados (V5).
+5. Correr la sensibilidad 0,05° vs 0,1° de §6.4.
+6. Actualizar §8 y §9 del plan con estos resultados (V5).
 
 ---
 
@@ -306,8 +352,18 @@ $db = 'chronos_fire'
   -f backend\db\validacion\03_sensibilidad.sql
 
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -f backend\db\validacion\03b_sensibilidad_high.sql
+
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
   -v anio=2020 -v viirs_sensor=VIIRS_SNPP -v max_hours=24 `
   -f backend\db\validacion\04_coincidencia.sql
+```
+
+Barrido completo y consolidado:
+
+```powershell
+$env:PGPASSWORD = 'postgres'
+.\backend\db\validacion\run_validacion.ps1 -SkipBase
 ```
 
 ---

@@ -11,6 +11,7 @@ Base: `chronos_fire` (PostgreSQL 17).
 | `01_interna.sql` | V1 | No | Fuentes, cobertura, duplicados, solapamiento, consistencia |
 | `02_eventos.sql` | V2 | No | Observado, baseline, `n_ref_years`, anomalia y confianza por evento |
 | `03_sensibilidad.sql` | V3 | Solo temp table | MODIS vs SNPP vs todos los VIIRS; ranking y top-k |
+| `03b_sensibilidad_high.sql` | V3b | Solo temp table | Sensibilidad con confianza `high` only |
 | `04_coincidencia.sql` | V4 | No | Coincidencia espacial MODIS-VIIRS por anio |
 
 ## Comandos
@@ -31,6 +32,9 @@ $db = 'chronos_fire'
 
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
   -f backend\db\validacion\03_sensibilidad.sql
+
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -f backend\db\validacion\03b_sensibilidad_high.sql
 ```
 
 V4 se corre por anio y por sensor VIIRS:
@@ -40,6 +44,23 @@ V4 se corre por anio y por sensor VIIRS:
   -v anio=2020 -v viirs_sensor=VIIRS_SNPP -v max_hours=24 `
   -f backend\db\validacion\04_coincidencia.sql
 ```
+
+Para el barrido completo hay un runner:
+
+```powershell
+$env:PGPASSWORD = 'postgres'
+
+# Solo V4, SNPP 2013-2025
+.\backend\db\validacion\run_validacion.ps1 -SkipBase -ViirsSensors VIIRS_SNPP
+
+# Barrido completo (SNPP + NOAA-20 + NOAA-21)
+.\backend\db\validacion\run_validacion.ps1 -SkipBase
+
+# Solo consolidar los resultados existentes
+.\backend\db\validacion\run_validacion.ps1 -SkipBase -SkipSweep -Summarize
+```
+
+El runner genera `05_resumen_coincidencia.csv`.
 
 Variables de V4:
 
@@ -84,10 +105,10 @@ reports/validacion_6_8_20261114/
 ├─ 01_interna.txt
 ├─ 02_eventos.txt
 ├─ 03_sensibilidad.txt
-├─ 04_coincidencia_2013_snpp.txt
-├─ 04_coincidencia_2020_snpp.txt
+├─ 03b_sensibilidad_high.txt
+├─ 04_coincidencia_<anio>_<sensor>.txt
 ├─ 04_coincidencia_2020_snpp_3h.txt
-└─ 04_coincidencia_2024_snpp.txt
+└─ 05_resumen_coincidencia.csv
 ```
 
 El informe consolidado esta en `backend/VALIDACION_6_8.md`.

@@ -466,15 +466,18 @@ en `backend/VALIDACION_6_8.md` con bboxes preliminares y pueden diferir.
   Delta 2020 reproduce 66/10/12/6,60 con VIIRS SNPP-only.
 - V3: sensibilidad nacional Spearman 0,969 y top-5 0,908. En el año del evento,
   el top-5 coincide en 5/6 ventanas.
-- V4: coincidencia espacial MODIS/VIIRS (53–69% de MODIS, 42–49% de VIIRS;
-  mismo día, < 1 km, SNPP, 2013/2020/2024).
+- V4: coincidencia espacial MODIS/VIIRS. Serie completa SNPP 2013–2025 y
+  barrido NOAA-20 (2018–2025) y NOAA-21 (2023–2025): 52–69% de MODIS y
+  37–49% de VIIRS con SNPP; mismo día, < 1 km. Sensibilidad ≤ 3 h: 57,3%/40,4%.
+- V3b: sensibilidad con `high` only. Nacional Spearman 0,949 y top-5 0,877.
+  El ratio SNPP/MODIS cae de 2,26 a 0,85: `high` no es homólogo entre sensores.
+  Conclusión: usar `nominal + high` en el calendario.
 
 **Pendiente:**
 
 - Confirmar las AOIs de Corrientes, Salta, Córdoba y La Pampa (hoy
   `provisional`).
-- Barrido V4 completo 2013–2025 y para NOAA-20/NOAA-21.
-- Sensibilidad con `high` only y con grilla 0,1°.
+- Sensibilidad con grilla 0,1°.
 - `coverage_daily` y `n_data_years` siguen vacíos.
 
 **Scripts:** `backend/db/validacion/`.  
@@ -522,8 +525,8 @@ en `backend/VALIDACION_6_8.md` con bboxes preliminares y pueden diferir.
 ### H2 — Validación (1–2 días)
 
 1. ✅ Validar eventos conocidos: Delta 2020, Corrientes 2022, Salta/Córdoba 2013 y La Pampa 2017.
-2. 🟡 Comparar MODIS-only vs VIIRS-only vs ambos (V3 implementado; falta cerrar AOIs y `high` only).
-3. 🟡 Calcular coincidencia espacial (V4 piloto 2013/2020/2024; falta barrido completo).
+2. 🟡 Comparar MODIS-only vs VIIRS-only vs ambos (V3 y V3b implementados; falta cerrar AOIs).
+3. ✅ Calcular coincidencia espacial (V4 serie SNPP 2013–2025 + NOAA-20/21).
 4. 🟡 Documentar resultados y limitaciones (informe preliminar en `backend/VALIDACION_6_8.md`).
 
 **Entregable:** informe de validación y métricas.
@@ -571,7 +574,7 @@ en `backend/VALIDACION_6_8.md` con bboxes preliminares y pueden diferir.
 | Solapamiento SP/NRT sin resolver | 0 |
 | Celdas con 53 semanas | 100% ✅ |
 | Celdas-semana con `n_fire_years >= 7` | 18.516 (0,50%); 5.486 celdas (7,82%) |
-| Coincidencia MODIS/VIIRS | MODIS 53–69%; VIIRS 42–49% (SNPP, < 1 km, 2013/2020/2024) |
+| Coincidencia MODIS/VIIRS | MODIS 52–69%; VIIRS 37–49% (SNPP, < 1 km, 2013–2025) |
 | Eventos conocidos con anomalía > 1 | 4/4 ✅ |
 | Baseline mínimo | `n_ref_years >= 7`; `baseline >= 3` |
 
@@ -602,7 +605,7 @@ en `backend/VALIDACION_6_8.md` con bboxes preliminares y pueden diferir.
 ## 11. Decisiones pendientes
 
 1. **Grilla:** 0,05° (actual) o 0,1° para mayor estabilidad.
-2. **Confianza:** usar `nominal + high` o solo `high`.
+2. **Confianza:** usar `nominal + high` o solo `high`. **Decidido:** `nominal + high`; `high` only cambia el ratio SNPP/MODIS de 2,26 a 0,85 y no es comparable.
 3. **Máscara industrial:** umbral de 10 detecciones/3 años o más conservador.
 4. **`n_ref_years` mínimo:** 7 años (alta confianza ≥ 10).
 5. **SP/NRT:** política por fecha (actual) o por píxel (futuro).
