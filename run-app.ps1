@@ -70,13 +70,16 @@ function Wait-Backend {
 
 function Start-BackendProcess {
     $mvn = Get-CommandPath 'mvn.cmd'
+    $powershell = Get-CommandPath 'powershell.exe'
     $target = Join-Path $backend 'target'
     New-Item -ItemType Directory -Force -Path $target | Out-Null
     $out = Join-Path $target 'app.log'
     $err = Join-Path $target 'app.err'
-    Write-Host 'Iniciando backend Java...'
-    return Start-Process -FilePath 'cmd.exe' `
-        -ArgumentList @('/c', "`"$mvn`" spring-boot:run") `
+    $command = "Set-Location -LiteralPath '$backend'; & '$mvn' spring-boot:run"
+    Write-Host 'Iniciando backend Java en PowerShell...'
+    return Start-Process -FilePath $powershell `
+        -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) `
+        -NoNewWindow `
         -WorkingDirectory $backend `
         -PassThru `
         -RedirectStandardOutput $out `
@@ -90,16 +93,19 @@ function Stop-ProcessTree([System.Diagnostics.Process]$process) {
 }
 
 function Start-Frontend {
-    $npm = Get-CommandPath 'npm.cmd'
-    if (-not (Test-Path (Join-Path $frontend 'node_modules'))) {
+    $node = Get-CommandPath 'node.exe'
+    $vite = Join-Path $frontend 'node_modules\vite\bin\vite.js'
+    if (-not (Test-Path $vite)) {
         Write-Host 'Instalando dependencias del frontend...'
+        $npm = Get-CommandPath 'npm.cmd'
         Push-Location $frontend
         try { & $npm ci } finally { Pop-Location }
     }
+    if (-not (Test-Path $vite)) { throw 'No se encontro Vite. Ejecuta npm ci en frontend\ChronosFire.' }
     Write-Host "Frontend: http://127.0.0.1:$FrontendPort"
     Push-Location $frontend
     try {
-        & $npm run dev -- --port $FrontendPort
+        & $node $vite --port $FrontendPort
     } finally {
         Pop-Location
     }
