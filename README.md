@@ -23,6 +23,21 @@ truncamiento.
 - Maven 3.9+
 - Node.js 22.18+ (o 24.12+)
 - PostgreSQL 17 con la base `chronos_fire` cargada
+- Docker Desktop (opcional, para la demo con dump incluido)
+
+## Demo con Docker (sin dataset completo)
+
+El repo incluye un dump acotado y real para abrir la app sin descargar 7
+millones de filas:
+
+```powershell
+docker compose up -d
+.\run-app.ps1 -Demo
+```
+
+El compose levanta PostgreSQL 17 en `127.0.0.1:5433` con la base
+`chronos_fire_demo`. Pasos, alcance y reset en `docker/README.md`.
+Para el dataset completo, ver `data/README.md`.
 
 ## Levantar todo con un comando
 
@@ -137,6 +152,8 @@ Las definiciones completas están en `docs/DECISIONES.md`.
 
 ## Documentación
 
+- Demo Docker: `docker/README.md`
+- Datos y ETL: `data/README.md`
 - Decisiones y definiciones: `docs/DECISIONES.md`
 - Arquitectura y contrato: `backend/CONTRATO_API.md`
 - OpenAPI: `backend/openapi/chronosfire-api.yaml`

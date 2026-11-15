@@ -6,7 +6,13 @@ Uso:
   python etl/load_pg.py --only SV_ARCHIVE
   python etl/load_pg.py --aggregates
 
-Requiere: duckdb (extension postgres), PostgreSQL con la base 'chronos'.
+Requiere: duckdb (extension postgres), PostgreSQL con la base 'chronos_fire'.
+
+Variables de entorno:
+  CHRONOS_PG    DSN de PostgreSQL (default: host local, dbname=chronos_fire)
+  CHRONOS_DATA  carpeta con los JSON de FIRMS (default: <repo>/data)
+  CHRONOS_TMP   carpeta con los CSV NRT de NOAA-20/MODIS
+                (default: <repo>/data/tmp)
 """
 import argparse
 import os
@@ -19,8 +25,10 @@ PG_DSN = os.environ.get(
     "host=127.0.0.1 port=5432 dbname=chronos_fire user=postgres",
 )
 
-DATA = r"C:\Users\HP\Desktop\NASA Space Apps Challenge - 2026\Hackaton-NASA-Chronos_Fire\data"
-TMP = r"C:\Users\HP\AppData\Local\Temp\opencode\firms"
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA = os.environ.get("CHRONOS_DATA", os.path.join(ROOT, "data"))
+TMP = os.environ.get("CHRONOS_TMP", os.path.join(DATA, "tmp"))
+os.makedirs(TMP, exist_ok=True)
 
 # (clave, ruta, lector, sensor, source, tiene_type)
 SOURCES = [
@@ -222,7 +230,9 @@ def main():
     con.execute(f"ATTACH '{PG_DSN}' AS pg (TYPE postgres);")
     con.execute("SET TimeZone='UTC';")
     con.execute("SET preserve_insertion_order=false;")
-    con.execute(f"SET temp_directory='{os.path.join(TMP, 'duck_tmp').replace(chr(92), '/')}';")
+    duck_tmp = os.path.join(TMP, "duck_tmp")
+    os.makedirs(duck_tmp, exist_ok=True)
+    con.execute(f"SET temp_directory='{duck_tmp.replace(chr(92), '/')}';")
 
     if args.truncate:
         print("TRUNCATE detections")

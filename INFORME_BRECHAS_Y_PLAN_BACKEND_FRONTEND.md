@@ -348,6 +348,12 @@ No hace falta Testcontainers para el MVP: los tests de controlador usan `@WebMvc
 
 **Aceptación:** un clon limpio + `docker compose up` + `.\run-app.ps1` levanta la app con datos de demo.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `docker-compose.yml` con PostgreSQL 17 en `:5433` y dump gzip de ~5 MB; `run-app.ps1 -Demo`; `docker/backend.env.example`; `docker/README.md`; `data/README.md` con URLs, estructura, variables y checksums; ETL con `CHRONOS_DATA` y `CHRONOS_TMP` y defaults relativos al repo. El dump incluye Delta (calendario 2013-2025), detecciones 2020, `grid_weekly_sensor` de las 5 AOIs, máscara industrial y validación.
+
+**Verificación:** `docker compose config` válido. El dump se aplicó en un PostgreSQL limpio y el backend respondió con `health.database=true`, 68.526 detecciones, heatmap 193 celdas / 6.628 hotspots y 6/6 eventos de validación. Docker Desktop no estaba corriendo, así que no se pudo ejecutar `docker compose up`; el compose y el dump quedaron validados por separado.
+
 ---
 
 ## 6. Plan de frontend

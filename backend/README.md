@@ -28,6 +28,16 @@ columnas, índices, vistas ni datos.
 - Maven 3.9 o superior.
 - PostgreSQL 17 con la base `chronos_fire` ya cargada.
 
+Para una demo sin dataset completo:
+
+```powershell
+docker compose up -d
+.\run-app.ps1 -Demo
+```
+
+Ver `../docker/README.md`. El ETL usa `CHRONOS_DATA` y `CHRONOS_TMP`; ver
+`../data/README.md`.
+
 ## Configuracion
 
 Copiar `backend/.env.example` a un archivo local o definir las variables:
@@ -174,7 +184,11 @@ psql -h 127.0.0.1 -U postgres -d chronos_fire -v ON_ERROR_STOP=1 `
 - Rebuild del calendario: `db/rebuild_calendar.sql`
 - Mascara industrial: `db/build_industrial_mask.sql`
 - Validacion §6.8: `db/validacion/`
-- Carga con DuckDB: `../etl/load_pg.py`
+- Carga con DuckDB: `../etl/load_pg.py` (ETL, no API)
+- Demo Docker: `../docker/README.md`
+
+El ETL lee `CHRONOS_DATA` (JSON de FIRMS) y `CHRONOS_TMP` (CSV NRT de NOAA-20
+y MODIS). Los defaults son `data/` y `data/tmp/`.
 
 ## Documentos
 

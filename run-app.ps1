@@ -1,6 +1,7 @@
 # Levanta backend Java + frontend Vue desde la raíz del repo.
 # Uso:
 #   .\run-app.ps1
+#   .\run-app.ps1 -Demo          # PostgreSQL de docker compose en :5433
 #   .\run-app.ps1 -BackendOnly
 #   .\run-app.ps1 -FrontendOnly
 #
@@ -8,11 +9,14 @@
 #   1. variable de entorno DB_PASSWORD
 #   2. backend\.env (copiar backend\.env.example a backend\.env)
 #   3. prompt interactivo
+# Con -Demo se usan las credenciales de docker/backend.env.example y no se
+# lee backend\.env.
 
 [CmdletBinding()]
 param(
     [switch]$BackendOnly,
     [switch]$FrontendOnly,
+    [switch]$Demo,
     [int]$BackendPort = 8080,
     [int]$FrontendPort = 5173
 )
@@ -28,7 +32,14 @@ function Get-CommandPath([string]$name) {
     return $command.Source
 }
 
-function Import-BackendEnv {
+function Import-BackendEnv([switch]$Demo) {
+    if ($Demo) {
+        $env:DB_URL = 'jdbc:postgresql://127.0.0.1:5433/chronos_fire_demo'
+        $env:DB_USER = 'chronos'
+        $env:DB_PASSWORD = 'chronos'
+        Write-Host 'Modo demo: PostgreSQL de docker compose en 127.0.0.1:5433'
+        return
+    }
     $envFile = Join-Path $backend '.env'
     if (Test-Path $envFile) {
         Write-Host "Cargando variables desde $envFile"
@@ -112,7 +123,7 @@ function Start-Frontend {
 }
 
 if ($BackendOnly) {
-    Import-BackendEnv
+    Import-BackendEnv -Demo:$Demo
     Write-Host "Backend: http://127.0.0.1:$BackendPort"
     Push-Location $backend
     try { & (Get-CommandPath 'mvn.cmd') spring-boot:run } finally { Pop-Location }
@@ -124,7 +135,7 @@ if ($FrontendOnly) {
     return
 }
 
-Import-BackendEnv
+Import-BackendEnv -Demo:$Demo
 $backendProcess = $null
 try {
     if (Test-Backend) {
