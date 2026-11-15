@@ -19,6 +19,8 @@ await page.goto(BASE_URL, { waitUntil: 'networkidle' })
 await expect(page.locator('.kpi-value').first()).toContainText(/\d/)
 await expect(page.locator('.kpi-list')).toContainText('celdas-mes con actividad')
 await expect(page.locator('#mapa-title')).toHaveText('Agosto 2020')
+await expect(page.locator('.comparison-number')).not.toHaveText('—')
+await expect(page.getByText(/años de referencia/).first()).toBeVisible()
 await page.screenshot({ path: `${ARTIFACTS}/desktop.png`, fullPage: true })
 
 await page.getByRole('button', { name: 'Abrir el calendario', exact: true }).click()
@@ -74,6 +76,7 @@ fs.writeFileSync(`${ARTIFACTS}/browser-results.json`, JSON.stringify({
   heatmapContrastFailures: badContrast,
   checks: [
     'initial monthly calendar',
+    'backend monthly anomaly',
     'month selection updates map',
     'AOI filter',
     'full history',

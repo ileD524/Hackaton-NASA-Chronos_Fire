@@ -93,7 +93,7 @@ Ejemplo verificado (Delta 2020, semana 40):
 |---|---|---|
 | `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily` con `hotspots` armonizados; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
 | `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05°; `anomaly` queda `null` porque la anomalía es por AOI |
-| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; celdas, hotspots, detecciones y desglose por sensor; `ALL` no es promedio |
+| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; celdas, hotspots, detecciones, baseline/anomalia y desglose por sensor; `ALL` no es promedio |
 | `GET /api/calendar/trend` | `bbox`, `from`, `to`, `sensor` | Serie anual; `AUTO` usa la era de cada año; baseline anual leave-one-out |
 
 Reglas:
@@ -120,6 +120,33 @@ Reglas:
   nominal/alta y fuera de la mascara industrial. Es la misma definicion que
   `fire_day`, pero a nivel de deteccion. `nDetections`/`detectionsBySensor`
   son el conteo crudo; no son la metrica del calendario.
+- En `monthly`, `baselineFireCells` es la mediana leave-one-out de
+  `fireCells` con la era del sensor: MODIS 2003-2011, SNPP 2013-2025,
+  NOAA-20 2019-2025, NOAA-21 2024-2025. Para `ALL` se excluyen 2000-2002,
+  2012 (transicion) y 2026 (NRT).
+- `anomaly = fireCells / baselineFireCells`. Es `null` si el mes es parcial,
+  no tiene datos, tiene menos de 7 anos de referencia, `observed < 3` o
+  `baseline < 3`. `confidence = high` con 10+ anos y baseline >= 10; `low` en
+  el resto de los casos validos; `insufficient` cuando no se puede calcular.
+
+Ejemplo (Delta 2020-09, SNPP, rango 2013-2026):
+
+```json
+{
+  "year": 2020,
+  "month": 8,
+  "fireCells": 154,
+  "hotspots": 3313,
+  "baselineFireCells": 49.0,
+  "anomaly": 3.14,
+  "referenceYears": 12,
+  "confidence": "high"
+}
+```
+
+El baseline depende del rango solicitado: 2013-2023 da otra mediana y otra
+anomalia que 2013-2026. La UI lo declara como "otros anos completos de la
+seleccion".
 
 Verificado:
 
@@ -130,6 +157,10 @@ Verificado:
   `AUTO` se comporta como `ALL`.
 - Delta 2020-09-15 `daily`: 20 filas de celda-dia, 76 hotspots; una celda
   puede mezclar sensores (`hotspotsBySensor` conserva el desglose).
+- Delta 2020-09 anomalia mensual 2013-2026: SNPP `154 / 49,0 / 3,14` con
+  12 referencias y `high`; `ALL` `189 / 62,0 / 3,05` con 12 y `high`.
+  2012 queda `insufficient` aunque tenga 17 referencias; 2020 solo tambien
+  queda `insufficient` por falta de referencias.
 - Delta 2019-2020: `trend` devuelve 2019 = 0,96 y 2020 = 6,22.
 - Sin bbox, `monthly` 2020 tarda ~5,6 s la primera vez y queda cacheado.
 
@@ -312,6 +343,11 @@ El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracio
   fuera de la mascara industrial; no es cantidad de incendios.
 - `hotspotsBySensor`: el mismo conteo desglosado por sensor; no se suma entre
   sensores para presentar un promedio.
+- `baselineFireCells`: mediana multianual del mismo mes, misma metrica y era
+  del sensor, excluyendo el ano evaluado.
+- `anomaly`: cociente observado/baseline; no es un porcentaje ni una
+  prediccion.
+- `referenceYears` y `confidence`: cantidad de anos y calidad del baseline.
 - `anomaly = observedFireCells / baselineFireCells`.
 - `baselineFireCells`: mediana multianual por AOI, leave-one-out.
 - `confidence`: `high`, `low` o `insufficient`.

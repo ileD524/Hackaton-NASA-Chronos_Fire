@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { useChronos, monthMedian } from './useChronos'
+import { useChronos } from './useChronos'
 export const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 const NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 export const format = (n: number) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 }).format(n)
@@ -25,8 +25,8 @@ export function useCalendar() {
   function cellMeta(year: number, month: number) {
     const cell = months.value.find(m => m.year === year && m.month === month)
     const value = cell?.value ?? null
-    const med = monthMedian(months.value, month, year)
-    const vsMedian = value !== null && med !== null && med > 0 && !cell?.partial ? value / med - 1 : null
+    const anomaly = cell?.anomaly ?? null
+    const vsMedian = value !== null && anomaly !== null ? anomaly - 1 : null
     const deltaText = vsMedian === null ? '' : `, ${vsMedian > 0 ? '+' : ''}${Math.round(vsMedian * 100)}% frente a la mediana de otros años completos`
     return { cell, value, bucket: bucketOf(value), norm: value === null ? 0 : Math.log1p(value)/Math.log1p(maxVal.value), vsMedian, aboveMedian: vsMedian !== null && vsMedian > 0,
       label: `${NAMES[month]} ${year}: ${value === null ? 'sin datos para esta serie' : `${format(value)} celdas con actividad${cell?.partial ? ', período parcial' : ''}${deltaText}`}` }

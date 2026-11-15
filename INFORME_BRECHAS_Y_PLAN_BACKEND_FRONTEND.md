@@ -220,6 +220,10 @@ anomaly             (observed / baseline, o null)
 - `confidence=insufficient` cuando el rango tiene menos de 7 años.
 - Test unitario con una serie sintética.
 
+**Estado:** ✅ implementado el 15/11/2026.
+
+**Implementación:** `withMonthlyAnomaly` en `CalendarService` calcula mediana leave-one-out con la métrica y la era del sensor: MODIS 2003-2011, SNPP 2013-2025, NOAA-20 2019-2025, NOAA-21 2024-2025; para `ALL` excluye 2000-2002, 2012 y 2026. `MonthlyCell` expone `baselineFireCells`, `anomaly`, `referenceYears` y `confidence`. El frontend dejó de calcular la mediana en `useCalendar.ts` y `MonthComparison.vue`, y muestra años de referencia, confianza y el aviso de que `ALL` no es neutral. 31 tests backend, 0 fallos; `npm run build`, `npm run test:api` y `npm run test:browser` pasan. Verificado en vivo: Delta 2020-09 SNPP `154 / 49,0 / 3,14 / 12 / high`; `ALL` `189 / 62,0 / 3,05 / 12 / high`; 2012 y un rango de un solo año quedan `insufficient`.
+
 **Archivos:** `CalendarService.java`, `MonthlyCell.java`, `CalendarServiceTest.java`, `MonthComparison.vue`, `useCalendar.ts`.
 
 **Nota:** si el tiempo aprieta, esta tarea se puede posponer sin bloquear el challenge. La opción mínima es mantener el cálculo en el cliente y agregar `referenceYears` y `confidence` calculados también en el cliente.

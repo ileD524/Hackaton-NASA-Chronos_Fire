@@ -11,6 +11,10 @@ interface ApiMonthly {
   detectionsBySensor: Record<string, number>
   partial: boolean
   dataStatus: string
+  baselineFireCells: number | null
+  anomaly: number | null
+  referenceYears: number
+  confidence: string
 }
 
 interface ApiDaily {
@@ -94,6 +98,10 @@ function monthCell(row: ApiMonthly): MonthCell {
     fire_days: row.fireDays,
     n_detections: row.nDetections,
     data_status: row.dataStatus,
+    baseline_fire_cells: row.baselineFireCells,
+    anomaly: row.anomaly,
+    reference_years: row.referenceYears,
+    confidence: row.confidence,
   }
 }
 
@@ -252,15 +260,4 @@ export function useChronos() {
   }
 }
 
-export function median(values: number[]): number | null {
-  if (!values.length) return null
-  const sorted = [...values].sort((a, b) => a - b)
-  const mid = Math.floor(sorted.length / 2)
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2
-}
 
-export function monthMedian(months: MonthCell[], month: number, exceptYear?: number) {
-  return median(months
-    .filter((m) => m.month === month && !m.partial && m.value !== null && m.year !== exceptYear)
-    .map((m) => m.value!))
-}

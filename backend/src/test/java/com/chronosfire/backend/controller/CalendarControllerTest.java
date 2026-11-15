@@ -80,7 +80,11 @@ class CalendarControllerTest {
                 1180,
                 Map.of("VIIRS_SNPP", 1180),
                 false,
-                "observed")));
+                "observed",
+                10.0,
+                6.6,
+                12,
+                "high")));
 
         mockMvc.perform(get("/api/calendar/monthly")
                         .param("bbox", "-61,-34,-59.5,-32.5")
@@ -93,7 +97,11 @@ class CalendarControllerTest {
                 .andExpect(jsonPath("$[0].nDetections").value(1242))
                 .andExpect(jsonPath("$[0].detectionsBySensor.VIIRS_SNPP").value(1242))
                 .andExpect(jsonPath("$[0].hotspots").value(1180))
-                .andExpect(jsonPath("$[0].hotspotsBySensor.VIIRS_SNPP").value(1180));
+                .andExpect(jsonPath("$[0].hotspotsBySensor.VIIRS_SNPP").value(1180))
+                .andExpect(jsonPath("$[0].baselineFireCells").value(10.0))
+                .andExpect(jsonPath("$[0].anomaly").value(6.6))
+                .andExpect(jsonPath("$[0].referenceYears").value(12))
+                .andExpect(jsonPath("$[0].confidence").value("high"));
 
         assertEquals("VIIRS_SNPP", calendarService.getMonthlySensor());
     }

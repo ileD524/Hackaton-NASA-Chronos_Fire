@@ -239,10 +239,102 @@ public class CalendarService {
                     hotspots,
                     hotspotsBySensor,
                     partial,
-                    dataStatus));
+                    dataStatus,
+                    null,
+                    null,
+                    0,
+                    "insufficient"));
             cursor = cursor.plusMonths(1);
         }
-        return result;
+        return withMonthlyAnomaly(result, sensor);
+    }
+
+    /**
+     * Calcula la anomalia mensual leave-one-out sobre la misma metrica
+     * (fire_cells) y el mismo sensor de la serie observada.
+     *
+     * <p>Solo usa meses observados y completos como referencia, y respeta
+     * la era del sensor: MODIS 2003-2011, VIIRS SNPP 2013-2025, NOAA-20
+     * 2019-2025, NOAA-21 2024-2025. Para {@code ALL} se excluyen 2000-2002,
+     * 2012 (transicion) y 2026 (NRT). Un mes parcial, sin datos o con menos
+     * de 7 anos de referencia queda {@code insufficient}. La confianza es
+     * {@code high} con 10+ anos y baseline >= 10; en el resto de los casos
+     * validos es {@code low}.</p>
+     */
+    private List<MonthlyCell> withMonthlyAnomaly(List<MonthlyCell> cells, String sensor) {
+        Map<Integer, List<MonthlyCell>> byMonth = new HashMap<>();
+        for (MonthlyCell cell : cells) {
+            if ("observed".equals(cell.dataStatus())
+                    && !cell.partial()
+                    && isMonthlyReferenceYear(cell.year(), sensor)) {
+                byMonth.computeIfAbsent(cell.month(), key -> new ArrayList<>()).add(cell);
+            }
+        }
+
+        List<MonthlyCell> enriched = new ArrayList<>(cells.size());
+        for (MonthlyCell cell : cells) {
+            List<Double> referenceValues = new ArrayList<>();
+            for (MonthlyCell other : byMonth.getOrDefault(cell.month(), List.of())) {
+                if (other.year() != cell.year()) {
+                    referenceValues.add((double) other.fireCells());
+                }
+            }
+
+            Double baseline = referenceValues.isEmpty()
+                    ? null
+                    : round(median(referenceValues), 1);
+            double baselineValue = baseline == null ? 0 : baseline;
+            boolean comparable = "observed".equals(cell.dataStatus())
+                    && !cell.partial()
+                    && isMonthlyAnomalyAllowed(cell.year(), sensor)
+                    && cell.fireCells() >= 3
+                    && referenceValues.size() >= 7
+                    && baselineValue >= 3;
+
+            Double anomaly = comparable
+                    ? round(cell.fireCells() / baselineValue, 2)
+                    : null;
+            String confidence = !comparable
+                    ? "insufficient"
+                    : (referenceValues.size() >= 10 && baselineValue >= 10 ? "high" : "low");
+
+            enriched.add(new MonthlyCell(
+                    cell.year(),
+                    cell.month(),
+                    cell.fireCells(),
+                    cell.fireDays(),
+                    cell.nDetections(),
+                    cell.detectionsBySensor(),
+                    cell.hotspots(),
+                    cell.hotspotsBySensor(),
+                    cell.partial(),
+                    cell.dataStatus(),
+                    baseline,
+                    anomaly,
+                    referenceValues.size(),
+                    confidence));
+        }
+        return enriched;
+    }
+
+    private boolean isMonthlyReferenceYear(int year, String sensor) {
+        return switch (sensor) {
+            case "MODIS" -> year >= 2003 && year <= 2011;
+            case "VIIRS_SNPP" -> year >= 2013 && year <= 2025;
+            case "VIIRS_NOAA20" -> year >= 2019 && year <= 2025;
+            case "VIIRS_NOAA21" -> year >= 2024 && year <= 2025;
+            default -> year >= 2003 && year <= 2025 && year != 2012;
+        };
+    }
+
+    private boolean isMonthlyAnomalyAllowed(int year, String sensor) {
+        return switch (sensor) {
+            case "MODIS" -> year >= 2003;
+            case "VIIRS_SNPP" -> year >= 2013;
+            case "VIIRS_NOAA20" -> year >= 2019;
+            case "VIIRS_NOAA21" -> year >= 2024;
+            default -> year >= 2003 && year != 2012;
+        };
     }
 
     @Cacheable(value = "trend", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam")

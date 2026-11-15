@@ -130,6 +130,12 @@ paths:
         vegetacion efectiva, confianza nominal/alta y fuera de la mascara
         industrial; no es cantidad de incendios. `ALL` no es un promedio; la
         serie esta dominada por VIIRS.
+
+        `baselineFireCells` es la mediana leave-one-out de la misma metrica y
+        era del sensor: MODIS 2003-2011, SNPP 2013-2025, NOAA-20 2019-2025,
+        NOAA-21 2024-2025. Para `ALL` se excluyen 2000-2002, 2012 y 2026.
+        `anomaly` es `fireCells / baselineFireCells` y queda `null` cuando
+        `confidence = insufficient`.
       parameters:
         - $ref: '#/components/parameters/Bbox'
         - $ref: '#/components/parameters/From'
@@ -757,6 +763,20 @@ components:
           type: boolean
         dataStatus:
           type: string
+        baselineFireCells:
+          type: number
+          nullable: true
+          description: Mediana leave-one-out de la misma metrica y era del sensor.
+        anomaly:
+          type: number
+          nullable: true
+          description: fireCells / baselineFireCells; null si confidence=insufficient.
+        referenceYears:
+          type: integer
+          description: Cantidad de anos completos usados en el baseline.
+        confidence:
+          type: string
+          enum: [high, low, insufficient]
 
     TrendRow:
       type: object

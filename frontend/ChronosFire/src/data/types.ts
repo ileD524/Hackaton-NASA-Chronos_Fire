@@ -24,6 +24,10 @@ export interface MonthCell {
   fire_days: number
   n_detections: number
   data_status: string
+  baseline_fire_cells: number | null
+  anomaly: number | null
+  reference_years: number
+  confidence: string
 }
 
 /**

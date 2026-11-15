@@ -15,6 +15,15 @@ if (!Array.isArray(meta.sensors) || meta.sensors.length !== 8) throw new Error('
 const bbox = '-61,-34,-59.5,-32.5'
 const monthly = await get(`/api/calendar/monthly?bbox=${bbox}&from=2020-01-01&to=2020-03-31&sensor=ALL`)
 if (monthly.length !== 3) throw new Error('monthly != 3 meses')
+for (const field of ['hotspots', 'hotspotsBySensor', 'baselineFireCells', 'anomaly', 'referenceYears', 'confidence']) {
+  if (!(field in monthly[0])) throw new Error(`monthly sin ${field}`)
+}
+
+const monthlyAnomaly = await get(`/api/calendar/monthly?bbox=${bbox}&from=2013-01-01&to=2023-12-31&sensor=VIIRS_SNPP`)
+const september2020 = monthlyAnomaly.find((m) => m.year === 2020 && m.month === 8)
+if (!september2020 || september2020.anomaly === null || september2020.confidence === 'insufficient') {
+  throw new Error('monthly sin anomalia calculable para Delta 2020-09')
+}
 
 const daily = await get(`/api/calendar/daily?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=10`)
 if (!daily.length) throw new Error('daily vacío')
@@ -32,6 +41,8 @@ console.log(JSON.stringify({
   health: health.status,
   sensors: meta.sensors.length,
   months: monthly.length,
+  anomaly2020: september2020.anomaly,
+  anomalyConfidence: september2020.confidence,
   dailyRows: daily.length,
   alerts: alerts.count,
   validationEvents: validation.length,

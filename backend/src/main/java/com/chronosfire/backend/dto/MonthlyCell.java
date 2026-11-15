@@ -12,6 +12,10 @@ public record MonthlyCell(
         int hotspots,
         Map<String, Integer> hotspotsBySensor,
         boolean partial,
-        String dataStatus
+        String dataStatus,
+        Double baselineFireCells,
+        Double anomaly,
+        int referenceYears,
+        String confidence
 ) {
 }

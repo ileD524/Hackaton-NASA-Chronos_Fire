@@ -13,6 +13,7 @@ import com.chronosfire.backend.dto.TrendRow;
 import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.repository.CalendarRepository;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -115,6 +116,138 @@ class CalendarServiceTest {
         assertEquals(6628, month.hotspotsBySensor().get("VIIRS_SNPP"));
         assertTrue(month.hotspots() <= month.nDetections());
         assertEquals("VIIRS_SNPP", repository.monthlyHotspotsSensor);
+    }
+
+    @Test
+    void monthlyComputesLeaveOneOutAnomalyAndHighConfidence() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = septemberRows(2013, 2023, 10, 2023, 100);
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2013-09-01"),
+                        LocalDate.parse("2023-09-30"),
+                        "ALL");
+
+        MonthlyCell peak = month(months, 2023, 8);
+        assertEquals(10.0, peak.baselineFireCells());
+        assertEquals(10.0, peak.anomaly());
+        assertEquals(10, peak.referenceYears());
+        assertEquals("high", peak.confidence());
+
+        MonthlyCell base = month(months, 2013, 8);
+        assertEquals(10.0, base.baselineFireCells());
+        assertEquals(1.0, base.anomaly());
+        assertEquals("high", base.confidence());
+    }
+
+    @Test
+    void monthlyAnomalyIsLowWithSevenToNineReferenceYears() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = septemberRows(2014, 2023, 10, 2023, 100);
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2014-09-01"),
+                        LocalDate.parse("2023-09-30"),
+                        "ALL");
+
+        MonthlyCell peak = month(months, 2023, 8);
+        assertEquals(9, peak.referenceYears());
+        assertEquals(10.0, peak.baselineFireCells());
+        assertEquals(10.0, peak.anomaly());
+        assertEquals("low", peak.confidence());
+    }
+
+    @Test
+    void monthlyAnomalyIsInsufficientForTransitionYear2012() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = septemberRows(2003, 2012, 10, 2012, 100);
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2003-09-01"),
+                        LocalDate.parse("2012-09-30"),
+                        "ALL");
+
+        MonthlyCell transition = month(months, 2012, 8);
+        assertEquals(9, transition.referenceYears());
+        assertNull(transition.anomaly());
+        assertEquals("insufficient", transition.confidence());
+    }
+
+    @Test
+    void monthlyAnomalyExcludes2026FromReferenceYears() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = septemberRows(2013, 2026, 10, 2020, 100);
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2013-09-01"),
+                        LocalDate.parse("2026-09-30"),
+                        "ALL");
+
+        MonthlyCell peak = month(months, 2020, 8);
+        assertEquals(12, peak.referenceYears());
+        assertEquals(10.0, peak.baselineFireCells());
+        assertEquals(10.0, peak.anomaly());
+        assertEquals("high", peak.confidence());
+    }
+
+    @Test
+    void monthlyAnomalyIsInsufficientWithFewReferenceYears() {
+        StubRepository repository = new StubRepository();
+        repository.monthlyFire = septemberRows(2018, 2020, 10, 2020, 100);
+
+        List<MonthlyCell> months = new CalendarService(repository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2018-09-01"),
+                        LocalDate.parse("2020-09-30"),
+                        "ALL");
+
+        MonthlyCell peak = month(months, 2020, 8);
+        assertEquals(2, peak.referenceYears());
+        assertEquals(10.0, peak.baselineFireCells());
+        assertNull(peak.anomaly());
+        assertEquals("insufficient", peak.confidence());
+    }
+
+    @Test
+    void monthlyAnomalyIsInsufficientForPartialOrZeroBaseline() {
+        StubRepository partialRepository = new StubRepository();
+        partialRepository.monthlyFire = septemberRows(2013, 2023, 10, 2023, 100);
+
+        MonthlyCell partial = month(new CalendarService(partialRepository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2023-09-15"),
+                        LocalDate.parse("2023-09-30"),
+                        "ALL"), 2023, 8);
+
+        assertTrue(partial.partial());
+        assertNull(partial.anomaly());
+        assertEquals(0, partial.referenceYears());
+        assertEquals("insufficient", partial.confidence());
+
+        StubRepository zeroRepository = new StubRepository();
+        zeroRepository.monthlyFire = septemberRows(2013, 2023, 0, 2023, 100);
+
+        MonthlyCell zero = month(new CalendarService(zeroRepository)
+                .getMonthly(
+                        "-61,-34,-59.5,-32.5",
+                        LocalDate.parse("2013-09-01"),
+                        LocalDate.parse("2023-09-30"),
+                        "ALL"), 2023, 8);
+
+        assertEquals(10, zero.referenceYears());
+        assertEquals(0.0, zero.baselineFireCells());
+        assertNull(zero.anomaly());
+        assertEquals("insufficient", zero.confidence());
     }
 
     @Test
@@ -268,6 +401,27 @@ class CalendarServiceTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new CalendarService(new StubRepository()).getWeekly("1,2,0,3", 2020, 40, "AUTO"));
+    }
+
+    private static List<CalendarRepository.MonthFire> septemberRows(
+            int fromYear,
+            int toYear,
+            int base,
+            int peakYear,
+            int peak) {
+        List<CalendarRepository.MonthFire> rows = new ArrayList<>();
+        for (int year = fromYear; year <= toYear; year++) {
+            int value = year == peakYear ? peak : base;
+            rows.add(new CalendarRepository.MonthFire(year, 8, value, value, 0));
+        }
+        return rows;
+    }
+
+    private static MonthlyCell month(List<MonthlyCell> months, int year, int month) {
+        return months.stream()
+                .filter(cell -> cell.year() == year && cell.month() == month)
+                .findFirst()
+                .orElseThrow();
     }
 
     private static class StubRepository extends CalendarRepository {
