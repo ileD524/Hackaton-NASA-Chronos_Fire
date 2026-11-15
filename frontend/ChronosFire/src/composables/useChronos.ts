@@ -53,9 +53,10 @@ interface ApiMeta {
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
-// La serie histórica del calendario comienza en 2003. Los meses sin cobertura
-// permanecen visibles como "sin datos" en vez de ocultar años del período.
-export const TIMELINE_START = '2003-01-01'
+// La serie histórica del calendario comienza en 2013, primer año con datos
+// cargados en la base (grid_daily). Los meses sin cobertura dentro del rango
+// siguen visibles como "sin datos".
+export const TIMELINE_START = '2013-01-01'
 const filters = ref<Filters>({
   from: '',
   to: '',
