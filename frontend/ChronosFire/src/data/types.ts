@@ -175,18 +175,10 @@ export interface ValidationEvent {
   verdict: 'pass' | 'fail' | 'insufficient'
 }
 
-export const SERIES: Record<Metric, string> = {
-  all: 'Todos los sensores · 0,05°',
-  MODIS: 'MODIS observado',
-  VIIRS_SNPP: 'VIIRS SNPP',
-  VIIRS_NOAA20: 'VIIRS NOAA-20',
-  VIIRS_NOAA21: 'VIIRS NOAA-21',
-}
-
-export const SENSOR_OPTIONS: { id: Metric; label: string }[] = [
-  { id: 'all', label: 'Todos los sensores (dominado por VIIRS)' },
-  { id: 'MODIS', label: 'MODIS' },
-  { id: 'VIIRS_SNPP', label: 'VIIRS SNPP' },
-  { id: 'VIIRS_NOAA20', label: 'VIIRS NOAA-20' },
-  { id: 'VIIRS_NOAA21', label: 'VIIRS NOAA-21' },
+export const SENSOR_OPTIONS: { id: Metric }[] = [
+  { id: 'all' },
+  { id: 'MODIS' },
+  { id: 'VIIRS_SNPP' },
+  { id: 'VIIRS_NOAA20' },
+  { id: 'VIIRS_NOAA21' },
 ]

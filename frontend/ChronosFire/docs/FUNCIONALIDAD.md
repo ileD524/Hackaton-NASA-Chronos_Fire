@@ -55,6 +55,10 @@ en [README-LOCAL.md](../README-LOCAL.md).
   descarga se truncó en el tope de 50.000 filas.
 - **Descargas visuales:** SVG vectorial y PNG a 2× de la vista actual del
   calendario, con valores, colores, leyenda y nota metodológica.
+- **Idiomas:** interfaz en español e inglés con selector en el encabezado. La
+  preferencia se guarda en el navegador y se aplica a textos, números, fechas,
+  etiquetas accesibles y nombres de archivo exportados; el español sigue siendo
+  el idioma por defecto cuando el navegador no pide inglés.
 
 ## Qué miden las series
 

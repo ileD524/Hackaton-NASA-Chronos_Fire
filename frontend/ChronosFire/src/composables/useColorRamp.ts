@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { t } from './useI18n'
 
 export type RampId = 'sequential' | 'risk' | 'anomaly'
 
@@ -24,17 +25,16 @@ export interface AnomalyBand {
   bg: string
   ink: string
   mark: string
-  legend: string
   extreme: boolean
   upTo: number
 }
 
 export const ANOMALY_BANDS: AnomalyBand[] = [
-  { id: 'low-extreme', bg: '#542788', ink: '#D8CCF0', mark: '▼', legend: '≤ −50%', extreme: true, upTo: -0.5 },
-  { id: 'low', bg: '#B2ABD2', ink: '#C9B8E8', mark: '', legend: '−50 a −15%', extreme: false, upTo: -0.15 },
-  { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', legend: '±15%', extreme: false, upTo: 0.15 },
-  { id: 'high', bg: '#FDB863', ink: '#FFD1A1', mark: '', legend: '+15 a +50%', extreme: false, upTo: 0.5 },
-  { id: 'high-extreme', bg: '#B35806', ink: '#FF9E64', mark: '▲', legend: '≥ +50%', extreme: true, upTo: Infinity },
+  { id: 'low-extreme', bg: '#542788', ink: '#D8CCF0', mark: '▼', extreme: true, upTo: -0.5 },
+  { id: 'low', bg: '#B2ABD2', ink: '#C9B8E8', mark: '', extreme: false, upTo: -0.15 },
+  { id: 'neutral', bg: '#0B2A6B', ink: '#FFFFFF', mark: '', extreme: false, upTo: 0.15 },
+  { id: 'high', bg: '#FDB863', ink: '#FFD1A1', mark: '', extreme: false, upTo: 0.5 },
+  { id: 'high-extreme', bg: '#B35806', ink: '#FF9E64', mark: '▲', extreme: true, upTo: Infinity },
 ]
 
 /** Banda de anomalía para una diferencia relativa (0,5 = +50%). */
@@ -66,7 +66,6 @@ export const RISK_BANDS: RiskBand[] = [
 ]
 
 export const RISK_STOPS = RISK_BANDS.map((band) => band.bg)
-export const RISK_CUTS_LABEL = '0–1 %, 1–3 %, 3–8 %, 8–20 %, ≥ 20 %'
 /** Celdas sin respaldo histórico (`insufficient`) o sin tabla de riesgo. */
 export const NO_RISK_COLOR = '#5A6B8C'
 
@@ -95,9 +94,9 @@ export function useColorRamp() {
     colorAt,
     textOn,
     label: (id: RampId) => id === 'sequential'
-      ? 'Volumen observado'
+      ? t('color.ramp.volume')
       : id === 'risk'
-        ? 'Probabilidad histórica'
-        : 'Diferencia frente a la mediana',
+        ? t('color.ramp.probability')
+        : t('color.ramp.anomaly'),
   }
 }

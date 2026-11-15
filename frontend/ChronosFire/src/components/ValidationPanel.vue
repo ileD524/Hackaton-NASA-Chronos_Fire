@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useAlerts } from '@/composables/useAlerts'
+import { useI18n } from '@/composables/useI18n'
 import { format } from '@/composables/useCalendar'
 import type { ValidationEvent } from '@/data/types'
 
 const { validation, validationLoading, validationError, loadValidation } = useAlerts()
+const { t } = useI18n()
 const EVENTS_PER_PAGE = 3
 const eventsPage = ref(0)
 const eventsPageCount = computed(() =>
@@ -18,27 +20,27 @@ const validationRange = computed(() => {
   if (!total) return ''
   const start = eventsPage.value * EVENTS_PER_PAGE + 1
   const end = Math.min(total, start + EVENTS_PER_PAGE - 1)
-  return `${start}–${end} de ${total}`
+  return t('common.range', { start, end, total })
 })
-const VERDICTS = [
+const verdicts = computed(() => [
   {
     code: 'pass',
-    label: 'Pasa',
-    help: 'El evento se reproduce: anomalía mayor a 1× con baseline confiable.',
+    label: t('validation.verdict.pass'),
+    help: t('validation.help.pass'),
   },
   {
     code: 'fail',
-    label: 'No pasa',
-    help: 'La anomalía es 1× o menos: los datos no muestran el pico esperado.',
+    label: t('validation.verdict.fail'),
+    help: t('validation.help.fail'),
   },
   {
     code: 'insufficient',
-    label: 'Sin datos',
-    help: 'No hay con qué comparar: faltan años de referencia o hay muy pocas detecciones.',
+    label: t('validation.verdict.insufficient'),
+    help: t('validation.help.insufficient'),
   },
-] as const
+] as const)
 const verdictLabel = (verdict: string) =>
-  VERDICTS.find((item) => item.code === verdict)?.label ?? verdict
+  verdicts.value.find((item) => item.code === verdict)?.label ?? verdict
 const barWidth = (event: ValidationEvent, key: 'observed' | 'baseline') => {
   const value = key === 'observed' ? event.observed : event.baseline
   const max = Math.max(event.observed, event.baseline ?? 0)
@@ -53,49 +55,49 @@ onMounted(loadValidation)
 </script>
 <template>
 <section class="panel validation-panel" id="validacion" aria-labelledby="validation-title">
-  <header class="panel-head"><div><span class="section-kicker">VALIDACIÓN CON EVENTOS</span><h2 class="panel-title" id="validation-title">Eventos conocidos</h2></div></header>
-  <p class="intro">Compara cada evento real con lo que suele pasar en esa misma semana. Si la anomalía supera 1×, los datos reproducen el pico.</p>
+  <header class="panel-head"><div><span class="section-kicker">{{ t('validation.kicker') }}</span><h2 class="panel-title" id="validation-title">{{ t('validation.title') }}</h2></div></header>
+  <p class="intro">{{ t('validation.intro') }}</p>
   <details class="how">
-    <summary>Cómo se calcula</summary>
-    <p>Baseline: mediana de la misma semana ISO en los años de referencia del sensor, sin contar el año evaluado (<em>leave-one-out</em>). La anomalía indica cuántas veces ese baseline se observó en la semana del evento.</p>
+    <summary>{{ t('validation.howSummary') }}</summary>
+    <p>{{ t('validation.howText') }}</p>
   </details>
-  <ul class="verdict-legend" aria-label="Qué significa cada veredicto">
-    <li v-for="item in VERDICTS" :key="item.code">
+  <ul class="verdict-legend" :aria-label="t('validation.verdictAria')">
+    <li v-for="item in verdicts" :key="item.code">
       <span class="verdict-slot"><span class="verdict" :class="`verdict-${item.code}`">{{ item.label }}</span></span>
       <span>{{ item.help }}</span>
     </li>
   </ul>
-  <p v-if="validationLoading" class="small-note" role="status">Calculando validación…</p>
+  <p v-if="validationLoading" class="small-note" role="status">{{ t('validation.loading') }}</p>
   <p v-else-if="validationError" class="small-note error" role="alert">{{ validationError }}</p>
   <ul v-else class="event-list">
     <li v-for="event in pagedValidation" :key="`${event.aoiId}-${event.isoyear}-${event.week}`" class="event-card">
       <div class="event-head">
         <div>
           <h3 class="event-name">{{ event.name }}</h3>
-          <p class="event-when">Semana {{ event.week }} · {{ event.isoyear }}</p>
+          <p class="event-when">{{ t('validation.week', { week: event.week, year: event.isoyear }) }}</p>
         </div>
-        <span class="verdict" :class="`verdict-${event.verdict}`" :title="`Veredicto técnico: ${event.verdict}`">{{ verdictLabel(event.verdict) }}</span>
+        <span class="verdict" :class="`verdict-${event.verdict}`" :title="t('validation.verdictTitle', { verdict: event.verdict })">{{ verdictLabel(event.verdict) }}</span>
       </div>
       <p class="event-anomaly" :class="{ 'is-empty': event.anomaly === null }">
         <span class="anomaly-value">{{ event.anomaly === null ? '—' : `${format(event.anomaly)}×` }}</span>
-        <span class="anomaly-label">{{ event.anomaly === null ? 'sin anomalía comparable' : 'veces el baseline' }}</span>
+        <span class="anomaly-label">{{ event.anomaly === null ? t('validation.noAnomaly') : t('validation.timesBaseline') }}</span>
       </p>
       <div class="bars">
         <div class="bar-row">
-          <div class="bar-head"><span>Observado</span><strong>{{ format(event.observed) }}</strong></div>
+          <div class="bar-head"><span>{{ t('validation.observed') }}</span><strong>{{ format(event.observed) }}</strong></div>
           <div class="bar-track" aria-hidden="true"><span class="bar-fill bar-observed" :style="{ width: barWidth(event, 'observed') }"></span></div>
         </div>
         <div class="bar-row">
-          <div class="bar-head"><span>Baseline</span><strong>{{ event.baseline === null ? '—' : format(event.baseline) }}</strong></div>
+          <div class="bar-head"><span>{{ t('validation.baseline') }}</span><strong>{{ event.baseline === null ? '—' : format(event.baseline) }}</strong></div>
           <div class="bar-track" aria-hidden="true"><span class="bar-fill bar-baseline" :style="{ width: barWidth(event, 'baseline') }"></span></div>
         </div>
       </div>
     </li>
   </ul>
-  <nav v-if="eventsPageCount > 1" class="pager" aria-label="Paginación de eventos">
-    <button class="link-btn" type="button" :disabled="eventsPage === 0" aria-label="Página anterior de eventos" @click="eventsPage--">Anterior</button>
-    <span class="small-note">Página {{ eventsPage + 1 }} de {{ eventsPageCount }} · {{ validationRange }}</span>
-    <button class="link-btn" type="button" :disabled="eventsPage >= eventsPageCount - 1" aria-label="Siguiente página de eventos" @click="eventsPage++">Siguiente</button>
+  <nav v-if="eventsPageCount > 1" class="pager" :aria-label="t('validation.pagerAria')">
+    <button class="link-btn" type="button" :disabled="eventsPage === 0" :aria-label="t('validation.prevAria')" @click="eventsPage--">{{ t('common.previous') }}</button>
+    <span class="small-note">{{ t('common.page', { page: eventsPage + 1, total: eventsPageCount }) }} · {{ validationRange }}</span>
+    <button class="link-btn" type="button" :disabled="eventsPage >= eventsPageCount - 1" :aria-label="t('validation.nextAria')" @click="eventsPage++">{{ t('common.next') }}</button>
   </nav>
 </section>
 </template>

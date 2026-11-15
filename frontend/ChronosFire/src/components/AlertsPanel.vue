@@ -2,10 +2,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import { useAlerts } from '@/composables/useAlerts'
+import { useI18n } from '@/composables/useI18n'
 import { format } from '@/composables/useCalendar'
 import type { Alert } from '@/data/types'
 const { filters } = useChronos()
 const { alerts, alertsLoading, alertsError, alertsUpdatedAt, loadAlerts } = useAlerts()
+const { t, formatDateTime } = useI18n()
 const ALERTS_PER_PAGE = 4
 const alertsPage = ref(0)
 const now = ref(Date.now())
@@ -48,40 +50,40 @@ const alertRange = computed(() => {
   if (!total) return ''
   const start = alertsPage.value * ALERTS_PER_PAGE + 1
   const end = Math.min(total, start + ALERTS_PER_PAGE - 1)
-  return `${start}–${end} de ${total}`
+  return t('common.range', { start, end, total })
 })
 const updatedLabel = computed(() => {
   if (!alertsUpdatedAt.value) return ''
   const seconds = Math.max(0, Math.floor((now.value - alertsUpdatedAt.value.getTime()) / 1000))
-  if (seconds < 60) return 'Actualizado hace menos de un minuto'
+  if (seconds < 60) return t('alerts.updated.lessMinute')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `Actualizado hace ${minutes} min`
+  if (minutes < 60) return t('alerts.updated.minutes', { n: minutes })
   const hours = Math.floor(minutes / 60)
-  return `Actualizado hace ${hours} h`
+  return t('alerts.updated.hours', { n: hours })
 })
-const time = (value: string | null) => value ? new Date(value).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+const time = (value: string | null) => value ? formatDateTime(value, { dateStyle: 'short', timeStyle: 'short' }) : '—'
 const aoiAnomaly = computed(() => alerts.value?.alerts[0]?.aoiAnomaly ?? null)
-const LEVEL_LEGEND: { code: Alert['level']; help: string }[] = [
-  { code: 'warning', help: 'Prioridad alta: recurrencia ≥ 50 % o actividad muy inusual (percentil ≥ 90 %) con base histórica o al menos 10 detecciones.' },
-  { code: 'watch', help: 'Seguimiento: recurrencia ≥ 25 % o actividad inusual (percentil ≥ 75 %) con base histórica o al menos 3 detecciones.' },
-  { code: 'info', help: 'Sin prioridad: actividad dentro de lo esperado o sin respaldo histórico suficiente.' },
-]
-const levelHelp = (level: Alert['level']) => LEVEL_LEGEND.find((item) => item.code === level)?.help ?? ''
-const percent = (value: number | null) => value === null ? '—' : `${format(value * 100)} %`
+const levelLegend = computed<{ code: Alert['level']; help: string }[]>(() => [
+  { code: 'warning', help: t('alerts.help.warning') },
+  { code: 'watch', help: t('alerts.help.watch') },
+  { code: 'info', help: t('alerts.help.info') },
+])
+const levelHelp = (level: Alert['level']) => levelLegend.value.find((item) => item.code === level)?.help ?? ''
+const percent = (value: number | null) => value === null ? '—' : t('format.percent', { value: format(value * 100) })
 const probabilityLabel = (alert: Alert) => percent(alert.fireProbability)
 const referenceLabel = (alert: Alert) => {
   const n = alert.probabilityRefYears
-  if (n === null) return 'sin años de referencia'
-  return n === 1 ? '1 año de referencia' : `${n} años de referencia`
+  if (n === null) return t('alerts.ref.none')
+  return n === 1 ? t('alerts.ref.one') : t('alerts.ref.many', { n })
 }
 const percentileLabel = (alert: Alert) => alert.activityPercentile === null
   ? '—'
   : `${Math.round(alert.activityPercentile * 100)}`
 const intervalLabel = (alert: Alert) => alert.probabilityLow === null || alert.probabilityHigh === null
-  ? 'sin intervalo'
+  ? t('alerts.noInterval')
   : `${percent(alert.probabilityLow)}–${percent(alert.probabilityHigh)}`
 const barLabel = (alert: Alert) =>
-  `Intervalo de confianza 90 %: ${intervalLabel(alert)}. Frecuencia estimada: ${probabilityLabel(alert)}.`
+  t('alerts.barLabel', { interval: intervalLabel(alert), value: probabilityLabel(alert) })
 const scaled = (value: number | null) => value === null ? 0 : Math.min(100, Math.max(0, value * 100))
 const bandStyle = (alert: Alert) => {
   const low = scaled(alert.probabilityLow)
@@ -100,23 +102,23 @@ const toggleHelp = (key: string) => {
 </script>
 <template>
 <section class="panel" id="alertas" aria-labelledby="alerts-title">
-  <header class="panel-head"><div><span class="section-kicker">ALERTA TEMPRANA · NRT</span><h2 class="panel-title" id="alerts-title">Alertas recientes</h2></div><div class="alert-actions"><span v-if="alerts" class="badge">{{ alerts.count }}</span><button class="link-btn" type="button" :disabled="alertsLoading" @click="refreshAlerts">{{ alertsLoading ? 'Actualizando…' : 'Actualizar' }}</button></div></header>
-  <p v-if="alerts" class="small-note">Últimos {{ alerts.days }} días · datos provisionales · última detección {{ time(alerts.latestAvailable) }}<span v-if="updatedLabel"> · {{ updatedLabel }}</span></p>
+  <header class="panel-head"><div><span class="section-kicker">{{ t('alerts.kicker') }}</span><h2 class="panel-title" id="alerts-title">{{ t('alerts.title') }}</h2></div><div class="alert-actions"><span v-if="alerts" class="badge">{{ alerts.count }}</span><button class="link-btn" type="button" :disabled="alertsLoading" @click="refreshAlerts">{{ alertsLoading ? t('alerts.refreshing') : t('alerts.refresh') }}</button></div></header>
+  <p v-if="alerts" class="small-note">{{ t('alerts.summary', { days: alerts.days, time: time(alerts.latestAvailable) }) }}<span v-if="updatedLabel"> · {{ updatedLabel }}</span></p>
   <details v-if="alerts" class="freq-help">
-    <summary>¿Qué significan los niveles y la frecuencia?</summary>
+    <summary>{{ t('alerts.helpSummary') }}</summary>
     <ul class="help-levels">
-      <li v-for="item in LEVEL_LEGEND" :key="item.code">
+      <li v-for="item in levelLegend" :key="item.code">
         <span class="level" :class="`level-${item.code}`">{{ item.code }}</span>
         <span>{{ item.help }}</span>
       </li>
     </ul>
-    <p>Son niveles de triage para priorizar la revisión; no son una alerta oficial ni una predicción.</p>
-    <p>La frecuencia histórica es la frecuencia con la que esta celda de 0,05° tuvo actividad en esta misma semana del año durante los años de referencia (por ejemplo, 13 años de SNPP). Se estima con <code>p = (k + α) / (n + α + β)</code>, donde <code>k</code> son los años con fuego y <code>n</code> los años con cobertura.</p>
-    <p>No es una predicción ni una alerta oficial: la cobertura es un proxy regional y la probabilidad es una cota inferior. Con 13 años el intervalo es ancho a propósito y se muestra junto al valor.</p>
+    <p>{{ t('alerts.help.triage') }}</p>
+    <p>{{ t('alerts.help.formula') }}</p>
+    <p>{{ t('alerts.help.notPrediction') }}</p>
   </details>
-  <p v-if="alertsLoading" class="small-note" role="status">Consultando alertas…</p>
+  <p v-if="alertsLoading" class="small-note" role="status">{{ t('alerts.loading') }}</p>
   <p v-else-if="alertsError" class="small-note error" role="alert">{{ alertsError }}</p>
-  <p v-else-if="alerts && !alerts.alerts.length" class="small-note">Sin alertas NRT en el área y período.</p>
+  <p v-else-if="alerts && !alerts.alerts.length" class="small-note">{{ t('alerts.empty') }}</p>
   <ol v-else-if="alerts" class="alert-cards">
     <li v-for="(alert, index) in pagedAlerts" :key="`${alert.cellLat}-${alert.cellLon}-${alert.lastDetection}-${index}`" class="alert-card">
       <div class="card-top">
@@ -125,16 +127,16 @@ const toggleHelp = (key: string) => {
       </div>
       <div class="card-metrics">
         <div class="metric">
-          <span class="metric-label">Detecciones</span>
+          <span class="metric-label">{{ t('alerts.detections') }}</span>
           <span class="metric-value">{{ format(alert.nDetections) }}</span>
         </div>
         <div class="metric">
-          <span class="metric-label">Potencia</span>
+          <span class="metric-label">{{ t('alerts.power') }}</span>
           <span class="metric-value">{{ alert.frpMaxMw === null ? '—' : format(alert.frpMaxMw) }}<span v-if="alert.frpMaxMw !== null" class="unit"> MW</span></span>
         </div>
         <div class="metric metric-freq">
-          <span class="metric-label">Frecuencia histórica
-            <button class="info" type="button" :aria-expanded="helpOpen === tipKey(index)" :aria-controls="tipId(index)" :aria-label="`Ver intervalo y años de referencia. ${barLabel(alert)}`" @click="toggleHelp(tipKey(index))">i</button>
+          <span class="metric-label">{{ t('alerts.frequency') }}
+            <button class="info" type="button" :aria-expanded="helpOpen === tipKey(index)" :aria-controls="tipId(index)" :aria-label="t('alerts.seeInterval', { bar: barLabel(alert) })" @click="toggleHelp(tipKey(index))">i</button>
           </span>
           <span class="metric-value">{{ probabilityLabel(alert) }}</span>
           <div v-if="alert.fireProbability !== null" class="risk-bar" role="img" :aria-label="barLabel(alert)">
@@ -142,29 +144,29 @@ const toggleHelp = (key: string) => {
             <span class="risk-dot" :style="dotStyle(alert)"></span>
           </div>
           <p class="ref-years">{{ referenceLabel(alert) }}</p>
-          <p v-if="alert.activityPercentile !== null" class="percentile" :title="`Actividad reciente: percentil ${percentileLabel(alert)} de los años de referencia`">Percentil {{ percentileLabel(alert) }}</p>
+          <p v-if="alert.activityPercentile !== null" class="percentile" :title="t('alerts.percentileTitle', { n: percentileLabel(alert) })">{{ t('alerts.percentile', { n: percentileLabel(alert) }) }}</p>
           <div v-if="helpOpen === tipKey(index)" :id="tipId(index)" class="risk-tip" role="group" aria-live="polite">
-            <p><strong>IC 90 %:</strong> {{ intervalLabel(alert) }}</p>
-            <p><strong>Referencia:</strong> {{ alert.probabilityRefYears === null ? 'sin años con cobertura' : `${alert.probabilityRefYears} años con cobertura` }}.</p>
-            <p v-if="alert.activityPercentile !== null"><strong>Actividad reciente:</strong> percentil {{ percentileLabel(alert) }}; el {{ percentileLabel(alert) }} % de los años de referencia tuvo menos detecciones en esta semana.</p>
-            <p>Frecuencia histórica estimada: no es predicción ni riesgo oficial.</p>
+            <p><strong>{{ t('alerts.tip.ci') }}:</strong> {{ intervalLabel(alert) }}</p>
+            <p><strong>{{ t('alerts.tip.reference') }}:</strong> {{ alert.probabilityRefYears === null ? t('alerts.tip.noCoverage') : t('alerts.tip.coverage', { n: alert.probabilityRefYears }) }}.</p>
+            <p v-if="alert.activityPercentile !== null">{{ t('alerts.tip.activity', { n: percentileLabel(alert) }) }}</p>
+            <p>{{ t('alerts.tip.disclaimer') }}</p>
           </div>
         </div>
       </div>
       <div class="card-foot">
-        <ul class="sensors" aria-label="Sensores">
+        <ul class="sensors" :aria-label="t('alerts.sensors')">
           <li v-for="sensor in alert.sensors" :key="sensor">{{ sensor }}</li>
         </ul>
         <span class="coords"><span aria-hidden="true">◉</span> {{ alert.cellLat }}, {{ alert.cellLon }}</span>
       </div>
     </li>
   </ol>
-  <nav v-if="alerts && alertPageCount > 1" class="pager" aria-label="Paginación de alertas">
-    <button class="link-btn" type="button" :disabled="alertsPage === 0" aria-label="Página anterior de alertas" @click="alertsPage--">Anterior</button>
-    <span class="small-note">Página {{ alertsPage + 1 }} de {{ alertPageCount }} · {{ alertRange }}</span>
-    <button class="link-btn" type="button" :disabled="alertsPage >= alertPageCount - 1" aria-label="Siguiente página de alertas" @click="alertsPage++">Siguiente</button>
+  <nav v-if="alerts && alertPageCount > 1" class="pager" :aria-label="t('alerts.pagerAria')">
+    <button class="link-btn" type="button" :disabled="alertsPage === 0" :aria-label="t('alerts.prevAria')" @click="alertsPage--">{{ t('common.previous') }}</button>
+    <span class="small-note">{{ t('common.page', { page: alertsPage + 1, total: alertPageCount }) }} · {{ alertRange }}</span>
+    <button class="link-btn" type="button" :disabled="alertsPage >= alertPageCount - 1" :aria-label="t('alerts.nextAria')" @click="alertsPage++">{{ t('common.next') }}</button>
   </nav>
-  <p v-if="aoiAnomaly !== null" class="small-note">Anomalía del AOI: {{ format(aoiAnomaly) }}×.</p>
+  <p v-if="aoiAnomaly !== null" class="small-note">{{ t('alerts.aoiAnomaly', { value: format(aoiAnomaly) }) }}</p>
 </section>
 </template>
 <style scoped>

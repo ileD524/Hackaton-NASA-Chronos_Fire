@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useChronos } from '@/composables/useChronos'
+import { useI18n } from '@/composables/useI18n'
 import { SENSOR_OPTIONS } from '@/data/types'
 import type { Bbox, Metric } from '@/data/types'
+const { t, formatNumber, sensorLabel } = useI18n()
 const { filters, loading, load, exportURL, hotspotsExportURL, metadata, csvNotice, csvError, csvChecking, checkCsv, metricMode } = useChronos()
 const checkCalendarCsv = () => checkCsv(exportURL.value)
 const checkHotspotsCsv = () => checkCsv(hotspotsExportURL.value)
@@ -10,12 +12,13 @@ const from = ref(filters.value.from), to = ref(filters.value.to)
 const sensor = ref<Metric>(filters.value.metric)
 const area = ref('delta'), west = ref(-61), south = ref(-34), east = ref(-59.5), north = ref(-32.5)
 const validation = ref('')
+const sensorOptions = computed(() => SENSOR_OPTIONS.map((option) => ({ id: option.id, label: sensorLabel(option.id) })))
 const dateMin = computed(() => metadata.value?.first_date || undefined)
 const dateMax = computed(() => metadata.value?.last_date || undefined)
 const archiveLabel = computed(() => {
   const first = metadata.value?.first_date?.slice(0, 4)
   const last = metadata.value?.last_date?.slice(0, 4)
-  return first && last ? `Ver todo el archivo ${first}–${last}` : 'Ver todo el archivo'
+  return first && last ? t('aoi.archiveRange', { first, last }) : t('aoi.archive')
 })
 watch(filters, (f) => {
   from.value = f.from
@@ -37,10 +40,10 @@ function preset(id: string) {
 }
 function apply() {
   validation.value = ''
-  if (!from.value || !to.value || from.value > to.value) { validation.value = 'Revisá el orden de las fechas.'; return }
+  if (!from.value || !to.value || from.value > to.value) { validation.value = t('aoi.validationDate'); return }
   const bbox: Bbox | null = area.value === 'all' ? null : [Number(west.value), Number(south.value), Number(east.value), Number(north.value)]
   if (bbox && (!bbox.every(Number.isFinite) || bbox[0] >= bbox[2] || bbox[1] >= bbox[3])) {
-    validation.value = 'Revisá los límites del rectángulo.'
+    validation.value = t('aoi.validationBbox')
     return
   }
   load({ from: from.value, to: to.value, metric: sensor.value, bbox })
@@ -57,48 +60,48 @@ function reset() {
 }
 </script>
 <template>
-  <aside class="panel aoi" aria-label="Filtros del calendario">
-    <div class="aoi-scroll" role="region" aria-label="Filtros y exportación">
-      <div class="section-kicker">EXPLORAR EL ARCHIVO</div><h2 class="panel-title">Tu área de interés</h2>
+  <aside class="panel aoi" :aria-label="t('aoi.aria')">
+    <div class="aoi-scroll" role="region" :aria-label="t('aoi.ariaRegion')">
+      <div class="section-kicker">{{ t('aoi.kicker') }}</div><h2 class="panel-title">{{ t('aoi.title') }}</h2>
       <form id="aoi-form" @submit.prevent="apply" class="filter-form">
-        <div class="field"><label for="area">Área</label><select id="area" :value="area" @change="preset(($event.target as HTMLSelectElement).value)"><option value="delta">Delta del Paraná</option><option value="all">Toda la extensión</option><option value="cordoba">Entorno de Córdoba</option><option value="corrientes">Entorno de Corrientes</option><option value="custom">Rectángulo personalizado</option></select></div>
-        <div class="field"><label for="sensor">Sensor</label><select id="sensor" v-model="sensor" :disabled="loading" @change="changeSensor"><option v-for="option in SENSOR_OPTIONS" :key="option.id" :value="option.id">{{ option.label }}</option></select></div>
-        <p v-if="sensor === 'all'" class="small-note sensor-note">No es un promedio: la serie está dominada por VIIRS.</p>
-        <p v-else class="small-note sensor-note">Los meses sin datos de este sensor no se completan con otros sensores.</p>
-        <p class="small-note sensor-note">El selector afecta calendario, mapa y detalle diario. Las alertas NRT son independientes del sensor.</p>
+        <div class="field"><label for="area">{{ t('aoi.area') }}</label><select id="area" :value="area" @change="preset(($event.target as HTMLSelectElement).value)"><option value="delta">{{ t('aoi.option.delta') }}</option><option value="all">{{ t('aoi.option.all') }}</option><option value="cordoba">{{ t('aoi.option.cordoba') }}</option><option value="corrientes">{{ t('aoi.option.corrientes') }}</option><option value="custom">{{ t('aoi.option.custom') }}</option></select></div>
+        <div class="field"><label for="sensor">{{ t('aoi.sensor') }}</label><select id="sensor" v-model="sensor" :disabled="loading" @change="changeSensor"><option v-for="option in sensorOptions" :key="option.id" :value="option.id">{{ option.label }}</option></select></div>
+        <p v-if="sensor === 'all'" class="small-note sensor-note">{{ t('aoi.sensorNote.all') }}</p>
+        <p v-else class="small-note sensor-note">{{ t('aoi.sensorNote.single') }}</p>
+        <p class="small-note sensor-note">{{ t('aoi.sensorNote.scope') }}</p>
         <div v-if="area !== 'all'" class="bbox-fields">
-          <div class="field"><label for="west">Oeste · longitud</label><input id="west" v-model.number="west" type="number" step="any" min="-180" max="180" required></div>
-          <div class="field"><label for="east">Este · longitud</label><input id="east" v-model.number="east" type="number" step="any" min="-180" max="180" required></div>
-          <div class="field"><label for="south">Sur · latitud</label><input id="south" v-model.number="south" type="number" step="any" min="-90" max="90" required></div>
-          <div class="field"><label for="north">Norte · latitud</label><input id="north" v-model.number="north" type="number" step="any" min="-90" max="90" required></div>
-          <p class="small-note bbox-note">Recorte por coordenadas; no representa los límites oficiales de una provincia.</p>
+          <div class="field"><label for="west">{{ t('aoi.west') }}</label><input id="west" v-model.number="west" type="number" step="any" min="-180" max="180" required></div>
+          <div class="field"><label for="east">{{ t('aoi.east') }}</label><input id="east" v-model.number="east" type="number" step="any" min="-180" max="180" required></div>
+          <div class="field"><label for="south">{{ t('aoi.south') }}</label><input id="south" v-model.number="south" type="number" step="any" min="-90" max="90" required></div>
+          <div class="field"><label for="north">{{ t('aoi.north') }}</label><input id="north" v-model.number="north" type="number" step="any" min="-90" max="90" required></div>
+          <p class="small-note bbox-note">{{ t('aoi.bboxNote') }}</p>
         </div>
-        <div class="date-fields"><div class="field"><label for="from">Desde</label><input id="from" v-model="from" type="date" :min="dateMin" :max="dateMax" required></div><div class="field"><label for="to">Hasta</label><input id="to" v-model="to" type="date" :min="dateMin" :max="dateMax" required></div></div>
+        <div class="date-fields"><div class="field"><label for="from">{{ t('aoi.from') }}</label><input id="from" v-model="from" type="date" :min="dateMin" :max="dateMax" required></div><div class="field"><label for="to">{{ t('aoi.to') }}</label><input id="to" v-model="to" type="date" :min="dateMin" :max="dateMax" required></div></div>
       </form>
-      <div class="source-box" id="datos"><span class="section-kicker">DATOS REALES · NASA FIRMS</span><p>MODIS Terra/Aqua<br>VIIRS Suomi-NPP / NOAA-20 / NOAA-21</p><p class="small-note">Vegetación presunta · confianza nominal/alta · días UTC · celdas 0,05°.</p><p v-if="metadata" class="small-note">{{ new Intl.NumberFormat('es-AR').format(metadata.selected_rows) }} detecciones en el archivo.</p></div>
+      <div class="source-box" id="datos"><span class="section-kicker">{{ t('aoi.dataKicker') }}</span><p>{{ t('aoi.dataModis') }}<br>{{ t('aoi.dataViirs') }}</p><p class="small-note">{{ t('aoi.dataNote') }}</p><p v-if="metadata" class="small-note">{{ t('aoi.dataDetections', { count: formatNumber(metadata.selected_rows) }) }}</p></div>
       <a
         class="btn export-btn"
         :href="exportURL"
-        download="chronosfire-calendario-semanal.csv"
+        :download="t('aoi.calendarFile')"
         :aria-busy="csvChecking"
         @click="checkCalendarCsv"
-      >↓ Exportar calendario CSV</a>
+      >{{ t('aoi.exportCalendar') }}</a>
       <a
         class="btn export-btn"
         :href="hotspotsExportURL"
-        download="chronosfire-detecciones.csv"
+        :download="t('aoi.hotspotsFile')"
         :aria-busy="csvChecking"
-        aria-label="Descargar hotspots CSV: hasta 50000 filas de vegetación nominal o alta, sin focos industriales"
+        :aria-label="t('aoi.exportHotspotsAria')"
         @click="checkHotspotsCsv"
-      >↓ Descargar hotspots CSV</a>
-      <p class="small-note export-note">Hasta 50.000 filas. Solo vegetación nominal/alta, sin focos industriales. Usa el área, el rango y el sensor activos.</p>
+      >{{ t('aoi.exportHotspots') }}</a>
+      <p class="small-note export-note">{{ t('aoi.exportNote') }}</p>
       <p v-if="csvNotice" class="small-note export-note" role="status">{{ csvNotice }}</p>
       <p v-if="csvError" class="small-note export-error" role="alert">{{ csvError }}</p>
-      <p class="small-note">Cero registros no confirma ausencia de fuego. {{ metricMode==='cells' ? 'La comparación histórica se calcula sobre celdas con actividad.' : 'Los hotspots son conteos de detecciones; la comparación histórica se calcula sobre celdas con actividad.' }}</p>
+      <p class="small-note">{{ metricMode === 'cells' ? t('aoi.zeroNote.cells') : t('aoi.zeroNote.hotspots') }}</p>
     </div>
     <div class="aoi-actions">
       <p v-if="validation" class="notice aoi-error" role="alert">{{ validation }}</p>
-      <button class="btn btn-primary full-width" type="submit" form="aoi-form" :disabled="loading">{{ loading ? 'Consultando…' : 'Actualizar calendario' }} <span aria-hidden="true">↗</span></button>
+      <button class="btn btn-primary full-width" type="submit" form="aoi-form" :disabled="loading">{{ loading ? t('aoi.submitting') : t('aoi.submit') }} <span aria-hidden="true">↗</span></button>
       <button class="link-btn" type="button" @click="reset">{{ archiveLabel }}</button>
     </div>
   </aside>

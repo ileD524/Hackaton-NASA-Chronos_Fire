@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useCalendar, format } from '@/composables/useCalendar'
 import { useChronos } from '@/composables/useChronos'
+import { useI18n } from '@/composables/useI18n'
 import type { MetricMode } from '@/data/types'
 import { ANOMALY_BANDS, SEQUENTIAL_STOPS, anomalyBand, useColorRamp, type RampId } from '@/composables/useColorRamp'
 import { buildCalendarSvg, calendarSvgFilename, downloadCalendarSvg } from '@/utils/exportCalendarSvg'
@@ -11,13 +12,13 @@ const emit=defineEmits<{(e:'update:selectedMonth',value:{year:number;month:numbe
 const {years,cellMeta,monthShort,monthName,annualTotal,thresholds}=useCalendar()
 const {seriesLabel,metricMode,metricLabel,filters,areaLabel}=useChronos()
 const {rampId,colorAt,textOn}=useColorRamp()
+const {t,formatNumber,formatDateTime,anomalyLegend}=useI18n()
 const sectionId=props.id??'calendario'
 const exportNotice=ref('')
 const exportError=ref('')
 const exportingPng=ref(false)
 const selectionInfo=computed(()=>props.selectedMonth?{...props.selectedMonth,...cellMeta(props.selectedMonth.year,props.selectedMonth.month)}:null)
-const compactNumber=new Intl.NumberFormat('es-AR',{notation:'compact',maximumFractionDigits:1})
-const formatCell=(value:number)=>value>=10000?compactNumber.format(value):format(value)
+const formatCell=(value:number)=>value>=10000?formatNumber(value,{notation:'compact',maximumFractionDigits:1}):format(value)
 function styleCell(year:number,month:number) {
   const meta=cellMeta(year,month)
   if(meta.value===null)return {}
@@ -34,20 +35,20 @@ function setMode(mode:MetricMode) {
   if(mode==='hotspots'&&rampId.value==='anomaly')rampId.value='sequential'
 }
 const ramps=computed<{id:RampId;name:string}[]>(()=>metricMode.value==='cells'
-  ?[{id:'sequential',name:'Actividad mensual'},{id:'anomaly',name:'Diferencia histórica'}]
-  :[{id:'sequential',name:'Hotspots detectados'}])
+  ?[{id:'sequential',name:t('calendar.ramp.sequential')},{id:'anomaly',name:t('calendar.ramp.anomaly')}]
+  :[{id:'sequential',name:t('calendar.ramp.hotspots')}])
 const legend=computed(()=>{
   if(rampId.value==='anomaly'&&metricMode.value==='cells')return {
-    title:'Desviación respecto de la mediana de otros años completos',
-    items:ANOMALY_BANDS.map((band)=>({label:band.legend,fill:band.bg,ink:textOn(band.bg),mark:band.mark||undefined})),
-    note:'Cortes fijos en ±15% y ±50%. ▼ marca los meses por debajo de −50%, ▲ los que superan +50%. Los meses parciales o sin referencia no se comparan y quedan en el tramo central.',
+    title:t('calendar.anomalyTitle'),
+    items:ANOMALY_BANDS.map((band)=>({label:anomalyLegend(band.id),fill:band.bg,ink:textOn(band.bg),mark:band.mark||undefined})),
+    note:t('calendar.anomalyNote'),
   }
   const cuts=thresholds.value
   const stepLabel=(i:number)=>i===0?`≤ ${format(cuts[0]!)}`:i===4?`≥ ${format(cuts[3]!)}`:`${format(cuts[i-1]!)}–${format(cuts[i]!)}`
   return {
-    title:`${metricMode.value==='cells'?'Celdas con actividad':'Hotspots detectados'} · quintiles de la selección`,
+    title:t('calendar.sequentialTitle',{metric:metricMode.value==='cells'?t('calendar.metric.cells'):t('calendar.metric.hotspots')}),
     items:SEQUENTIAL_STOPS.map((bg,i)=>({label:stepLabel(i),fill:bg,ink:textOn(bg)})),
-    note:'Cinco quintiles de los meses con valor en la selección; el número de cada celda es el valor real.',
+    note:t('calendar.sequentialNote'),
   }
 })
 function calendarSvgText() {
@@ -69,46 +70,46 @@ function calendarSvgText() {
     }),
   }))
   const notes=metricMode.value==='cells'
-    ?['Celdas de 0,05° (~5 km) con actividad por mes. No mide área quemada ni cantidad de incendios únicos.','La comparación histórica se calcula sobre celdas con actividad.']
-    :['Hotspots detectados por mes: detecciones de vegetación nominal/alta, sin focos industriales. Varios hotspots pueden caer en una misma celda y no son incendios únicos.','La comparación histórica se calcula sobre celdas con actividad; los hotspots se muestran como conteo de detecciones.']
+    ?[t('calendar.svgNote.cells'),t('calendar.svgNote.comparisonCells')]
+    :[t('calendar.svgNote.hotspots'),t('calendar.footHotspots')]
   notes.push(
-    'El cero se conserva como cero; el guion indica que no hay datos para esta serie.',
-    '* Mes recortado por el rango consultado.',
-    '«Todos los sensores» es la unión de fuentes, no un promedio: la serie está dominada por VIIRS y las detecciones de distintos sensores no se suman.',
+    t('calendar.svgNote.zero'),
+    t('calendar.svgNote.partial'),
+    t('calendar.svgNote.sensors'),
   )
-  if(rampId.value==='anomaly')notes.push('▼ marca los meses por debajo de −50% y ▲ los que superan +50% respecto de la mediana de otros años completos.')
-  const generatedAt=new Intl.DateTimeFormat('es-AR',{dateStyle:'medium',timeStyle:'short'}).format(new Date())
+  if(rampId.value==='anomaly')notes.push(t('calendar.svgNote.anomaly'))
+  const generatedAt=formatDateTime(new Date(),{dateStyle:'medium',timeStyle:'short'})
   const svg=buildCalendarSvg({
-    title:'Calendario de actividad de fuego',
-    subtitle:[areaLabel.value,`${filters.value.from} → ${filters.value.to} · UTC`,seriesLabel.value,`${metricLabel.value} por mes`],
+    title:t('calendar.svgTitle'),
+    subtitle:[areaLabel.value,`${filters.value.from} → ${filters.value.to} · UTC`,seriesLabel.value,t('calendar.svgMetric',{metric:metricLabel.value})],
     monthLabels:Array.from({length:12},(_,month)=>monthShort(month)),
     rows,
     legend:legend.value,
     notes,
-    footer:`Chronos Fire · NASA FIRMS · MODIS + VIIRS · Generado el ${generatedAt}`,
+    footer:t('calendar.svgFooter',{date:generatedAt}),
   })
   return svg
 }
 function exportSvg() {
   exportError.value=''
   const svg=calendarSvgText()
-  const filename=calendarSvgFilename(areaLabel.value,filters.value.from,filters.value.to)
+  const filename=calendarSvgFilename(areaLabel.value,filters.value.from,filters.value.to,t('calendar.filenamePrefix'))
   downloadCalendarSvg(svg,filename)
-  exportNotice.value=`SVG descargado: ${filename}`
+  exportNotice.value=t('calendar.export.svgDone',{file:filename})
 }
 async function exportPng() {
   if(exportingPng.value)return
   exportingPng.value=true
   exportError.value=''
-  exportNotice.value='Generando PNG…'
+  exportNotice.value=t('calendar.generatingPng')
   try {
     const svg=calendarSvgText()
-    const filename=calendarPngFilename(areaLabel.value,filters.value.from,filters.value.to)
+    const filename=calendarPngFilename(areaLabel.value,filters.value.from,filters.value.to,t('calendar.filenamePrefix'))
     await downloadCalendarPng(svg,filename,2)
-    exportNotice.value=`PNG descargado: ${filename}`
+    exportNotice.value=t('calendar.export.pngDone',{file:filename})
   } catch(e) {
     exportNotice.value=''
-    exportError.value=e instanceof Error?e.message:'No se pudo generar el PNG.'
+    exportError.value=e instanceof Error?e.message:t('calendar.export.pngError')
   } finally {
     exportingPng.value=false
   }
@@ -116,24 +117,24 @@ async function exportPng() {
 </script>
 <template>
   <section class="panel calendar-panel" :id="sectionId" :aria-labelledby="`${sectionId}-title`">
-    <header class="panel-head"><div><span class="section-kicker">LA ACTIVIDAD A TRAVÉS DEL TIEMPO</span><h2 class="panel-title" :id="`${sectionId}-title`">Calendario de actividad</h2></div><span class="series-badge">{{ seriesLabel }}</span></header>
-    <p class="small-note">{{ metricMode==='cells' ? 'Celdas de 0,05° (~5 km) con actividad por mes. No mide área quemada ni cantidad de incendios únicos.' : 'Hotspots detectados por mes: detecciones de vegetación nominal/alta, sin focos industriales. Varios hotspots pueden caer en una misma celda y no son incendios únicos.' }}</p>
-    <div class="mode-tabs" role="group" aria-label="Métrica del calendario"><button class="chip" :class="{'chip--active':metricMode==='cells'}" :aria-pressed="metricMode==='cells'" @click="setMode('cells')">Celdas con actividad</button><button class="chip" :class="{'chip--active':metricMode==='hotspots'}" :aria-pressed="metricMode==='hotspots'" @click="setMode('hotspots')">Hotspots detectados</button></div>
-    <div class="ramp-tabs" role="group" aria-label="Escala del calendario"><button v-for="r in ramps" :key="r.id" class="chip" :class="{'chip--active':rampId===r.id}" :aria-pressed="rampId===r.id" @click="rampId=r.id">{{r.name}}</button></div>
-    <div class="cal-scroll" tabindex="0" aria-label="Tabla desplazable del calendario">
-      <table class="cal" :class="{'is-hotspots':metricMode==='hotspots'}"><caption class="sr-only">{{ metricLabel }} por mes y año; seleccioná un mes para actualizar el mapa y el detalle diario.</caption><thead><tr><th scope="col">Año / total</th><th v-for="m in 12" :key="m" scope="col"><abbr :title="monthName(m-1)">{{monthShort(m-1)}}</abbr></th></tr></thead>
-        <tbody><tr v-for="year in years" :key="year"><th scope="row"><span class="year-num">{{year}}</span><span class="year-total" :title="`${format(annualTotal(year))} ${metricLabel} en ${year}`">{{formatCell(annualTotal(year))}}</span></th>
+    <header class="panel-head"><div><span class="section-kicker">{{ t('calendar.kicker') }}</span><h2 class="panel-title" :id="`${sectionId}-title`">{{ t('calendar.title') }}</h2></div><span class="series-badge">{{ seriesLabel }}</span></header>
+    <p class="small-note">{{ metricMode==='cells' ? t('calendar.note.cells') : t('calendar.note.hotspots') }}</p>
+    <div class="mode-tabs" role="group" :aria-label="t('calendar.metricAria')"><button class="chip" :class="{'chip--active':metricMode==='cells'}" :aria-pressed="metricMode==='cells'" @click="setMode('cells')">{{ t('calendar.metric.cells') }}</button><button class="chip" :class="{'chip--active':metricMode==='hotspots'}" :aria-pressed="metricMode==='hotspots'" @click="setMode('hotspots')">{{ t('calendar.metric.hotspots') }}</button></div>
+    <div class="ramp-tabs" role="group" :aria-label="t('calendar.scaleAria')"><button v-for="r in ramps" :key="r.id" class="chip" :class="{'chip--active':rampId===r.id}" :aria-pressed="rampId===r.id" @click="rampId=r.id">{{r.name}}</button></div>
+    <div class="cal-scroll" tabindex="0" :aria-label="t('calendar.scrollAria')">
+      <table class="cal" :class="{'is-hotspots':metricMode==='hotspots'}"><caption class="sr-only">{{ t('calendar.caption', { metric: metricLabel }) }}</caption><thead><tr><th scope="col">{{ t('calendar.yearTotal') }}</th><th v-for="m in 12" :key="m" scope="col"><abbr :title="monthName(m-1)">{{monthShort(m-1)}}</abbr></th></tr></thead>
+        <tbody><tr v-for="year in years" :key="year"><th scope="row"><span class="year-num">{{year}}</span><span class="year-total" :title="t('calendar.totalTitle', { value: format(annualTotal(year)), metric: metricLabel, year })">{{formatCell(annualTotal(year))}}</span></th>
           <td v-for="m in 12" :key="m"><button class="cal-cell" :class="{'is-selected':selectedMonth?.year===year&&selectedMonth?.month===m-1,'is-extreme':isExtreme(year,m-1),'is-missing':cellMeta(year,m-1).value===null,'is-partial':cellMeta(year,m-1).cell?.partial}" :style="styleCell(year,m-1)" :aria-label="cellMeta(year,m-1).label" :aria-pressed="selectedMonth?.year===year&&selectedMonth?.month===m-1" :disabled="cellMeta(year,m-1).value===null" :title="cellMeta(year,m-1).label" @click="emit('update:selectedMonth',{year,month:m-1})">{{cellMeta(year,m-1).value===null?'—':formatCell(cellMeta(year,m-1).value!)}}<sup v-if="cellMeta(year,m-1).cell?.partial&&cellMeta(year,m-1).value!==null">*</sup></button></td>
         </tr></tbody>
       </table>
     </div>
-    <div v-if="selectionInfo" class="selection-detail" aria-live="polite"><strong>{{monthName(selectionInfo.month)}} {{selectionInfo.year}}</strong><span>{{selectionInfo.value===null?'Sin datos':`${format(selectionInfo.value)} ${metricLabel}`}}</span><span class="small-note">{{selectionInfo.cell?.data_status === 'observed' ? 'Mes con datos' : 'Sin datos'}}<span v-if="selectionInfo.cell?.partial"> · período parcial*</span></span></div>
-    <div class="export-row"><button class="btn" type="button" :disabled="exportingPng" :aria-describedby="`${sectionId}-export-note`" @click="exportSvg">Descargar el calendario en SVG</button><button class="btn" type="button" :disabled="exportingPng" :aria-describedby="`${sectionId}-export-note`" @click="exportPng">{{ exportingPng ? 'Generando PNG…' : 'Descargar el calendario en PNG' }}</button><span class="export-status small-note" role="status" aria-live="polite">{{exportNotice}}</span></div>
+    <div v-if="selectionInfo" class="selection-detail" aria-live="polite"><strong>{{monthName(selectionInfo.month)}} {{selectionInfo.year}}</strong><span>{{selectionInfo.value===null?t('calendar.noData'):`${format(selectionInfo.value)} ${metricLabel}`}}</span><span class="small-note">{{selectionInfo.cell?.data_status === 'observed' ? t('calendar.observed') : t('calendar.noData')}}<span v-if="selectionInfo.cell?.partial">{{ t('calendar.partialSuffix') }}</span></span></div>
+    <div class="export-row"><button class="btn" type="button" :disabled="exportingPng" :aria-describedby="`${sectionId}-export-note`" @click="exportSvg">{{ t('calendar.exportSvg') }}</button><button class="btn" type="button" :disabled="exportingPng" :aria-describedby="`${sectionId}-export-note`" @click="exportPng">{{ exportingPng ? t('calendar.generatingPng') : t('calendar.exportPng') }}</button><span class="export-status small-note" role="status" aria-live="polite">{{exportNotice}}</span></div>
     <p v-if="exportError" class="small-note export-error" role="alert">{{exportError}}</p>
-    <p class="small-note" :id="`${sectionId}-export-note`">El SVG es vectorial y editable; el PNG usa la misma vista a 2×. Ambos incluyen valores, colores, leyenda y nota metodológica.</p>
-    <p class="small-note">* Mes recortado por el rango consultado. — Sin datos para esta serie. El cero se conserva como cero {{metricMode==='cells'?'celdas':'hotspots'}}.</p>
-    <p v-if="metricMode==='hotspots'" class="small-note">La comparación histórica y la rampa de anomalía se calculan sobre celdas con actividad. Los hotspots se muestran como conteo de detecciones.</p>
-    <p v-else class="small-note">Los valores de más de cuatro cifras se abrevian en la grilla; el valor completo está en el tooltip y en la etiqueta accesible.</p>
+    <p class="small-note" :id="`${sectionId}-export-note`">{{ t('calendar.exportNote') }}</p>
+    <p class="small-note">{{ t('calendar.footPartial', { unit: metricMode==='cells' ? t('unit.cells') : t('unit.hotspots') }) }}</p>
+    <p v-if="metricMode==='hotspots'" class="small-note">{{ t('calendar.footHotspots') }}</p>
+    <p v-else class="small-note">{{ t('calendar.footAbbrev') }}</p>
   </section>
 </template>
 <style scoped>

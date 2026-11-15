@@ -3,13 +3,15 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as L from 'leaflet'
 import { useChronos, fetchJSON, params } from '@/composables/useChronos'
 import { useCalendar, format } from '@/composables/useCalendar'
-import { colorAt, NO_RISK_COLOR, RISK_CUTS_LABEL, RISK_STOPS, riskBand, SEQUENTIAL_STOPS, useColorRamp } from '@/composables/useColorRamp'
+import { useI18n } from '@/composables/useI18n'
+import { colorAt, NO_RISK_COLOR, RISK_STOPS, riskBand, SEQUENTIAL_STOPS, useColorRamp } from '@/composables/useColorRamp'
 import { SENSOR_OPTIONS } from '@/data/types'
 import type { MapData, MapPoint } from '@/data/types'
 const emit = defineEmits<{ (e: 'open-calendar'): void }>()
 const { selectedMonth, filters, load, metadata } = useChronos()
 const { monthName } = useCalendar()
 const { rampId } = useColorRamp()
+const { t, locale, sensorLabel: localizedSensorLabel } = useI18n()
 const mapEl = ref<HTMLDivElement | null>(null)
 const data = ref<MapData | null>(null)
 const busy = ref(false)
@@ -20,28 +22,37 @@ const closeButton = ref<HTMLButtonElement | null>(null)
 let map: L.Map | undefined
 let points: L.LayerGroup | undefined
 let bboxLayer: L.Rectangle | undefined
+let geoLayer: L.GeoJSON | undefined
+let geoData: GeoJSON.FeatureCollection | null = null
+let attribution = ''
 let resize: ResizeObserver | undefined
 let controller: AbortController | undefined
-const title = computed(() => selectedMonth.value ? `${monthName(selectedMonth.value.month)} ${selectedMonth.value.year}` : 'Elegí un mes')
+const title = computed(() => selectedMonth.value ? `${monthName(selectedMonth.value.month)} ${selectedMonth.value.year}` : t('map.title.empty'))
 const sensorLabel = computed(() =>
-  SENSOR_OPTIONS.find((option) => option.id === filters.value.metric)?.label ?? filters.value.metric)
+  SENSOR_OPTIONS.find((option) => option.id === filters.value.metric)
+    ? localizedSensorLabel(filters.value.metric)
+    : filters.value.metric)
 const probabilityLine = (p: MapPoint) => {
   if (p.fireProbability === null || p.probabilityReliability === 'insufficient') {
-    return 'Probabilidad histórica: sin respaldo'
+    return t('map.probabilityNoSupport')
   }
   const interval = p.probabilityLow !== null && p.probabilityHigh !== null
-    ? ` · IC 90 % ${format(p.probabilityLow * 100)}–${format(p.probabilityHigh * 100)} %`
+    ? t('map.ci', { low: format(p.probabilityLow * 100), high: format(p.probabilityHigh * 100) })
     : ''
-  return `Probabilidad histórica: ${format(p.fireProbability * 100)} % (n=${p.probabilityRefYears ?? '—'}${interval})`
+  return t('map.probability', {
+    value: format(p.fireProbability * 100),
+    n: p.probabilityRefYears ?? '—',
+    interval,
+  })
 }
 const rampCaption = computed(() => rampId.value === 'risk'
-  ? 'Probabilidad histórica · cortes fijos'
-  : 'Intensidad de hotspots · quintiles de lo mostrado')
+  ? t('map.ramp.riskCaption')
+  : t('map.ramp.sequentialCaption'))
 const rampStops = computed(() => rampId.value === 'risk' ? RISK_STOPS : SEQUENTIAL_STOPS)
-const rampRange = computed(() => rampId.value === 'risk' ? '0 % → ≥ 20 %' : 'bajo → alto')
+const rampRange = computed(() => rampId.value === 'risk' ? t('map.ramp.riskRange') : t('map.ramp.sequentialRange'))
 const rampAria = computed(() => rampId.value === 'risk'
-  ? `Escala de probabilidad histórica con cortes ${RISK_CUTS_LABEL}`
-  : 'Escala de intensidad de hotspots de menor a mayor')
+  ? t('map.ramp.riskAria', { cuts: t('risk.cuts') })
+  : t('map.ramp.sequentialAria'))
 const timeWindow = computed(() => {
   const m = selectedMonth.value
   if (!m) return null
@@ -92,7 +103,7 @@ function drawPoints(rows: MapPoint[]) {
       opacity: .85,
       fillOpacity: .88,
     })
-      .bindPopup(`<strong>${format(p.hotspots)} hotspots</strong><br>${format(p.fireDays)} días con actividad<br><small>${probabilityLine(p)}</small><br><small>${breakdown || 'Sin hotspots'} · Celda ${p.gridId} · 0,05°</small>`)
+      .bindPopup(`<strong>${t('map.popupHotspots', { value: format(p.hotspots) })}</strong><br>${t('map.popupDays', { value: format(p.fireDays) })}<br><small>${probabilityLine(p)}</small><br><small>${breakdown || t('map.popupNoHotspots')} · ${t('map.popupCell', { id: p.gridId })}</small>`)
       .addTo(points!)
   }
 }
@@ -122,7 +133,7 @@ async function refresh() {
     drawPoints(rows)
     updateBox()
   } catch (e) {
-    if (!(e instanceof DOMException && e.name === 'AbortError')) error.value = e instanceof Error ? e.message : 'Error al cargar el mapa.'
+    if (!(e instanceof DOMException && e.name === 'AbortError')) error.value = e instanceof Error ? e.message : t('map.error')
   } finally {
     if (controller === current) busy.value = false
   }
@@ -142,24 +153,45 @@ watch(expanded, async (open) => {
   if (open) closeButton.value?.focus()
   else expandButton.value?.focus()
 })
+function setAttribution() {
+  if (!map) return
+  if (attribution) map.attributionControl.removeAttribution(attribution)
+  attribution = t('map.attribution')
+  map.attributionControl.addAttribution(attribution)
+}
+function drawGeo() {
+  if (!map || !geoData) return
+  if (geoLayer) map.removeLayer(geoLayer)
+  geoLayer = L.geoJSON(geoData, {
+    style: { fillColor: '#0042A6', fillOpacity: .45, color: '#2E96F5', weight: .8 },
+    onEachFeature: (f, l) => l.bindTooltip(
+      locale.value === 'es' ? f.properties?.NAME_ES ?? f.properties?.NAME : f.properties?.NAME,
+    ),
+  }).addTo(map).bringToBack()
+}
 onMounted(async () => {
   if (!mapEl.value) return
   window.addEventListener('keydown', onKeydown)
   map = L.map(mapEl.value, { preferCanvas: true, minZoom: 3, maxZoom: 13, zoomControl: false, attributionControl: true })
   L.control.zoom({ position: 'bottomright' }).addTo(map)
-  map.attributionControl.addAttribution('Cartografía: Natural Earth · Datos: NASA FIRMS')
+  setAttribution()
   points = L.layerGroup().addTo(map)
   fitArea()
   resize = new ResizeObserver(() => map?.invalidateSize())
   resize.observe(mapEl.value)
   refresh()
   try {
-    const geo = await fetch('/maps/south-america.geojson').then((r) => r.json())
-    if (map) L.geoJSON(geo, { style: { fillColor: '#0042A6', fillOpacity: .45, color: '#2E96F5', weight: .8 }, onEachFeature: (f, l) => l.bindTooltip(f.properties.NAME_ES ?? f.properties.NAME) }).addTo(map).bringToBack()
-  } catch { error.value = 'No se pudo cargar la cartografía local.' }
+    geoData = await fetch('/maps/south-america.geojson').then((r) => r.json()) as GeoJSON.FeatureCollection
+    drawGeo()
+  } catch { error.value = t('map.cartographyError') }
 })
 watch([timeWindow, () => filters.value.metric, () => filters.value.bbox], () => refresh())
 watch(rampId, () => { if (data.value) drawPoints(data.value.points) })
+watch(locale, () => {
+  setAttribution()
+  drawGeo()
+  if (data.value) drawPoints(data.value.points)
+})
 watch(() => filters.value.bbox, () => { updateBox(); fitArea() })
 onBeforeUnmount(() => {
   controller?.abort()
@@ -172,11 +204,11 @@ onBeforeUnmount(() => {
 <template>
 <div v-if="expanded" class="map-backdrop" aria-hidden="true" @click="expanded = false"></div>
 <section class="panel map-panel" :class="{ 'is-expanded': expanded }" id="mapa" aria-labelledby="mapa-title" :role="expanded ? 'dialog' : undefined" :aria-modal="expanded ? 'true' : undefined">
-  <header class="map-head"><div><span class="section-kicker">ACTIVIDAD DEL MES</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><div class="map-actions"><button v-if="!expanded" ref="expandButton" class="link-btn" type="button" @click="expanded = true">Ampliar mapa</button><button v-if="!expanded" class="chip" @click="emit('open-calendar')">Elegir otro mes ↗</button><button v-else ref="closeButton" class="chip" type="button" @click="expanded = false">Cerrar</button></div></header>
-  <div class="map-toolbar"><span v-if="data" :title="'Las detecciones de distintos sensores no se suman'">{{format(data.shown_groups)}} celdas con actividad · {{format(data.total_hotspots)}} hotspots (todas las fuentes)</span><span v-else>{{busy?'Cargando celdas…':'Sin mes seleccionado'}}</span><div><div class="ramp-toggle" role="group" aria-label="Colorear celdas por"><button type="button" class="ramp-btn" :class="{ active: rampId === 'sequential' }" :aria-pressed="rampId === 'sequential'" @click="rampId = 'sequential'">Hotspots</button><button type="button" class="ramp-btn" :class="{ active: rampId === 'risk' }" :aria-pressed="rampId === 'risk'" @click="rampId = 'risk'">Probabilidad</button></div><span class="sensor-tag">Serie: {{ sensorLabel }}</span><button class="link-btn" @click="fitArea">Centrar área</button><button class="link-btn" @click="useView">Usar vista como filtro</button></div></div>
-  <div class="map-canvas"><div ref="mapEl" class="map" role="region" aria-label="Mapa interactivo de celdas con actividad"></div><div v-if="busy" class="map-notice" role="status">Consultando el mes…</div><div v-if="error" class="map-notice" role="alert">{{error}}</div><div v-else-if="data&&!data.points.length" class="map-notice">No hay celdas con actividad en este mes y área.</div></div>
-  <div class="map-legend"><span class="legend-item legend-ramp"><span class="ramp-caption">{{ rampCaption }}</span><span class="ramp" role="img" :aria-label="rampAria"><i v-for="bg in rampStops" :key="bg" :style="{ background: bg }"></i></span><span class="ramp-minmax" aria-hidden="true">{{ rampRange }}</span></span><span v-if="rampId === 'risk'" class="legend-item neutral-key"><i class="neutral-swatch" aria-hidden="true"></i>Sin respaldo</span><span class="legend-item size-key"><i class="dot size-small" aria-hidden="true"></i><i class="dot size-big" aria-hidden="true"></i>Tamaño: días con actividad</span></div>
-  <footer class="map-foot"><details class="map-howto"><summary>Cómo leer este mapa</summary><p>Grilla de 0,05° (~5 km). El color puede mostrar la intensidad de hotspots (quintiles de las celdas mostradas) o la probabilidad histórica de la celda en el rango (cortes fijos de 0–1, 1–3, 3–8, 8–20 y ≥20 %); el tamaño indica los días con actividad. El gris marca celdas sin respaldo histórico. El mapa muestra hotspots; el calendario puede alternar entre celdas con actividad y hotspots. Los hotspots de distintos sensores no se suman como promedio.</p><p v-if="data">Se muestran hasta 5.000 celdas ordenadas por días con actividad; los totales corresponden a lo mostrado.{{ data.points.length >= 5000 ? ' Vista parcial: acotá el área o el mes para ver el resto.' : '' }}</p></details></footer>
+  <header class="map-head"><div><span class="section-kicker">{{ t('map.kicker') }}</span><h2 id="mapa-title" class="panel-title">{{title}}</h2></div><div class="map-actions"><button v-if="!expanded" ref="expandButton" class="link-btn" type="button" @click="expanded = true">{{ t('map.expand') }}</button><button v-if="!expanded" class="chip" @click="emit('open-calendar')">{{ t('map.chooseOther') }}</button><button v-else ref="closeButton" class="chip" type="button" @click="expanded = false">{{ t('map.close') }}</button></div></header>
+  <div class="map-toolbar"><span v-if="data" :title="t('map.toolbarTitle')">{{ t('map.cellsAndHotspots', { cells: format(data.shown_groups), hotspots: format(data.total_hotspots) }) }}</span><span v-else>{{ busy ? t('map.loadingCells') : t('map.noMonth') }}</span><div><div class="ramp-toggle" role="group" :aria-label="t('map.colorBy')"><button type="button" class="ramp-btn" :class="{ active: rampId === 'sequential' }" :aria-pressed="rampId === 'sequential'" @click="rampId = 'sequential'">{{ t('map.hotspots') }}</button><button type="button" class="ramp-btn" :class="{ active: rampId === 'risk' }" :aria-pressed="rampId === 'risk'" @click="rampId = 'risk'">{{ t('map.probabilityButton') }}</button></div><span class="sensor-tag">{{ t('map.series', { sensor: sensorLabel }) }}</span><button class="link-btn" @click="fitArea">{{ t('map.center') }}</button><button class="link-btn" @click="useView">{{ t('map.useView') }}</button></div></div>
+  <div class="map-canvas"><div ref="mapEl" class="map" role="region" :aria-label="t('map.canvasAria')"></div><div v-if="busy" class="map-notice" role="status">{{ t('map.querying') }}</div><div v-if="error" class="map-notice" role="alert">{{error}}</div><div v-else-if="data&&!data.points.length" class="map-notice">{{ t('map.noCells') }}</div></div>
+  <div class="map-legend"><span class="legend-item legend-ramp"><span class="ramp-caption">{{ rampCaption }}</span><span class="ramp" role="img" :aria-label="rampAria"><i v-for="bg in rampStops" :key="bg" :style="{ background: bg }"></i></span><span class="ramp-minmax" aria-hidden="true">{{ rampRange }}</span></span><span v-if="rampId === 'risk'" class="legend-item neutral-key"><i class="neutral-swatch" aria-hidden="true"></i>{{ t('map.legend.noSupport') }}</span><span class="legend-item size-key"><i class="dot size-small" aria-hidden="true"></i><i class="dot size-big" aria-hidden="true"></i>{{ t('map.legend.size') }}</span></div>
+  <footer class="map-foot"><details class="map-howto"><summary>{{ t('map.howto') }}</summary><p>{{ t('map.howtoText') }}</p><p v-if="data">{{ t('map.howtoShown') }}{{ data.points.length >= 5000 ? t('map.howtoShownPartial') : '' }}</p></details></footer>
 </section>
 </template>
 <style scoped>

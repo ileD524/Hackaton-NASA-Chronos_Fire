@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import type { CalendarData, DailyRow, Filters, Meta, MetricMode, MonthCell } from '@/data/types'
-import { SERIES } from '@/data/types'
+import { formatNumber, seriesLabel as localizedSeriesLabel, t } from './useI18n'
 
 interface ApiMonthly {
   year: number
@@ -119,7 +119,7 @@ export function hotspotsParams(f: Filters): URLSearchParams {
 export async function fetchJSON<T>(url: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(url, { signal })
   const result = await response.json()
-  if (!response.ok) throw new Error(result?.error || result?.message || 'No se pudo cargar la consulta.')
+  if (!response.ok) throw new Error(result?.error || result?.message || t('error.fetch'))
   return result as T
 }
 
@@ -290,7 +290,7 @@ async function loadDaily(force = false) {
   } catch (e) {
     if (current.signal.aborted) return
     if (e instanceof DOMException && e.name === 'AbortError') return
-    dailyError.value = e instanceof Error ? e.message : 'No se pudo cargar el detalle diario.'
+    dailyError.value = e instanceof Error ? e.message : t('error.daily')
   } finally {
     if (dailyController === current) {
       dailyController = undefined
@@ -307,7 +307,7 @@ async function retryDaily() {
 async function load(next: Filters = filters.value) {
   if (!next.from || !next.to) {
     if (metadata.value) {
-      error.value = 'El servidor no informó el rango de fechas.'
+      error.value = t('error.range')
       return
     }
     await initialize()
@@ -337,7 +337,7 @@ async function load(next: Filters = filters.value) {
     await loadDaily()
   } catch (e) {
     if (!(e instanceof DOMException && e.name === 'AbortError')) {
-      error.value = e instanceof Error ? e.message : 'Error al consultar los datos.'
+      error.value = e instanceof Error ? e.message : t('error.query')
     }
   } finally {
     if (controller === current) loading.value = false
@@ -346,7 +346,7 @@ async function load(next: Filters = filters.value) {
 
 function formatRows(value: string | null) {
   const rows = Number(value)
-  return Number.isFinite(rows) ? new Intl.NumberFormat('es-AR').format(rows) : '—'
+  return Number.isFinite(rows) ? formatNumber(rows) : '—'
 }
 
 async function checkCsv(url: string) {
@@ -356,14 +356,14 @@ async function checkCsv(url: string) {
   csvChecking.value = true
   try {
     const response = await fetch(url, { method: 'HEAD' })
-    if (!response.ok) throw new Error(`No se pudo verificar el CSV (HTTP ${response.status}).`)
+    if (!response.ok) throw new Error(t('error.csvStatus', { status: response.status }))
     const returned = formatRows(response.headers.get('X-Returned-Rows'))
     const truncated = response.headers.get('X-Truncated') === 'true'
     csvNotice.value = truncated
-      ? `Descarga limitada a ${returned === '—' ? '50.000' : returned} filas. Acotá el área o el rango para obtener el resto.`
-      : `Descarga completa${returned === '—' ? '' : `: ${returned} filas`}.`
+      ? t('csv.limited', { rows: returned === '—' ? formatNumber(50000) : returned })
+      : returned === '—' ? t('csv.completeNoRows') : t('csv.complete', { rows: returned })
   } catch (e) {
-    csvError.value = e instanceof Error ? e.message : 'No se pudo verificar el CSV.'
+    csvError.value = e instanceof Error ? e.message : t('error.csv')
   } finally {
     csvChecking.value = false
   }
@@ -376,9 +376,9 @@ const selected = computed(() =>
 const valueField = computed<'active_cells_selected' | 'hotspots'>(() =>
   metricMode.value === 'cells' ? 'active_cells_selected' : 'hotspots')
 const metricLabel = computed(() =>
-  metricMode.value === 'cells' ? 'celdas con actividad' : 'hotspots detectados')
+  metricMode.value === 'cells' ? t('unit.metric.cells') : t('unit.metric.hotspots'))
 const metricUnit = computed(() =>
-  metricMode.value === 'cells' ? 'celdas-mes con actividad' : 'hotspots detectados en el rango')
+  metricMode.value === 'cells' ? t('unit.metricRange.cells') : t('unit.metricRange.hotspots'))
 const selectedDaily = computed(() => calendar.value?.daily ?? [])
 
 watch(selectedMonth, () => { void loadDaily() }, { deep: true })
@@ -434,7 +434,7 @@ async function initialize() {
     }
     await load()
   } catch (e) {
-    error.value = e instanceof Error ? e.message : 'Servidor no disponible.'
+    error.value = e instanceof Error ? e.message : t('error.server')
   }
 }
 
@@ -458,13 +458,13 @@ export function useChronos() {
     metricValue,
     metricLabel,
     metricUnit,
-    seriesLabel: computed(() => SERIES[filters.value.metric]),
+    seriesLabel: computed(() => localizedSeriesLabel(filters.value.metric)),
     areaLabel: computed(() => {
       const bbox = filters.value.bbox
-      if (!bbox) return 'Extensión completa · Argentina'
+      if (!bbox) return t('area.all')
       const [w, s, e, n] = bbox
-      if (w === -61 && s === -34 && e === -59.5 && n === -32.5) return 'Delta del Paraná'
-      return 'Área personalizada · recorte rectangular'
+      if (w === -61 && s === -34 && e === -59.5 && n === -32.5) return t('area.delta')
+      return t('area.custom')
     }),
     load,
     initialize,

@@ -1,24 +1,29 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import BrandMark from '@/components/BrandMark.vue'
+import LanguageSwitcher from '@/components/LanguageSwitcher.vue'
+import { useI18n } from '@/composables/useI18n'
 
-const navItems = [
-  { label: 'Mapa', target: '#mapa' },
-  { label: 'Calendario', target: '#calendario' },
-  { label: 'Alertas', target: '#alertas' },
-  { label: 'Validación', target: '#validacion' },
-  { label: 'Metodología', target: '#metodologia' },
-  { label: 'Datos', target: '#datos' },
-]
+const { t } = useI18n()
+
+const navItems = computed(() => [
+  { label: t('nav.map'), target: '#mapa' },
+  { label: t('nav.calendar'), target: '#calendario' },
+  { label: t('nav.alerts'), target: '#alertas' },
+  { label: t('nav.validation'), target: '#validacion' },
+  { label: t('nav.methodology'), target: '#metodologia' },
+  { label: t('nav.data'), target: '#datos' },
+])
 </script>
 
 <template>
   <header class="app-header">
     <div class="container header-inner">
-      <a class="brand" href="#calendario" aria-label="VII.MO · ir al calendario">
+      <a class="brand" href="#calendario" :aria-label="t('nav.brand')">
         <BrandMark :size="40" />
       </a>
 
-      <nav class="nav" aria-label="Navegación principal">
+      <nav class="nav" :aria-label="t('nav.main')">
         <a
           v-for="item in navItems"
           :key="item.target"
@@ -28,6 +33,8 @@ const navItems = [
           {{ item.label }}
         </a>
       </nav>
+
+      <LanguageSwitcher class="lang" />
     </div>
   </header>
 </template>
@@ -117,14 +124,26 @@ const navItems = [
   color: var(--warm-lime);
 }
 
+.lang {
+  flex: none;
+}
+
 @media (max-width: 720px) {
   .container {
     padding: 10px 20px;
   }
+  .header-inner {
+    justify-content: space-between;
+  }
   .nav {
+    order: 3;
     margin-left: 0;
     width: 100%;
     gap: 4px 18px;
+  }
+  .lang {
+    order: 2;
+    margin-left: auto;
   }
   .nav-link {
     font-size: 13px;

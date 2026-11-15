@@ -8,6 +8,7 @@
  * sistema sin romper la descarga.
  */
 import { calendarExportFilename, downloadBlob } from './exportCalendarSvg'
+import { t } from '@/composables/useI18n'
 
 const FONT_SOURCES = [
   { family: 'Fira Sans', weight: '700', url: '/fonts/FiraSans-Bold.ttf' },
@@ -58,7 +59,7 @@ function svgSize(svg: string): { width: number; height: number } {
   const width = Number(match?.[1])
   const height = Number(match?.[2])
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
-    throw new Error('El SVG no tiene dimensiones válidas para generar el PNG.')
+    throw new Error(t('error.pngInvalid'))
   }
   return { width, height }
 }
@@ -72,20 +73,20 @@ export async function rasterizeCalendarSvg(svg: string, scale = 2): Promise<Blob
     const image = new Image()
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve()
-      image.onerror = () => reject(new Error('No se pudo rasterizar el SVG del calendario.'))
+      image.onerror = () => reject(new Error(t('error.pngRaster')))
       image.src = url
     })
     const canvas = document.createElement('canvas')
     canvas.width = Math.round(width * scale)
     canvas.height = Math.round(height * scale)
     const context = canvas.getContext('2d')
-    if (!context) throw new Error('El navegador no permite generar el PNG.')
+    if (!context) throw new Error(t('error.pngCanvas'))
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
     context.drawImage(image, 0, 0, canvas.width, canvas.height)
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error('No se pudo generar el PNG.'))),
+        (blob) => (blob ? resolve(blob) : reject(new Error(t('error.pngGenerate')))),
         'image/png',
       )
     })
@@ -98,6 +99,6 @@ export async function downloadCalendarPng(svg: string, filename: string, scale =
   downloadBlob(await rasterizeCalendarSvg(svg, scale), filename)
 }
 
-export function calendarPngFilename(area: string, from: string, to: string): string {
-  return calendarExportFilename(area, from, to, 'png')
+export function calendarPngFilename(area: string, from: string, to: string, prefix = 'calendario'): string {
+  return calendarExportFilename(area, from, to, 'png', prefix)
 }
