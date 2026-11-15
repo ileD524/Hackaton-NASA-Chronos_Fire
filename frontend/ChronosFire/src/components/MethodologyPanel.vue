@@ -35,8 +35,18 @@ const provisionalLabel = computed(() => {
 <p v-if="coverageLabel">{{ coverageLabel }}. Vegetación presunta con confianza nominal o alta.</p>
 <ol class="method-steps"><li><strong>Una grilla común.</strong> Detecciones asignadas por su centro a celdas de 0,05° (~5 km).</li><li><strong>Un día común.</strong> Agregación diaria en UTC; una celda con actividad en un día cuenta una vez.</li><li><strong>Una serie comparable.</strong> El calendario usa celdas con actividad, no una suma de detecciones entre sensores.</li></ol>
 <p><strong>Celda con actividad ≠ hotspot ≠ incendio.</strong> Una celda puede contener varios hotspots; un hotspot es una detección satelital y un incendio único requeriría agrupar eventos. La comparación histórica se calcula sobre celdas con actividad; los hotspots se muestran como conteo de detecciones.</p>
+<div class="audience">
+  <h3>Para quién</h3>
+  <ul>
+    <li><strong>Respuesta a emergencias:</strong> detectar semanas críticas y comparar el mes actual con su historia.</li>
+    <li><strong>Científicos:</strong> explorar patrones estacionales y anomalías multianuales.</li>
+    <li><strong>Gestión del territorio:</strong> priorizar el monitoreo en áreas con actividad recurrente.</li>
+  </ul>
+  <p class="use-case"><strong>Caso de validación semanal:</strong> Delta del Paraná, semana 40 de 2020: 6,6× la mediana (66 celdas con actividad frente a 10 de referencia).</p>
+  <p class="small-note">Herramienta descriptiva: no predice eventos ni asigna niveles de riesgo.</p>
+</div>
 <details><summary>Límites de la comparación</summary><p>La confianza se homologa a baja, nominal y alta. El baseline usa la mediana multianual por AOI y la era de cada sensor.</p><p>No hay calibración física de eficiencia de detección ni de FRP. La ausencia de registros no confirma ausencia de fuego: la cobertura real por nubosidad y overpass no está disponible.</p><p><template v-if="provisionalLabel">{{ provisionalLabel }} es NRT provisional y queda fuera del baseline. </template>Una celda de 0,05° no representa superficie quemada.</p></details>
 <a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Conocer NASA FIRMS ↗</a>
 </section>
 </template>
-<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}</style>
+<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}.audience{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.audience h3{font:800 16px var(--font-body);margin:0 0 10px}.audience ul{margin:0;padding-left:20px;font-size:14px;line-height:1.55}.audience li{margin:8px 0}.use-case{font-size:13px;line-height:1.55;margin:14px 0 8px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}</style>
