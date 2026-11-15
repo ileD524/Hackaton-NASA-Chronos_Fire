@@ -82,6 +82,17 @@ class OpenApiContractTest {
         Map<String, Object> monthlySensor = at(root,
                 "components", "parameters", "MonthlySensor");
         assertNotNull(monthlySensor.get("description"));
+
+        Map<String, Object> metaProperties = at(root,
+                "components", "schemas", "MetaResponse", "properties");
+        assertTrue(metaProperties.containsKey("risk"));
+
+        Map<String, Object> risk = at(root,
+                "components", "schemas", "RiskMethodology", "properties");
+        assertTrue(risk.containsKey("modelVersion"));
+        assertTrue(risk.containsKey("calibrationStatus"));
+        assertTrue(risk.containsKey("bss"));
+        assertTrue(risk.containsKey("bssThreshold"));
     }
 
     @SuppressWarnings("unchecked")

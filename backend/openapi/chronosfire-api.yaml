@@ -610,6 +610,13 @@ components:
           type: string
         provisional:
           $ref: '#/components/schemas/ProvisionalWindow'
+        risk:
+          allOf:
+            - $ref: '#/components/schemas/RiskMethodology'
+          nullable: true
+          description: |
+            Calibracion publicada de la capa de riesgo (fase 4). `null` si el
+            backtest no se corrio o si el dump no trae las tablas de riesgo.
 
     SensorCoverage:
       type: object
@@ -678,6 +685,48 @@ components:
           type: string
           format: date
         reason:
+          type: string
+
+    RiskMethodology:
+      type: object
+      description: |
+        Calibracion de la probabilidad historica por celda-semana. Holdout
+        temporal (entrenar hasta 2024, evaluar 2025). Si `BSS < 0,05` se
+        publica como `risk-v1-low` y la UI lo declara; no se promete
+        calibracion que no se midio.
+      properties:
+        modelVersion:
+          type: string
+          description: Version publicada, por ejemplo `risk-v1-low`.
+        calibrationStatus:
+          type: string
+          enum: [high, low]
+        holdoutYear:
+          type: integer
+          nullable: true
+        brier:
+          type: number
+          nullable: true
+        bss:
+          type: number
+          nullable: true
+          description: Brier Skill Score contra la tasa AOI de la semana (`mu_w`).
+        auc:
+          type: number
+          nullable: true
+        cellsWeek:
+          type: integer
+          format: int64
+          nullable: true
+          description: Celdas-semana evaluadas en el holdout.
+        stabilityBss:
+          type: number
+          nullable: true
+          description: BSS de la ventana corta 2019-2024, como control de estabilidad.
+        bssThreshold:
+          type: number
+          description: Umbral de la puerta de calidad (0,05).
+        note:
           type: string
 
     WeeklyResponse:

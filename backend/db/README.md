@@ -12,6 +12,7 @@ todo el calculo pesado se materializa aca.
 | 2 | `migraciones/populate_coverage.sql` | 0 | Si (`coverage_daily`) | Denominador auditable: dias con datos por sensor |
 | 3 | `rebuild_risk.sql` | 0-1 | Si (`risk_*`) | Calcula prior y tabla de riesgo (7,4 M filas) |
 | 4 | `validacion/06_riesgo.sql` | 1 | No | Validacion de rangos, claves y consistencia |
+| 5 | `rebuild_risk_backtest.sql` | 4 | Si (`risk_backtest`) | Holdout 2025: Brier, BSS, AUC y curva por decil |
 
 `add_risk_layer.sql` y `rebuild_risk.sql` son idempotentes. Se corre el 2 y el 3
 despues de cada carga del ETL.
@@ -36,6 +37,16 @@ $db = 'chronos_fire'
 
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
   -f backend\db\validacion\06_riesgo.sql
+
+# Fase 4: holdout principal 2013-2024 -> 2025
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -v model_version=risk-v1 `
+  -f backend\db\rebuild_risk_backtest.sql
+
+# Fase 4: control de estabilidad 2019-2024 -> 2025
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -v model_version=risk-v1-t2019-2024 -v train_from=2019 -v train_to=2024 `
+  -f backend\db\rebuild_risk_backtest.sql
 ```
 
 El orden importa: si `coverage_daily` esta vacia, `rebuild_risk.sql` aborta con
@@ -97,6 +108,30 @@ R11 es informativo: 1.506 filas (0,02 %) tienen `p_fire` fuera del intervalo de
 Wilson sobre `k/n`, por el suavizado del prior (con `k = 0` el prior empuja
 `p_fire` por encima de `p_lo = 0`; con `k = n`, por debajo de `p_lo`). Es
 esperado y no es un error de datos.
+
+### Backtesting (fase 4)
+
+El backtest no usa `risk_cell_week` para predecir: recalcula `k`, `n` y el
+prior solo con la ventana de entrenamiento y compara contra `fire_days > 0`
+del holdout.
+
+| Entrenamiento | Holdout | Brier | Brier base | BSS | AUC | Celdas-semana |
+|---|---|---|---|---|---|---|
+| 2013-2024 | 2025 | 0,011480 | 0,011818 | **0,0286** | 0,740 | 3.719.116 |
+| 2019-2024 | 2025 | 0,011543 | 0,011823 | **0,0236** | 0,713 | 3.719.116 |
+
+Curva de fiabilidad (2013-2024 -> 2025): el decil superior tiene p media 0,0852
+y observado 0,0604 (desvio 0,0249); los deciles 1-9 quedan entre -0,0033 y
++0,0078.
+
+**Puerta de calidad:** `BSS = 0,0286 < 0,05` -> la tabla se publica como
+`risk-v1-low`. `risk_cell_week.model_version` se actualizo a `risk-v1-low` y
+`rebuild_risk.sql` ya escribe esa etiqueta. El desvio del decil superior
+(0,0249) si cumple el limite de 0,10. No se promete calibracion.
+
+`/api/meta` publica el bloque `risk` con `modelVersion`, `calibrationStatus`,
+`brier`, `bss`, `auc`, `cellsWeek`, `stabilityBss` y la nota del gate; la UI lo
+muestra en el panel de metodologia.
 
 ## Desvios respecto del plan
 

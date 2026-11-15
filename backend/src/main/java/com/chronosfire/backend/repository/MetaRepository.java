@@ -77,15 +77,59 @@ public class MetaRepository {
                 validationAois);
     }
 
+    /**
+     * Version publicada de la capa de riesgo. {@code null} si las tablas de
+     * riesgo no existen (por ejemplo, en un dump de demo sin la fase 0).
+     */
+    public String riskModelVersion() {
+        if (!tableExists("public.risk_cell_week")) {
+            return null;
+        }
+        List<String> versions = jdbc.query("""
+                SELECT model_version
+                FROM risk_cell_week
+                WHERE era = 'SNPP'
+                LIMIT 1
+                """, (rs, rowNum) -> rs.getString("model_version"));
+        return versions.isEmpty() ? null : versions.get(0);
+    }
+
+    /** Filas de calibracion por ventana de entrenamiento, si el backtest corrio. */
+    public List<MetaResponse.RiskBacktest> riskBacktest() {
+        if (!tableExists("public.risk_backtest")) {
+            return List.of();
+        }
+        return jdbc.query("""
+                SELECT model_version, holdout_year, brier, bss, auc, n
+                FROM risk_backtest
+                ORDER BY holdout_year DESC, model_version
+                """, (rs, rowNum) -> new MetaResponse.RiskBacktest(
+                rs.getString("model_version"),
+                (Integer) rs.getObject("holdout_year", Integer.class),
+                nullableFloat(rs, "brier"),
+                nullableFloat(rs, "bss"),
+                nullableFloat(rs, "auc"),
+                (Long) rs.getObject("n", Long.class)));
+    }
+
+    private Double nullableFloat(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        float value = rs.getFloat(column);
+        return rs.wasNull() ? null : (double) value;
+    }
+
     private long tableCount(String qualifiedTable) {
-        Boolean exists = jdbc.queryForObject(
-                "SELECT to_regclass(?) IS NOT NULL",
-                Boolean.class,
-                qualifiedTable);
-        if (!Boolean.TRUE.equals(exists)) {
+        if (!tableExists(qualifiedTable)) {
             return 0L;
         }
         Long count = jdbc.queryForObject("SELECT count(*) FROM " + qualifiedTable, Long.class);
         return count == null ? 0L : count;
+    }
+
+    private boolean tableExists(String qualifiedTable) {
+        Boolean exists = jdbc.queryForObject(
+                "SELECT to_regclass(?) IS NOT NULL",
+                Boolean.class,
+                qualifiedTable);
+        return Boolean.TRUE.equals(exists);
     }
 }

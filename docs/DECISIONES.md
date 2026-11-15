@@ -166,6 +166,8 @@ entonces, la unidad correcta es hotspot o celda con actividad.
   (`n`) y el intervalo en el tooltip; con `insufficient` muestra `—`.
 - El popup del mapa muestra la probabilidad historica del rango consultado.
 - El panel de metodologia declara formula, cobertura proxy y limites.
+- El panel de metodologia muestra Brier, BSS y AUC del holdout 2025 y declara
+  la etiqueta `risk-v1-low`.
 - Descarga CSV de calendario y hotspots con aviso de truncamiento.
 - La UI usa `ALL`; la API permite filtrar por sensor. El selector de sensor es
   trabajo pendiente (F-01).
@@ -214,6 +216,17 @@ sin percentil (days != 7): >= 10 detecciones warning, >= 3 watch
 El percentil solo escala cuando la celda-semana tiene base historica o el
 evento tiene volumen, para no sepultar un evento intenso y sin precedente.
 
+Calibracion (fase 4, holdout 2025, entrenamiento sin fuga):
+
+| Entrenamiento | Brier | BSS | AUC |
+|---|---|---|---|
+| 2013-2024 | 0,0115 | **0,0286** | 0,740 |
+| 2019-2024 | 0,0115 | **0,0236** | 0,713 |
+
+`BSS < 0,05`: la tabla se publica como `risk-v1-low` y la UI lo declara. El
+desvio del decil superior (0,025) esta dentro del limite de 0,10. No se promete
+calibracion.
+
 ---
 
 ## 12. Registro de decisiones
@@ -229,4 +242,5 @@ evento tiene volumen, para no sepultar un evento intenso y sin precedente.
 | 2026-11-15 | Capa de riesgo materializada (`risk_cell_week`, `risk_prior_week`) | Calculo auditables y backend de solo lectura |
 | 2026-11-15 | `p` con denominador de cobertura, no de deteccion | Evita el sesgo "dado que hubo deteccion" |
 | 2026-11-15 | Nivel hibrido (`p` + percentil + volumen) | No sepultar eventos intensos sin precedente |
+| 2026-11-15 | Backtest 2025 y publicacion `risk-v1-low` | BSS 0,029 < 0,05: declarar calibracion baja |
 | 2026-11-15 | Export de detecciones hasta 10.000 dias | El rango por defecto 2012-2026 debe funcionar |

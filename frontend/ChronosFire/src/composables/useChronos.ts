@@ -49,6 +49,18 @@ interface ApiMeta {
   dateRange?: { from?: string; to?: string }
   counts?: { detections?: number; coverageDaily?: number }
   provisional?: { from?: string; to?: string; reason?: string } | null
+  risk?: {
+    modelVersion?: string
+    calibrationStatus?: string
+    holdoutYear?: number | null
+    brier?: number | null
+    bss?: number | null
+    auc?: number | null
+    cellsWeek?: number | null
+    stabilityBss?: number | null
+    bssThreshold?: number
+    note?: string
+  } | null
 }
 
 const DELTA_BBOX: Filters['bbox'] = [-61, -34, -59.5, -32.5]
@@ -338,6 +350,20 @@ async function initialize() {
             from: meta.provisional.from,
             to: meta.provisional.to ?? '',
             reason: meta.provisional.reason ?? '',
+          }
+        : null,
+      risk: meta.risk
+        ? {
+            modelVersion: meta.risk.modelVersion ?? 'risk-v1',
+            calibrationStatus: meta.risk.calibrationStatus === 'high' ? 'high' : 'low',
+            holdoutYear: meta.risk.holdoutYear ?? null,
+            brier: meta.risk.brier ?? null,
+            bss: meta.risk.bss ?? null,
+            auc: meta.risk.auc ?? null,
+            cellsWeek: meta.risk.cellsWeek ?? null,
+            stabilityBss: meta.risk.stabilityBss ?? null,
+            bssThreshold: meta.risk.bssThreshold ?? 0.05,
+            note: meta.risk.note ?? '',
           }
         : null,
     }

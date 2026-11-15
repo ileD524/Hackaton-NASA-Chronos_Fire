@@ -229,7 +229,9 @@ SELECT grid_id, cell_lat, cell_lon, week_of_year, era,
        CASE WHEN ref_years >= 10 THEN 'high'
             WHEN ref_years >= 5  THEN 'low'
             ELSE 'insufficient' END,
-       'risk-v1'
+       -- Fase 4: el holdout 2025 dio BSS 0,0286 (< 0,05), asi que la tabla se
+       -- publica como risk-v1-low. Ver backend/db/README.md.
+       'risk-v1-low'
 FROM calc
 CROSS JOIN (SELECT 1.6448536269514722::numeric AS z,
                    power(1.6448536269514722::numeric, 2) AS z2) w;

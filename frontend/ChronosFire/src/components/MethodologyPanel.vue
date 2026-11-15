@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useChronos } from '@/composables/useChronos'
+import { format } from '@/composables/useCalendar'
 const { metadata } = useChronos()
+const risk = computed(() => metadata.value?.risk ?? null)
+const decimal = (value: number | null, digits = 3) => value === null
+  ? '—'
+  : new Intl.NumberFormat('es-AR', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value)
 const sensorYear = (value: string | null | undefined) => value ? value.slice(0, 4) : ''
 const coverageLabel = computed(() => {
   const bySensor = new Map<string, { from: string; to: string }>()
@@ -41,6 +46,16 @@ const provisionalLabel = computed(() => {
   <p><code>n</code> usa una cobertura <em>proxy</em>: un día cuenta como cubierto si el sensor registró al menos una detección en la región. No prueba ausencia de nubes, así que la probabilidad es una <strong>cota inferior</strong>. Con 13 años el intervalo es ancho a propósito y se muestra.</p>
   <p>El <strong>percentil de actividad</strong> compara las detecciones de los últimos 7 días con los años de referencia de esa celda-semana. Los niveles priorizan el triage: <strong>warning</strong> con p ≥ 50 % o percentil ≥ 90 % con base histórica (p ≥ 10 %) o al menos 10 detecciones; <strong>watch</strong> con p ≥ 25 % o percentil ≥ 75 % con base o al menos 3 detecciones; <strong>info</strong> en el resto. Son umbrales provisionales.</p>
   <p>No es una predicción, no incorpora meteorología ni combustible, y no es una alerta oficial.</p>
+  <p v-if="risk" class="calibration" :class="`calibration-${risk.calibrationStatus}`">
+    <strong>Calibración medida (holdout {{ risk.holdoutYear }}):</strong>
+    Brier {{ decimal(risk.brier, 4) }} · BSS {{ decimal(risk.bss, 4) }} · AUC {{ decimal(risk.auc, 3) }} · {{ format(risk.cellsWeek ?? 0) }} celdas-semana.
+    <template v-if="risk.calibrationStatus === 'low'">
+      El BSS queda por debajo del umbral {{ decimal(risk.bssThreshold, 2) }}: se publica como <code>{{ risk.modelVersion }}</code> y no se promete calibración.
+    </template>
+    <template v-else-if="risk.stabilityBss !== null">
+      Ventana corta 2019–2024: BSS {{ decimal(risk.stabilityBss, 4) }}.
+    </template>
+  </p>
 </div>
 <div class="audience">
   <h3>Para quién</h3>
@@ -56,4 +71,4 @@ const provisionalLabel = computed(() => {
 <a class="link-btn" href="https://www.earthdata.nasa.gov/data/tools/firms" target="_blank" rel="noopener">Conocer NASA FIRMS ↗</a>
 </section>
 </template>
-<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}.audience{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.audience h3{font:800 16px var(--font-body);margin:0 0 10px}.audience ul{margin:0;padding-left:20px;font-size:14px;line-height:1.55}.audience li{margin:8px 0}.use-case{font-size:13px;line-height:1.55;margin:14px 0 8px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}.risk-method{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.risk-method h3{font:800 16px var(--font-body);margin:0 0 10px}.risk-method p{font-size:13px;line-height:1.6;margin:8px 0}.risk-method code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}</style>
+<style scoped>.method-steps{padding-left:20px;font-size:14px;line-height:1.55}.method-steps li{margin:12px 0}.method-steps strong{display:block}.panel>p{font-size:14px}.audience{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.audience h3{font:800 16px var(--font-body);margin:0 0 10px}.audience ul{margin:0;padding-left:20px;font-size:14px;line-height:1.55}.audience li{margin:8px 0}.use-case{font-size:13px;line-height:1.55;margin:14px 0 8px}details{border-top:1px solid var(--blue-100);padding-top:16px;font-size:13px}summary{cursor:pointer;font-weight:700;min-height:40px}details p{line-height:1.6}.risk-method{border-top:1px solid var(--blue-100);margin-top:18px;padding-top:16px}.risk-method h3{font:800 16px var(--font-body);margin:0 0 10px}.risk-method p{font-size:13px;line-height:1.6;margin:8px 0}.risk-method code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.calibration{margin-top:12px;padding:10px 12px;border:1px solid var(--blue-100);border-radius:6px;font-size:12px!important}.calibration-low{border-color:#F08A00}</style>

@@ -104,6 +104,19 @@ export interface MetaProvisional {
   reason: string
 }
 
+export interface RiskCalibration {
+  modelVersion: string
+  calibrationStatus: 'high' | 'low'
+  holdoutYear: number | null
+  brier: number | null
+  bss: number | null
+  auc: number | null
+  cellsWeek: number | null
+  stabilityBss: number | null
+  bssThreshold: number
+  note: string
+}
+
 export interface Meta {
   first_date: string
   last_date: string
@@ -115,6 +128,7 @@ export interface Meta {
   sensors: MetaSensor[]
   coverage_known: boolean
   provisional: MetaProvisional | null
+  risk: RiskCalibration | null
 }
 
 export interface Alert {

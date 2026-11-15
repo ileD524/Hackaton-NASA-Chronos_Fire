@@ -11,6 +11,11 @@ if (!health.database) throw new Error('health.database es false')
 
 const meta = await get('/api/meta')
 if (!Array.isArray(meta.sensors) || meta.sensors.length !== 8) throw new Error('meta.sensors != 8')
+if (meta.risk) {
+  if (meta.risk.modelVersion !== 'risk-v1-low') throw new Error(`meta.risk.modelVersion ${meta.risk.modelVersion} != risk-v1-low`)
+  if (meta.risk.calibrationStatus !== 'low') throw new Error(`meta.risk.calibrationStatus ${meta.risk.calibrationStatus} != low`)
+  if (!(meta.risk.bss < meta.risk.bssThreshold)) throw new Error('meta.risk.bss no está debajo del umbral')
+}
 
 const bbox = '-61,-34,-59.5,-32.5'
 

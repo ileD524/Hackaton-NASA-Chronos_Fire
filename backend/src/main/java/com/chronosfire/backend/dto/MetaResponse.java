@@ -18,7 +18,8 @@ public record MetaResponse(
         Map<String, String> metricDefinitions,
         List<String> limitations,
         String attribution,
-        ProvisionalWindow provisional
+        ProvisionalWindow provisional,
+        RiskMethodology risk
 ) {
 
     public record SensorCoverage(
@@ -46,5 +47,33 @@ public record MetaResponse(
     }
 
     public record ProvisionalWindow(LocalDate from, LocalDate to, String reason) {
+    }
+
+    /**
+     * Calibracion publicada de la capa de riesgo (fase 4). Sale de
+     * {@code risk_backtest}; {@code null} si el backtest no se corrio.
+     */
+    public record RiskMethodology(
+            String modelVersion,
+            String calibrationStatus,
+            Integer holdoutYear,
+            Double brier,
+            Double bss,
+            Double auc,
+            Long cellsWeek,
+            Double stabilityBss,
+            Double bssThreshold,
+            String note
+    ) {
+    }
+
+    public record RiskBacktest(
+            String modelVersion,
+            Integer holdoutYear,
+            Double brier,
+            Double bss,
+            Double auc,
+            Long cellsWeek
+    ) {
     }
 }
