@@ -79,7 +79,10 @@ public class AlertService {
                     row.sensors(),
                     confidenceClass(row.confidenceMax()),
                     aoiAnomaly,
-                    RiskMath.level(probability.fireProbability(), probability.activityPercentile()),
+                    RiskMath.level(
+                            probability.fireProbability(),
+                            probability.activityPercentile(),
+                            row.nDetections()),
                     false,
                     probability.fireProbability(),
                     probability.probabilityLow(),

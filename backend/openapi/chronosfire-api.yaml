@@ -241,11 +241,21 @@ paths:
         celda nublada puede tener `fire_days = 0` sin estar libre de fuego.
         `activityPercentile` solo es valido con `days = 7`.
 
-        `level` se deriva de `fireProbability` y `activityPercentile`:
-        `warning` con percentil >= 0,90 o p >= 0,50; `watch` con percentil
-        >= 0,75 o p >= 0,25; `info` en el resto. Con
-        `probabilityReliability = insufficient` siempre es `info` y `p` es
-        `null`.
+        `level` combina recurrencia y anomalia (umbrales provisionales hasta
+        la calibracion de la fase 4):
+
+        - `warning`: `p >= 0,50`; o percentil >= 0,90 con
+          (`p >= 0,10` o al menos 10 detecciones observadas).
+        - `watch`: `p >= 0,25`; o percentil >= 0,75 con
+          (`p >= 0,10` o al menos 3 detecciones observadas).
+        - `info`: el resto. Con `probabilityReliability = insufficient`
+          siempre es `info` y `p` es `null`.
+
+        El percentil solo escala el nivel si la celda-semana tiene base
+        historica (`p >= 0,10`) o si el evento tiene volumen suficiente: asi
+        un evento intenso y sin precedente no queda sepultado por el
+        historico. Con `days != 7` no hay percentil y se usa el volumen
+        (>= 10 `warning`, >= 3 `watch`).
 
         Advertencia: es frecuencia historica estimada, **no prediccion ni
         riesgo oficial**.

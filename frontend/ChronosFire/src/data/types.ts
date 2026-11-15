@@ -73,6 +73,12 @@ export interface MapPoint {
   nDetections: number
   hotspots: number
   hotspotsBySensor: Record<string, number>
+  anomaly: number | null
+  fireProbability: number | null
+  probabilityLow: number | null
+  probabilityHigh: number | null
+  probabilityRefYears: number | null
+  probabilityReliability: 'high' | 'low' | 'insufficient'
 }
 
 export interface MapData {
@@ -123,6 +129,12 @@ export interface Alert {
   aoiAnomaly: number | null
   level: 'info' | 'watch' | 'warning'
   industrialMasked: boolean
+  fireProbability: number | null
+  probabilityLow: number | null
+  probabilityHigh: number | null
+  probabilityRefYears: number | null
+  probabilityReliability: 'high' | 'low' | 'insufficient'
+  activityPercentile: number | null
 }
 
 export interface AlertResponse {

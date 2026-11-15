@@ -18,6 +18,15 @@ let bboxLayer: L.Rectangle | undefined
 let resize: ResizeObserver | undefined
 let controller: AbortController | undefined
 const title = computed(() => selectedMonth.value ? `${monthName(selectedMonth.value.month)} ${selectedMonth.value.year}` : 'Elegí un mes')
+const probabilityLine = (p: MapPoint) => {
+  if (p.fireProbability === null || p.probabilityReliability === 'insufficient') {
+    return 'Probabilidad histórica: sin respaldo'
+  }
+  const interval = p.probabilityLow !== null && p.probabilityHigh !== null
+    ? ` · IC 90 % ${format(p.probabilityLow * 100)}–${format(p.probabilityHigh * 100)} %`
+    : ''
+  return `Probabilidad histórica: ${format(p.fireProbability * 100)} % (n=${p.probabilityRefYears ?? '—'}${interval})`
+}
 const timeWindow = computed(() => {
   const m = selectedMonth.value
   if (!m) return null
@@ -83,7 +92,7 @@ async function refresh() {
         opacity: .85,
         fillOpacity: .88,
       })
-        .bindPopup(`<strong>${format(p.hotspots)} hotspots</strong><br>${format(p.fireDays)} días con actividad<br><small>${breakdown || 'Sin hotspots'} · Celda ${p.gridId} · 0,05°</small>`)
+        .bindPopup(`<strong>${format(p.hotspots)} hotspots</strong><br>${format(p.fireDays)} días con actividad<br><small>${probabilityLine(p)}</small><br><small>${breakdown || 'Sin hotspots'} · Celda ${p.gridId} · 0,05°</small>`)
         .addTo(points!)
     }
     updateBox()

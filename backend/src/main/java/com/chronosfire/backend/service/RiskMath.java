@@ -17,6 +17,16 @@ public final class RiskMath {
     /** Fuerza del prior empirico por semana ISO. */
     public static final double KAPPA = 8.0;
 
+    /** Cortes provisionales del nivel (se recalibran en la fase 4). */
+    public static final double LEVEL_WARNING_PERCENTILE = 0.90;
+    public static final double LEVEL_WATCH_PERCENTILE = 0.75;
+    public static final double LEVEL_WARNING_PROBABILITY = 0.50;
+    public static final double LEVEL_WATCH_PROBABILITY = 0.25;
+    /** Base historica minima para que el percentil pueda escalar el nivel. */
+    public static final double LEVEL_PERCENTILE_MIN_PROBABILITY = 0.10;
+    public static final int LEVEL_WARNING_MIN_DETECTIONS = 10;
+    public static final int LEVEL_WATCH_MIN_DETECTIONS = 3;
+
     private RiskMath() {
     }
 
@@ -98,21 +108,43 @@ public final class RiskMath {
     /**
      * Nivel de la alerta (enum {@code info | watch | warning}).
      *
-     * <p>Se conserva el enum del contrato; los cortes son los propuestos en
-     * la fase 2 y deben reemplazarse por los cuantiles observados despues de
-     * la fase 4.</p>
+     * <p>Regla del MVP: combina recurrencia historica ({@code p}), anomalia
+     * ({@code activityPercentile}) y volumen observado. El percentil solo
+     * escala si la celda-semana tiene una base historica minima
+     * ({@code p >= 0.10}) o si el evento tiene volumen suficiente, para no
+     * sepultar un evento intenso y sin precedente. Cuando no hay percentil
+     * (ventana distinta de 7 dias) se usa el volumen, con los mismos cortes
+     * que usaba la alerta antes de la capa de riesgo.</p>
+     *
+     * <p>Si {@code fireProbability} es {@code null} la confiabilidad es
+     * {@code insufficient} y el nivel es siempre {@code info}.</p>
      */
-    public static String level(Double fireProbability, Double activityPercentile) {
-        if (activityPercentile != null && activityPercentile >= 0.90) {
+    public static String level(Double fireProbability, Double activityPercentile, int observedDetections) {
+        if (fireProbability == null) {
+            return "info";
+        }
+        if (fireProbability >= LEVEL_WARNING_PROBABILITY) {
             return "warning";
         }
-        if (fireProbability != null && fireProbability >= 0.50) {
-            return "warning";
-        }
-        if (activityPercentile != null && activityPercentile >= 0.75) {
+        if (fireProbability >= LEVEL_WATCH_PROBABILITY) {
             return "watch";
         }
-        if (fireProbability != null && fireProbability >= 0.25) {
+        if (activityPercentile != null) {
+            boolean hasBase = fireProbability >= LEVEL_PERCENTILE_MIN_PROBABILITY;
+            if (activityPercentile >= LEVEL_WARNING_PERCENTILE
+                    && (hasBase || observedDetections >= LEVEL_WARNING_MIN_DETECTIONS)) {
+                return "warning";
+            }
+            if (activityPercentile >= LEVEL_WATCH_PERCENTILE
+                    && (hasBase || observedDetections >= LEVEL_WATCH_MIN_DETECTIONS)) {
+                return "watch";
+            }
+            return "info";
+        }
+        if (observedDetections >= LEVEL_WARNING_MIN_DETECTIONS) {
+            return "warning";
+        }
+        if (observedDetections >= LEVEL_WATCH_MIN_DETECTIONS) {
             return "watch";
         }
         return "info";

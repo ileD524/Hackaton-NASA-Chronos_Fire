@@ -85,12 +85,36 @@ class RiskMathTest {
     }
 
     @Test
-    void levelUsesPercentileAndProbabilityCutoffs() {
-        assertEquals("warning", RiskMath.level(0.10, 0.90));
-        assertEquals("warning", RiskMath.level(0.50, null));
-        assertEquals("watch", RiskMath.level(0.10, 0.75));
-        assertEquals("watch", RiskMath.level(0.25, null));
-        assertEquals("info", RiskMath.level(0.10, 0.50));
-        assertEquals("info", RiskMath.level(null, null));
+    void levelEscalatesByRecurrenceAlone() {
+        assertEquals("warning", RiskMath.level(0.50, null, 0));
+        assertEquals("warning", RiskMath.level(0.60, 0.10, 1));
+        assertEquals("watch", RiskMath.level(0.25, null, 0));
+        assertEquals("watch", RiskMath.level(0.30, 0.10, 1));
+    }
+
+    @Test
+    void levelUsesPercentileOnlyWithHistoricalBaseOrVolume() {
+        // Base historica alcanza con p >= 0,10
+        assertEquals("warning", RiskMath.level(0.10, 0.90, 4));
+        assertEquals("watch", RiskMath.level(0.10, 0.75, 1));
+        // Sin base, el volumen del evento habilita el ascenso
+        assertEquals("warning", RiskMath.level(0.0037, 1.0, 309));
+        assertEquals("warning", RiskMath.level(0.0037, 1.0, 10));
+        assertEquals("watch", RiskMath.level(0.0037, 0.80, 3));
+        // Sin base ni volumen, el percentil alto no escala
+        assertEquals("info", RiskMath.level(0.0037, 1.0, 2));
+        assertEquals("watch", RiskMath.level(0.09, 0.90, 8));
+    }
+
+    @Test
+    void levelFallsBackToVolumeWhenPercentileIsUnavailable() {
+        assertEquals("warning", RiskMath.level(0.08, null, 12));
+        assertEquals("watch", RiskMath.level(0.08, null, 4));
+        assertEquals("info", RiskMath.level(0.08, null, 2));
+    }
+
+    @Test
+    void insufficientReliabilityIsAlwaysInfo() {
+        assertEquals("info", RiskMath.level(null, null, 309));
     }
 }

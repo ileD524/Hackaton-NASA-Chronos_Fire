@@ -30,7 +30,7 @@ if (!daily.length) throw new Error('daily vacío')
 
 const heatmap = await get(`/api/calendar/heatmap?bbox=${bbox}&from=2020-09-01&to=2020-09-30&sensor=ALL&limit=5000`)
 if (!heatmap.length) throw new Error('heatmap vacío')
-for (const field of ['hotspots', 'hotspotsBySensor']) {
+for (const field of ['hotspots', 'hotspotsBySensor', 'fireProbability', 'probabilityLow', 'probabilityHigh', 'probabilityRefYears', 'probabilityReliability']) {
   if (!(field in heatmap[0])) throw new Error(`heatmap sin ${field}`)
 }
 const heatmapHotspots = heatmap.reduce((sum, cell) => sum + cell.hotspots, 0)
@@ -108,6 +108,14 @@ if (Number(longCsvHead.headers.get('x-returned-rows')) !== 50000) {
 
 const alerts = await get(`/api/alerts?bbox=${bbox}&days=7&limit=5`)
 if (typeof alerts.count !== 'number' || !Array.isArray(alerts.alerts)) throw new Error('alerts inválido')
+if (alerts.alerts.length) {
+  for (const field of ['fireProbability', 'probabilityLow', 'probabilityHigh', 'probabilityRefYears', 'probabilityReliability', 'activityPercentile']) {
+    if (!(field in alerts.alerts[0])) throw new Error(`alerts sin ${field}`)
+  }
+  if (alerts.alerts[0].probabilityReliability === 'high' && alerts.alerts[0].probabilityRefYears !== 13) {
+    throw new Error(`alerts con n=${alerts.alerts[0].probabilityRefYears} != 13`)
+  }
+}
 
 const validation = await get('/api/validation')
 if (!validation.some((event) => event.aoiId === 'delta_2020' && event.verdict === 'pass')) {
