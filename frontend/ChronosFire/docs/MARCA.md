@@ -12,11 +12,12 @@ Referencia: [NASA Space Apps Brand Guidelines](https://www.spaceappschallenge.or
 | Identidad del proyecto | El proyecto se presenta como **VII.MO**, con el punto del nombre siempre en Rocket Red. El logotipo y el símbolo viven en `src/components/BrandMark.vue`, que reproduce la geometría del mockup (`public/Anatomía Órbita-V-html/`). |
 | Movimiento | El hotspot del hero orbita lentamente sobre la trayectoria; se sustituye por el punto estático cuando el sistema pide movimiento reducido. |
 | Favicon | Símbolo solo (V + órbita + hotspot) sobre Deep Blue. |
-| Escala de actividad | Cinco quintiles de la selección con la paleta de marca: `#0A2A66` → `#0960E1` → `#2E96F5` (celeste) → `#EAFE07` → `#E03000`. La leyenda muestra los cortes numéricos de cada tramo. |
-| Escala divergente | Cortes fijos en ±15% y ±50% sobre la mediana: verde por debajo, azul profundo en el centro, naranja `#F08A00` y rojo `#E03000` por encima. ▼/▲ y un anillo blanco marcan los extremos, así el dato no depende solo del color. |
-| Números críticos | El mes con mayor valor y la desviación del mes seleccionado usan el color de su banda (`#6EE7A8` a `#FF6A3D` sobre fondo oscuro); el resto de cada tarjeta queda neutro. |
-| Color de dato | El verde `#1F7A57` / `#8FD9B6` se reserva para «por debajo de la mediana» y no forma parte de la paleta de Space Apps. El rojo de celdas es `#E03000`, apenas más oscuro que el Rocket Red: el `#E43700` puro daba 4,33:1 con texto blanco y no alcanzaba el mínimo de 4,5:1 en texto pequeño. |
-| Contraste | Se corrigió el texto azul del encabezado y se calculó luminancia WCAG para elegir texto claro/oscuro en las celdas; todas las examinadas superan 4,5:1. |
+| Escala de actividad | Cinco quintiles de la selección con rampa **Viridis** (`#440154` → `#414487` → `#2A788E` → `#22A884` → `#FDE725`), elegida para datos por ser perceptualmente uniforme y apta para daltonismo. La paleta de marca queda para la interfaz. La leyenda muestra los cortes numéricos de cada tramo. |
+| Escala divergente | Cortes fijos en ±15% y ±50% sobre la mediana con rampa **PuOr**: púrpura `#542788` / `#B2ABD2` por debajo, azul profundo `#0B2A6B` en el centro y naranja `#FDB863` / `#B35806` por encima. ▼/▲ y un anillo blanco marcan los extremos, así el dato no depende solo del color. |
+| Mapa | Doble codificación: el color indica la intensidad de hotspots (quintiles de las celdas mostradas) y el tamaño, los días con actividad. |
+| Números críticos | El mes con mayor valor y la desviación del mes seleccionado usan el tono claro de su banda (`#D8CCF0` a `#FF9E64` sobre fondo oscuro); el resto de cada tarjeta queda neutro. |
+| Color de dato | La rampa de anomalía ya no usa verde/rojo: púrpura y naranja se distinguen en simulaciones de protanopia y deuteranopia (ΔE > 90 entre extremos; > 31 entre bandas contiguas). Los cinco tramos de Viridis también superan ΔE 17 en esas simulaciones. |
+| Contraste | Se calculó luminancia WCAG para elegir texto claro/oscuro en cada celda y en cada tramo de leyenda; todas las combinaciones examinadas superan 4,5:1. |
 | Accesibilidad visual | Las escalas conservan valores numéricos; faltantes y meses parciales tienen etiquetas propias. |
 
 Esta revisión documenta ajustes concretos; no constituye una certificación ni aprobación de NASA.

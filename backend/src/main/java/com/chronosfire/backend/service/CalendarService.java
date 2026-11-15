@@ -1,6 +1,7 @@
 package com.chronosfire.backend.service;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.DailyRow;
 import com.chronosfire.backend.dto.HeatmapCell;
 import com.chronosfire.backend.dto.MonthlyCell;
@@ -9,8 +10,11 @@ import com.chronosfire.backend.dto.WeeklyResponse;
 import com.chronosfire.backend.repository.CalendarRepository;
 import com.chronosfire.backend.repository.CalendarRepository.AnnualSensor;
 import com.chronosfire.backend.repository.CalendarRepository.Baseline;
+import com.chronosfire.backend.repository.CalendarRepository.DailyHotspot;
+import com.chronosfire.backend.repository.CalendarRepository.HeatmapHotspot;
 import com.chronosfire.backend.repository.CalendarRepository.MonthFire;
 import com.chronosfire.backend.repository.CalendarRepository.MonthSensorDetections;
+import com.chronosfire.backend.repository.CalendarRepository.MonthlyHotspot;
 import com.chronosfire.backend.repository.CalendarRepository.SensorWeek;
 import com.chronosfire.backend.repository.CalendarRepository.WeekFlags;
 import com.chronosfire.backend.repository.CalendarRepository.WeeklyExportRow;
@@ -102,7 +106,14 @@ public class CalendarService {
         }
 
         boolean provisional = flags.hasNrt() || year >= 2026;
-        String dataStatus = flags.rows() == 0 || selected == null ? "unknown" : "observed";
+        boolean coverageKnown = repository.coverageKnown();
+        boolean covered = repository.hasCoverage(year, week, plan.observedSensor());
+        String dataStatus = selected != null || covered
+                ? "observed"
+                : (coverageKnown ? "no_data" : "unknown");
+        Integer nDataYears = coverageKnown
+                ? repository.nDataYears(week, plan.observedSensor())
+                : null;
 
         return new WeeklyResponse(
                 responseBbox,
@@ -119,7 +130,7 @@ public class CalendarService {
                 confidence,
                 provisional,
                 dataStatus,
-                null,
+                nDataYears,
                 fireCellsBySensor,
                 detectionsBySensor,
                 frpBySensor,
@@ -137,7 +148,39 @@ public class CalendarService {
         int safeLimit = validateLimit(limit, 5000, 50000);
         Bbox queryBbox = queryBbox(bboxParam);
         String sensor = normalizeSensor(sensorParam, "ALL");
-        return repository.daily(queryBbox, from, to, sensor, safeLimit);
+
+        List<DailyRow> rows = repository.daily(queryBbox, from, to, sensor, safeLimit);
+        if (rows.isEmpty()) {
+            return rows;
+        }
+
+        Map<String, Map<String, Integer>> hotspots = new HashMap<>();
+        for (DailyHotspot row : repository.dailyHotspots(queryBbox, from, to, sensor)) {
+            hotspots.computeIfAbsent(dayKey(row.day(), row.gridId()), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
+        List<DailyRow> enriched = new ArrayList<>(rows.size());
+        for (DailyRow row : rows) {
+            Map<String, Integer> bySensor = hotspots.getOrDefault(
+                    dayKey(row.date(), row.gridId()), Map.of());
+            int total = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            enriched.add(new DailyRow(
+                    row.date(),
+                    row.gridId(),
+                    row.cellLat(),
+                    row.cellLon(),
+                    row.fireDay(),
+                    row.nDetections(),
+                    row.sensors(),
+                    total,
+                    bySensor,
+                    row.frpMaxMw(),
+                    row.frpDensityMaxWm2(),
+                    row.source(),
+                    row.dataStatus()));
+        }
+        return enriched;
     }
 
     @Cacheable(value = "heatmap", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam + '|' + #limit")
@@ -151,7 +194,35 @@ public class CalendarService {
         int safeLimit = validateLimit(limit, 5000, 50000);
         Bbox queryBbox = queryBbox(bboxParam);
         String sensor = normalizeSensor(sensorParam, "ALL");
-        return repository.heatmap(queryBbox, from, to, sensor, safeLimit);
+
+        List<HeatmapCell> rows = repository.heatmap(queryBbox, from, to, sensor, safeLimit);
+        if (rows.isEmpty()) {
+            return rows;
+        }
+
+        Map<String, Map<String, Integer>> hotspots = new HashMap<>();
+        for (HeatmapHotspot row : repository.heatmapHotspots(queryBbox, from, to, sensor)) {
+            hotspots.computeIfAbsent(row.gridId(), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
+        List<HeatmapCell> enriched = new ArrayList<>(rows.size());
+        for (HeatmapCell row : rows) {
+            Map<String, Integer> bySensor = hotspots.getOrDefault(row.gridId(), Map.of());
+            int total = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            enriched.add(new HeatmapCell(
+                    row.gridId(),
+                    row.cellLat(),
+                    row.cellLon(),
+                    row.fireCells(),
+                    row.fireDays(),
+                    row.nDetections(),
+                    total,
+                    bySensor,
+                    row.anomaly(),
+                    row.dataStatus()));
+        }
+        return enriched;
     }
 
     @Cacheable(value = "monthly", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam")
@@ -165,7 +236,7 @@ public class CalendarService {
         String sensor = normalizeSensor(sensorParam, "ALL");
 
         Map<String, MonthFire> fires = new HashMap<>();
-        for (MonthFire row : repository.monthlyFire(queryBbox, from, to)) {
+        for (MonthFire row : repository.monthlyFire(queryBbox, from, to, sensor)) {
             fires.put(monthKey(row.year(), row.month()), row);
         }
 
@@ -174,6 +245,17 @@ public class CalendarService {
             detections.computeIfAbsent(monthKey(row.year(), row.month()), key -> new LinkedHashMap<>())
                     .put(row.sensor(), row.nDetections());
         }
+
+        Map<String, Map<String, Integer>> hotspotCounts = new HashMap<>();
+        for (MonthlyHotspot row : repository.monthlyHotspots(queryBbox, from, to, sensor)) {
+            hotspotCounts.computeIfAbsent(monthKey(row.year(), row.month()), key -> new LinkedHashMap<>())
+                    .put(row.sensor(), row.hotspots());
+        }
+
+        boolean coverageKnown = repository.coverageKnown();
+        Set<String> coveredMonths = coverageKnown
+                ? repository.coverageMonths(from, to, sensor)
+                : Set.of();
 
         List<MonthlyCell> result = new ArrayList<>();
         YearMonth cursor = YearMonth.from(from);
@@ -184,9 +266,15 @@ public class CalendarService {
             String key = monthKey(year, month);
             MonthFire fire = fires.get(key);
             Map<String, Integer> bySensor = detections.getOrDefault(key, Map.of());
+            Map<String, Integer> hotspotsBySensor = hotspotCounts.getOrDefault(key, Map.of());
             int nDetections = bySensor.values().stream().mapToInt(Integer::intValue).sum();
+            int hotspots = hotspotsBySensor.values().stream().mapToInt(Integer::intValue).sum();
             boolean partial = cursor.atDay(1).isBefore(from) || cursor.atEndOfMonth().isAfter(to);
-            String dataStatus = fire == null && bySensor.isEmpty() ? "unknown" : "observed";
+            boolean observed = fire != null
+                    || !bySensor.isEmpty()
+                    || !hotspotsBySensor.isEmpty()
+                    || coveredMonths.contains(key);
+            String dataStatus = observed ? "observed" : (coverageKnown ? "no_data" : "unknown");
             result.add(new MonthlyCell(
                     year,
                     month,
@@ -194,11 +282,105 @@ public class CalendarService {
                     fire == null ? 0 : fire.fireDays(),
                     nDetections,
                     bySensor,
+                    hotspots,
+                    hotspotsBySensor,
                     partial,
-                    dataStatus));
+                    dataStatus,
+                    null,
+                    null,
+                    0,
+                    "insufficient"));
             cursor = cursor.plusMonths(1);
         }
-        return result;
+        return withMonthlyAnomaly(result, sensor);
+    }
+
+    /**
+     * Calcula la anomalia mensual leave-one-out sobre la misma metrica
+     * (fire_cells) y el mismo sensor de la serie observada.
+     *
+     * <p>Solo usa meses observados y completos como referencia, y respeta
+     * la era del sensor: MODIS 2003-2011, VIIRS SNPP 2013-2025, NOAA-20
+     * 2019-2025, NOAA-21 2024-2025. Para {@code ALL} se excluyen 2000-2002,
+     * 2012 (transicion) y 2026 (NRT). Un mes parcial, sin datos o con menos
+     * de 7 anos de referencia queda {@code insufficient}. La confianza es
+     * {@code high} con 10+ anos y baseline >= 10; en el resto de los casos
+     * validos es {@code low}.</p>
+     */
+    private List<MonthlyCell> withMonthlyAnomaly(List<MonthlyCell> cells, String sensor) {
+        Map<Integer, List<MonthlyCell>> byMonth = new HashMap<>();
+        for (MonthlyCell cell : cells) {
+            if ("observed".equals(cell.dataStatus())
+                    && !cell.partial()
+                    && isMonthlyReferenceYear(cell.year(), sensor)) {
+                byMonth.computeIfAbsent(cell.month(), key -> new ArrayList<>()).add(cell);
+            }
+        }
+
+        List<MonthlyCell> enriched = new ArrayList<>(cells.size());
+        for (MonthlyCell cell : cells) {
+            List<Double> referenceValues = new ArrayList<>();
+            for (MonthlyCell other : byMonth.getOrDefault(cell.month(), List.of())) {
+                if (other.year() != cell.year()) {
+                    referenceValues.add((double) other.fireCells());
+                }
+            }
+
+            Double baseline = referenceValues.isEmpty()
+                    ? null
+                    : round(median(referenceValues), 1);
+            double baselineValue = baseline == null ? 0 : baseline;
+            boolean comparable = "observed".equals(cell.dataStatus())
+                    && !cell.partial()
+                    && isMonthlyAnomalyAllowed(cell.year(), sensor)
+                    && cell.fireCells() >= 3
+                    && referenceValues.size() >= 7
+                    && baselineValue >= 3;
+
+            Double anomaly = comparable
+                    ? round(cell.fireCells() / baselineValue, 2)
+                    : null;
+            String confidence = !comparable
+                    ? "insufficient"
+                    : (referenceValues.size() >= 10 && baselineValue >= 10 ? "high" : "low");
+
+            enriched.add(new MonthlyCell(
+                    cell.year(),
+                    cell.month(),
+                    cell.fireCells(),
+                    cell.fireDays(),
+                    cell.nDetections(),
+                    cell.detectionsBySensor(),
+                    cell.hotspots(),
+                    cell.hotspotsBySensor(),
+                    cell.partial(),
+                    cell.dataStatus(),
+                    baseline,
+                    anomaly,
+                    referenceValues.size(),
+                    confidence));
+        }
+        return enriched;
+    }
+
+    private boolean isMonthlyReferenceYear(int year, String sensor) {
+        return switch (sensor) {
+            case "MODIS" -> year >= 2003 && year <= 2011;
+            case "VIIRS_SNPP" -> year >= 2013 && year <= 2025;
+            case "VIIRS_NOAA20" -> year >= 2019 && year <= 2025;
+            case "VIIRS_NOAA21" -> year >= 2024 && year <= 2025;
+            default -> year >= 2003 && year <= 2025 && year != 2012;
+        };
+    }
+
+    private boolean isMonthlyAnomalyAllowed(int year, String sensor) {
+        return switch (sensor) {
+            case "MODIS" -> year >= 2003;
+            case "VIIRS_SNPP" -> year >= 2013;
+            case "VIIRS_NOAA20" -> year >= 2019;
+            case "VIIRS_NOAA21" -> year >= 2024;
+            default -> year >= 2003 && year != 2012;
+        };
     }
 
     @Cacheable(value = "trend", key = "#bboxParam + '|' + #from + '|' + #to + '|' + #sensorParam")
@@ -252,7 +434,7 @@ public class CalendarService {
         return result;
     }
 
-    public String exportCsv(
+    public CsvExport exportCsv(
             String bboxParam,
             LocalDate from,
             LocalDate to,
@@ -269,7 +451,11 @@ public class CalendarService {
         int toWeek = to.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
 
         List<WeeklyExportRow> rows = repository.weeklyExport(
-                queryBbox, fromYear, fromWeek, toYear, toWeek, sensor, safeLimit);
+                queryBbox, fromYear, fromWeek, toYear, toWeek, sensor, safeLimit + 1);
+        boolean truncated = rows.size() > safeLimit;
+        if (truncated) {
+            rows = rows.subList(0, safeLimit);
+        }
 
         StringBuilder csv = new StringBuilder("\uFEFF");
         csv.append("isoyear,week_of_year,grid_id,cell_lat,cell_lon,sensor,")
@@ -286,7 +472,7 @@ public class CalendarService {
                     .append(row.nDetections()).append(',')
                     .append(row.frpSumMw() == null ? "" : row.frpSumMw()).append('\n');
         }
-        return csv.toString();
+        return new CsvExport(csv.toString(), rows.size(), safeLimit, truncated);
     }
 
     private Bbox queryBbox(String bboxParam) {
@@ -336,6 +522,10 @@ public class CalendarService {
 
     private String monthKey(int year, int month) {
         return year + "-" + month;
+    }
+
+    private String dayKey(LocalDate day, String gridId) {
+        return day + "|" + gridId;
     }
 
     private String sensorYearKey(String sensor, int year) {

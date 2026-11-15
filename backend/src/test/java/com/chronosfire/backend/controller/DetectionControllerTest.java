@@ -1,12 +1,14 @@
 package com.chronosfire.backend.controller;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.Detection;
 import com.chronosfire.backend.dto.DetectionPage;
 import com.chronosfire.backend.dto.GeoJsonFeatureCollection;
@@ -53,6 +55,33 @@ class DetectionControllerTest {
     }
 
     @Test
+    void forwardsDetectionFilters() throws Exception {
+        detectionService.page = new DetectionPage(
+                List.of(sampleDetection()),
+                1,
+                10,
+                0);
+
+        mockMvc.perform(get("/api/detections")
+                        .param("bbox", "-61,-34,-59.5,-32.5")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("sensor", "MODIS")
+                        .param("confidence", "high")
+                        .param("type", "0")
+                        .param("source", "SP")
+                        .param("vegetation", "true")
+                        .param("limit", "10"))
+                .andExpect(status().isOk());
+
+        assertEquals("MODIS", detectionService.lastSensor);
+        assertEquals(List.of("high"), detectionService.lastConfidence);
+        assertEquals(0, detectionService.lastType);
+        assertEquals("SP", detectionService.lastSource);
+        assertEquals(true, detectionService.lastVegetation);
+    }
+
+    @Test
     void returnsGeoJson() throws Exception {
         detectionService.geoJson = GeoJsonFeatureCollection.of(List.of(
                 GeoJsonFeature.point(-60.3, -33.25, Map.of("sensor", "MODIS"))));
@@ -68,7 +97,7 @@ class DetectionControllerTest {
 
     @Test
     void exportsCsv() throws Exception {
-        detectionService.csv = "\uFEFFsensor,source\nMODIS,SP\n";
+        detectionService.csv = new CsvExport("\uFEFFsensor,source\nMODIS,SP\n", 1, 50000, false);
 
         mockMvc.perform(get("/api/detections/export.csv")
                         .param("from", "2020-09-01")
@@ -76,7 +105,24 @@ class DetectionControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.parseMediaType("text/csv")))
                 .andExpect(header().string("Content-Disposition", containsString("attachment")))
+                .andExpect(header().string("X-Row-Limit", "50000"))
+                .andExpect(header().string("X-Returned-Rows", "1"))
+                .andExpect(header().string("X-Truncated", "false"))
                 .andExpect(content().string(containsString("sensor,source")));
+    }
+
+    @Test
+    void reportsCsvTruncation() throws Exception {
+        detectionService.csv = new CsvExport("\uFEFFsensor,source\nMODIS,SP\n", 2, 2, true);
+
+        mockMvc.perform(get("/api/detections/export.csv")
+                        .param("from", "2020-09-01")
+                        .param("to", "2020-09-30")
+                        .param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Row-Limit", "2"))
+                .andExpect(header().string("X-Returned-Rows", "2"))
+                .andExpect(header().string("X-Truncated", "true"));
     }
 
     private Detection sampleDetection() {
@@ -113,7 +159,12 @@ class DetectionControllerTest {
 
         private DetectionPage page;
         private GeoJsonFeatureCollection geoJson;
-        private String csv;
+        private CsvExport csv;
+        private String lastSensor;
+        private List<String> lastConfidence;
+        private Integer lastType;
+        private String lastSource;
+        private Boolean lastVegetation;
 
         StubDetectionService() {
             super(null);
@@ -131,6 +182,11 @@ class DetectionControllerTest {
                 Boolean vegetation,
                 int limit,
                 int offset) {
+            lastSensor = sensor;
+            lastConfidence = confidence;
+            lastType = type;
+            lastSource = source;
+            lastVegetation = vegetation;
             return page;
         }
 
@@ -149,7 +205,7 @@ class DetectionControllerTest {
         }
 
         @Override
-        public String exportCsv(
+        public CsvExport exportCsv(
                 String bbox,
                 LocalDate from,
                 LocalDate to,

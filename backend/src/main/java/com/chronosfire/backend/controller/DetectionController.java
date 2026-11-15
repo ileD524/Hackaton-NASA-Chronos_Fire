@@ -1,5 +1,6 @@
 package com.chronosfire.backend.controller;
 
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.DetectionPage;
 import com.chronosfire.backend.dto.GeoJsonFeatureCollection;
 import com.chronosfire.backend.service.DetectionService;
@@ -73,7 +74,7 @@ public class DetectionController {
             @RequestParam(required = false) String source,
             @RequestParam(required = false) Boolean vegetation,
             @RequestParam(defaultValue = "50000") int limit) {
-        String csv = detectionService.exportCsv(
+        CsvExport export = detectionService.exportCsv(
                 bbox, from, to, sensor, confidence, type, source, vegetation, limit);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, "text/csv; charset=utf-8")
@@ -82,6 +83,9 @@ public class DetectionController {
                                 .filename("chronosfire-detecciones.csv")
                                 .build()
                                 .toString())
-                .body(csv.getBytes(StandardCharsets.UTF_8));
+                .header("X-Row-Limit", Integer.toString(export.limit()))
+                .header("X-Returned-Rows", Integer.toString(export.rows()))
+                .header("X-Truncated", Boolean.toString(export.truncated()))
+                .body(export.csv().getBytes(StandardCharsets.UTF_8));
     }
 }

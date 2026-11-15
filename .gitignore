@@ -1,6 +1,6 @@
 
 # Datos crudos de FIRMS (descargables, no versionar)
-/data/
+/data/**
 
 # Material de referencia pesado
 /Space_Apps_Brand_Guide_VUGpVJm.pdf
@@ -77,6 +77,7 @@ secrets.yml
 # Los JSON/CSV descargados pueden pesar GB: no van al repo.
 # Se conservan los Readme.txt de cada carpeta.
 data/**
+!data/README.md
 !data/**/Readme.txt
 !data/**/readme.txt
 
@@ -124,6 +125,7 @@ pg_hba.conf
 
 # ---------- Logs ----------
 *.log
+*.err
 logs/
 log/
 

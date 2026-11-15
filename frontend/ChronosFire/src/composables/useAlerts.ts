@@ -7,6 +7,7 @@ const validation = ref<ValidationEvent[]>([])
 const alertsLoading = ref(false)
 const validationLoading = ref(false)
 const alertsError = ref('')
+const alertsUpdatedAt = ref<Date | null>(null)
 const validationError = ref('')
 
 export function useAlerts() {
@@ -17,6 +18,7 @@ export function useAlerts() {
       const params = new URLSearchParams({ days: '7', limit: '50' })
       if (bbox) params.set('bbox', bbox.join(','))
       alerts.value = await fetchJSON<AlertResponse>(`/api/alerts?${params}`)
+      alertsUpdatedAt.value = new Date()
     } catch (e) {
       alertsError.value = e instanceof Error ? e.message : 'No se pudieron cargar las alertas.'
     } finally {
@@ -36,5 +38,15 @@ export function useAlerts() {
     }
   }
 
-  return { alerts, validation, alertsLoading, validationLoading, alertsError, validationError, loadAlerts, loadValidation }
+  return {
+    alerts,
+    validation,
+    alertsLoading,
+    validationLoading,
+    alertsError,
+    alertsUpdatedAt,
+    validationError,
+    loadAlerts,
+    loadValidation,
+  }
 }

@@ -1,4 +1,5 @@
 export type Metric = 'all' | 'MODIS' | 'VIIRS_SNPP' | 'VIIRS_NOAA20' | 'VIIRS_NOAA21'
+export type MetricMode = 'cells' | 'hotspots'
 export type Bbox = [number, number, number, number]
 export interface Filters { from: string; to: string; metric: Metric; bbox: Bbox | null }
 
@@ -23,7 +24,13 @@ export interface MonthCell {
   fire_cells: number
   fire_days: number
   n_detections: number
+  hotspots: number
+  hotspots_by_sensor: Record<string, number>
   data_status: string
+  baseline_fire_cells: number | null
+  anomaly: number | null
+  reference_years: number
+  confidence: string
 }
 
 /**
@@ -44,6 +51,8 @@ export interface DailyRow {
   fire_day: boolean
   n_detections: number
   sensors: string[]
+  hotspots: number
+  hotspots_by_sensor: Record<string, number>
   frp_max_mw: number | null
   frp_density_max_wm2: number | null
   data_status: string
@@ -62,15 +71,31 @@ export interface MapPoint {
   fireCells: number
   fireDays: number
   nDetections: number
+  hotspots: number
+  hotspotsBySensor: Record<string, number>
 }
 
 export interface MapData {
   points: MapPoint[]
   total_groups: number
   shown_groups: number
-  total_detections: number
-  shown_detections: number
+  total_hotspots: number
+  shown_hotspots: number
   aggregation_km: number
+}
+
+export interface MetaSensor {
+  sensor: string
+  source: string
+  rows: number
+  from: string | null
+  to: string | null
+}
+
+export interface MetaProvisional {
+  from: string
+  to: string
+  reason: string
 }
 
 export interface Meta {
@@ -80,7 +105,10 @@ export interface Meta {
   rows: number
   selected_rows: number
   calibration: unknown | null
-  bounds: Bbox
+  grid_resolution_deg: number
+  sensors: MetaSensor[]
+  coverage_known: boolean
+  provisional: MetaProvisional | null
 }
 
 export interface Alert {
@@ -128,3 +156,11 @@ export const SERIES: Record<Metric, string> = {
   VIIRS_NOAA20: 'VIIRS NOAA-20',
   VIIRS_NOAA21: 'VIIRS NOAA-21',
 }
+
+export const SENSOR_OPTIONS: { id: Metric; label: string }[] = [
+  { id: 'all', label: 'Todos los sensores (dominado por VIIRS)' },
+  { id: 'MODIS', label: 'MODIS' },
+  { id: 'VIIRS_SNPP', label: 'VIIRS SNPP' },
+  { id: 'VIIRS_NOAA20', label: 'VIIRS NOAA-20' },
+  { id: 'VIIRS_NOAA21', label: 'VIIRS NOAA-21' },
+]

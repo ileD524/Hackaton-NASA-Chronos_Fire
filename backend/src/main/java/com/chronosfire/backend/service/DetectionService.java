@@ -1,6 +1,7 @@
 package com.chronosfire.backend.service;
 
 import com.chronosfire.backend.dto.Bbox;
+import com.chronosfire.backend.dto.CsvExport;
 import com.chronosfire.backend.dto.Detection;
 import com.chronosfire.backend.dto.DetectionPage;
 import com.chronosfire.backend.dto.GeoJsonFeatureCollection;
@@ -42,7 +43,7 @@ public class DetectionService {
             Boolean vegetation,
             int limit,
             int offset) {
-        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation);
+        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation, 3660);
         int safeLimit = validateLimit(limit, 1000, 50000);
         if (offset < 0) {
             throw new IllegalArgumentException("offset no puede ser negativo.");
@@ -60,7 +61,7 @@ public class DetectionService {
             String sourceParam,
             Boolean vegetation,
             int limit) {
-        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation);
+        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation, 3660);
         int safeLimit = validateLimit(limit, 1000, 50000);
         List<Detection> detections = repository.findForExport(filter, safeLimit);
         List<GeoJsonFeature> features = new ArrayList<>(detections.size());
@@ -73,7 +74,7 @@ public class DetectionService {
         return GeoJsonFeatureCollection.of(features);
     }
 
-    public String exportCsv(
+    public CsvExport exportCsv(
             String bboxParam,
             LocalDate from,
             LocalDate to,
@@ -83,9 +84,13 @@ public class DetectionService {
             String sourceParam,
             Boolean vegetation,
             int limit) {
-        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation);
+        DetectionFilter filter = filter(bboxParam, from, to, sensorParam, confidenceParam, fireType, sourceParam, vegetation, 10000);
         int safeLimit = validateLimit(limit, 50000, 50000);
-        List<Detection> detections = repository.findForExport(filter, safeLimit);
+        List<Detection> detections = repository.findForExport(filter, safeLimit + 1);
+        boolean truncated = detections.size() > safeLimit;
+        if (truncated) {
+            detections = detections.subList(0, safeLimit);
+        }
 
         StringBuilder csv = new StringBuilder("\uFEFF");
         csv.append("sensor,source,acquired_at,acq_date,latitude,longitude,")
@@ -110,7 +115,7 @@ public class DetectionService {
                     .append(csv(d.qualityFlags())).append(',')
                     .append(csv(d.productVersion())).append('\n');
         }
-        return csv.toString();
+        return new CsvExport(csv.toString(), detections.size(), safeLimit, truncated);
     }
 
     private DetectionFilter filter(
@@ -121,8 +126,9 @@ public class DetectionService {
             List<String> confidenceParam,
             Integer fireType,
             String sourceParam,
-            Boolean vegetation) {
-        validateRange(from, to);
+            Boolean vegetation,
+            int maxDays) {
+        validateRange(from, to, maxDays);
         if (fireType != null && (fireType < 0 || fireType > 3)) {
             throw new IllegalArgumentException("type debe estar entre 0 y 3.");
         }
@@ -222,7 +228,7 @@ public class DetectionService {
         }
     }
 
-    private void validateRange(LocalDate from, LocalDate to) {
+    private void validateRange(LocalDate from, LocalDate to, int maxDays) {
         if (from == null || to == null) {
             throw new IllegalArgumentException("from y to son requeridos.");
         }
@@ -232,8 +238,8 @@ public class DetectionService {
         if (from.isBefore(LocalDate.of(2000, 1, 1)) || to.isAfter(LocalDate.of(2026, 12, 31))) {
             throw new IllegalArgumentException("El rango debe estar entre 2000-01-01 y 2026-12-31.");
         }
-        if (to.toEpochDay() - from.toEpochDay() > 3660) {
-            throw new IllegalArgumentException("El rango supera el maximo de 3660 dias.");
+        if (to.toEpochDay() - from.toEpochDay() > maxDays) {
+            throw new IllegalArgumentException("El rango supera el maximo de " + maxDays + " dias.");
         }
     }
 

@@ -13,6 +13,7 @@ Base: `chronos_fire` (PostgreSQL 17).
 | `03_sensibilidad.sql` | V3 | Solo temp table | MODIS vs SNPP vs todos los VIIRS; ranking y top-k |
 | `03b_sensibilidad_high.sql` | V3b | Solo temp table | Sensibilidad con confianza `high` only |
 | `04_coincidencia.sql` | V4 | No | Coincidencia espacial MODIS-VIIRS por anio |
+| `05_smoke_delta_2020.sql` | Smoke | No | Delta 2020 semana 40 = 66/10/12/6,60 |
 
 ## Comandos
 
@@ -35,6 +36,9 @@ $db = 'chronos_fire'
 
 & $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
   -f backend\db\validacion\03b_sensibilidad_high.sql
+
+& $psql -h 127.0.0.1 -p 5432 -U postgres -d $db -v ON_ERROR_STOP=1 `
+  -f backend\db\validacion\05_smoke_delta_2020.sql
 ```
 
 V4 se corre por anio y por sensor VIIRS:

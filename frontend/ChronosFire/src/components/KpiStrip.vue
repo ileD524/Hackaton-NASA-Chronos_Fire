@@ -3,18 +3,24 @@ import { computed } from 'vue'
 import { useChronos } from '@/composables/useChronos'
 import { format, MONTH_LABELS, useCalendar } from '@/composables/useCalendar'
 import { anomalyBand } from '@/composables/useColorRamp'
-const { months, seriesLabel } = useChronos()
+const { months, seriesLabel, metricMode, metricValue, metricLabel, metricUnit } = useChronos()
 const { cellMeta } = useCalendar()
-const total = computed(() => months.value.reduce((sum, m) => sum + (m.value ?? 0), 0))
-const peak = computed(() => months.value.filter((m) => m.value !== null && !m.partial).sort((a, b) => (b.value ?? 0) - (a.value ?? 0))[0])
-const peakBand = computed(() => peak.value ? anomalyBand(cellMeta(peak.value.year, peak.value.month).vsMedian) : null)
-const completeMonths = computed(() => months.value.filter((m) => m.value !== null && !m.partial).length)
+const total = computed(() => months.value.reduce((sum, m) => sum + (metricValue(m) ?? 0), 0))
+const peak = computed(() => months.value
+  .filter((m) => metricValue(m) !== null && !m.partial)
+  .sort((a, b) => (metricValue(b) ?? 0) - (metricValue(a) ?? 0))[0])
+const peakBand = computed(() => metricMode.value === 'cells' && peak.value
+  ? anomalyBand(cellMeta(peak.value.year, peak.value.month).vsMedian)
+  : null)
+const completeMonths = computed(() => months.value.filter((m) => metricValue(m) !== null && !m.partial).length)
+const partialIncluded = computed(() => months.value.some((m) => m.partial && metricValue(m) !== null))
+const peakUnit = computed(() => metricMode.value === 'cells' ? 'celdas' : 'hotspots')
 </script>
 <template>
   <ul class="kpi-list">
-    <li class="kpi"><span class="kpi-caption">ACTIVIDAD REGISTRADA</span><strong class="kpi-value">{{ format(total) }}</strong><span class="kpi-label">celdas-mes con actividad · {{ seriesLabel }}</span></li>
-    <li class="kpi"><span class="kpi-caption">MES CON MAYOR VALOR</span><strong class="kpi-value smaller" :style="peakBand?{color:peakBand.ink}:undefined">{{ peak ? `${MONTH_LABELS[peak.month]} ${peak.year}` : '—' }}</strong><span class="kpi-label">{{ peak ? `${format(peak.value!)} celdas · mes completo` : 'Sin meses completos en la selección' }}</span></li>
-    <li class="kpi"><span class="kpi-caption">MESES COMPLETOS</span><strong class="kpi-value">{{ format(completeMonths) }}</strong><span class="kpi-label">en la selección · no acredita cobertura sin nubes</span></li>
+    <li class="kpi"><span class="kpi-caption">ACTIVIDAD REGISTRADA</span><strong class="kpi-value">{{ format(total) }}</strong><span class="kpi-label">{{ metricUnit }} · {{ seriesLabel }}<span v-if="partialIncluded"> · incluye meses parciales</span></span></li>
+    <li class="kpi"><span class="kpi-caption">MES CON MAYOR VALOR</span><strong class="kpi-value smaller" :style="peakBand?{color:peakBand.ink}:undefined">{{ peak ? `${MONTH_LABELS[peak.month]} ${peak.year}` : '—' }}</strong><span class="kpi-label">{{ peak ? `${format(metricValue(peak)!)} ${peakUnit} · mes completo` : 'Sin meses completos en la selección' }}</span></li>
+    <li class="kpi"><span class="kpi-caption">MESES COMPLETOS</span><strong class="kpi-value">{{ format(completeMonths) }}</strong><span class="kpi-label">en la selección · no acredita cobertura sin nubes · {{ metricLabel }}</span></li>
   </ul>
 </template>
 <style scoped>

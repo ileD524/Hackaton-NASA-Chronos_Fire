@@ -152,6 +152,18 @@ obs AS (
         sum(fire_days)::real / NULLIF(sum(detection_days), 0) AS fire_day_rate_given_detection
     FROM grid_weekly
     GROUP BY 1, 2
+),
+coverage_week AS (
+    SELECT week_of_year, max(n_years)::int AS n_data_years
+    FROM (
+        SELECT sensor,
+               extract(week FROM acq_date)::smallint AS week_of_year,
+               count(DISTINCT extract(isoyear FROM acq_date))::int AS n_years
+        FROM coverage_daily
+        WHERE has_data
+        GROUP BY 1, 2
+    ) per_sensor
+    GROUP BY 1
 )
 INSERT INTO calendar_weekly (
     grid_id, cell_lat, cell_lon, week_of_year,
@@ -166,7 +178,7 @@ SELECT
     g.cell_lon,
     w.week_of_year,
     COALESCE(o.n_fire_years, 0),
-    NULL::int AS n_data_years,
+    COALESCE(c.n_data_years, 0),
     COALESCE(o.n_activity_years, 0),
     o.fire_day_rate_given_detection,
     o.fire_days_mean,
@@ -178,7 +190,9 @@ FROM grids g
 CROSS JOIN weeks w
 LEFT JOIN obs o
   ON o.grid_id = g.grid_id
- AND o.week_of_year = w.week_of_year;
+ AND o.week_of_year = w.week_of_year
+LEFT JOIN coverage_week c
+  ON c.week_of_year = w.week_of_year;
 
 ANALYZE grid_weekly;
 ANALYZE grid_weekly_sensor;

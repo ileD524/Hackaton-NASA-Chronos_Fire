@@ -1,0 +1,22 @@
+services:
+  db:
+    image: postgres:17
+    container_name: chronos-fire-demo-db
+    environment:
+      POSTGRES_DB: chronos_fire_demo
+      POSTGRES_USER: chronos
+      POSTGRES_PASSWORD: chronos
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/demo/chronos_fire_demo.sql.gz:/docker-entrypoint-initdb.d/01_chronos_fire_demo.sql.gz:ro
+      - chronos_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chronos -d chronos_fire_demo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 256mb
+
+volumes:
+  chronos_pgdata:

@@ -59,7 +59,7 @@ Reglas:
 - `baselineFireCells` es la mediana leave-one-out.
 - `anomaly` solo se calcula con `nRefYears >= 7`, `baseline >= 3` y `observed >= 3`.
 - `provisional = true` para 2026 o semanas con NRT.
-- `nDataYears` queda `null` porque `coverage_daily` esta vacia.
+- `nDataYears` cuenta anios con cobertura proxy (`coverage_daily`) para esa semana ISO y sensor; no es la cantidad de anios de referencia del baseline.
 - `fireCellsBySensor`, `detectionsBySensor` y `frpBySensor` incluyen todos los sensores presentes.
 - `fireDayRateGivenDetection = fireDays / detectionCellDays`.
 
@@ -80,7 +80,7 @@ Ejemplo verificado (Delta 2020, semana 40):
   "confidence": "high",
   "provisional": false,
   "dataStatus": "observed",
-  "nDataYears": null,
+  "nDataYears": 15,
   "fireCellsBySensor": { "MODIS": 36, "VIIRS_SNPP": 66, "VIIRS_NOAA20": 67 },
   "detectionsBySensor": { "MODIS": 258, "VIIRS_SNPP": 1242, "VIIRS_NOAA20": 855 },
   "fireDayRateGivenDetection": 0.865
@@ -91,9 +91,9 @@ Ejemplo verificado (Delta 2020, semana 40):
 
 | Endpoint | Parametros | Semantica |
 |---|---|---|
-| `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily`; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
-| `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05°; `anomaly` queda `null` porque la anomalía es por AOI |
-| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; `fireCells`/`fireDays` all-sensor; `detectionsBySensor` filtrado por sensor |
+| `GET /api/calendar/daily` | `bbox`, `from`, `to`, `sensor`, `limit` | Filas observadas de `grid_daily` con `hotspots` armonizados; `fireDay` sigue siendo all-sensor; `sensor` filtra `sensors` |
+| `GET /api/calendar/heatmap` | `bbox`, `from`, `to`, `sensor`, `limit` | Agrega celdas 0,05° con `hotspots` y `hotspotsBySensor`; `anomaly` queda `null` porque la anomalía es por AOI |
+| `GET /api/calendar/monthly` | `bbox`, `from`, `to`, `sensor` | Espina de meses; celdas, hotspots, detecciones, baseline/anomalia y desglose por sensor; `ALL` no es promedio |
 | `GET /api/calendar/trend` | `bbox`, `from`, `to`, `sensor` | Serie anual; `AUTO` usa la era de cada año; baseline anual leave-one-out |
 
 Reglas:
@@ -110,13 +110,62 @@ Reglas:
 - En `daily`, `source` y `frpDensityMaxWm2` quedan `null` porque `grid_daily`
   no guarda esos campos.
 - En `heatmap`, `anomaly` queda `null`: la anomalía es por AOI, no por celda.
-- En `monthly`, `fireCells` y `fireDays` son all-sensor; `detectionsBySensor`
-  respeta el filtro de sensor.
+- En `monthly`, `daily` y `heatmap`, `fireCells`, `fireDays`, `hotspots`,
+  `hotspotsBySensor` y `detectionsBySensor` respetan el filtro de sensor.
+  En `heatmap`, `nDetections` sigue siendo el conteo crudo all-sensor de la
+  celda; la metrica armonizada es `hotspots`.
+  `fire_day` sigue siendo all-sensor: `fireCells(sensor)` cuenta celdas con
+  actividad en dias en que ese sensor tuvo al menos una deteccion, no celdas
+  atribuibles en exclusiva a ese sensor. `AUTO` se trata como `ALL` y `ALL` no
+  es un promedio: la serie esta dominada por VIIRS.
+- `hotspots` cuenta detecciones de vegetacion efectiva, confianza
+  nominal/alta y fuera de la mascara industrial. Es la misma definicion que
+  `fire_day`, pero a nivel de deteccion. `nDetections`/`detectionsBySensor`
+  son el conteo crudo; no son la metrica del calendario.
+- En `monthly`, `baselineFireCells` es la mediana leave-one-out de
+  `fireCells` con la era del sensor: MODIS 2003-2011, SNPP 2013-2025,
+  NOAA-20 2019-2025, NOAA-21 2024-2025. Para `ALL` se excluyen 2000-2002,
+  2012 (transicion) y 2026 (NRT).
+- `anomaly = fireCells / baselineFireCells`. Es `null` si el mes es parcial,
+  no tiene datos, tiene menos de 7 anos de referencia, `observed < 3` o
+  `baseline < 3`. `confidence = high` con 10+ anos y baseline >= 10; `low` en
+  el resto de los casos validos; `insufficient` cuando no se puede calcular.
+
+Ejemplo (Delta 2020-09, SNPP, rango 2013-2026):
+
+```json
+{
+  "year": 2020,
+  "month": 8,
+  "fireCells": 154,
+  "hotspots": 3313,
+  "baselineFireCells": 49.0,
+  "anomaly": 3.14,
+  "referenceYears": 12,
+  "confidence": "high"
+}
+```
+
+El baseline depende del rango solicitado: 2013-2023 da otra mediana y otra
+anomalia que 2013-2026. La UI lo declara como "otros anos completos de la
+seleccion".
 
 Verificado:
 
 - Delta 2020 septiembre: `daily` y `heatmap` responden en <0,2 s.
 - Delta 2020 enero-marzo: `monthly` responde en ~0,2 s.
+- Delta 2020-09 `monthly` por sensor: `ALL` 189 celdas / 618 dias /
+  6.628 hotspots; `MODIS` 119 / 313 / 704; `VIIRS_SNPP` 154 / 496 / 3.313;
+  `AUTO` se comporta como `ALL`.
+- Delta 2020-09-15 `daily`: 20 filas de celda-dia, 76 hotspots; una celda
+  puede mezclar sensores (`hotspotsBySensor` conserva el desglose).
+- Delta 2020-09 anomalia mensual 2013-2026: SNPP `154 / 49,0 / 3,14` con
+  12 referencias y `high`; `ALL` `189 / 62,0 / 3,05` con 12 y `high`.
+  2012 queda `insufficient` aunque tenga 17 referencias; 2020 solo tambien
+  queda `insufficient` por falta de referencias.
+- Delta 2020-09 `heatmap`: `ALL` 193 celdas y 6.628 hotspots; `MODIS` 124
+  celdas y 704 hotspots; `VIIRS_SNPP` 154 celdas y 3.313 hotspots. Una celda
+  puede mezclar sensores y `hotspotsBySensor` conserva el desglose.
 - Delta 2019-2020: `trend` devuelve 2019 = 0,96 y 2020 = 6,22.
 - Sin bbox, `monthly` 2020 tarda ~5,6 s la primera vez y queda cacheado.
 
@@ -134,8 +183,19 @@ Reglas:
 - `detections` devuelve `total`, `limit` y `offset`.
 - `limit` por defecto 1.000; máximo 50.000.
 - Exportaciones: máximo 50.000 filas.
+- `/api/detections/export.csv` acepta rangos de hasta 10.000 días;
+  `detections` y `geojson` hasta 3.660. El rango inicial de la UI
+  (2012-2026) entra en el límite de exportación.
+- Las exportaciones devuelven `X-Row-Limit`, `X-Returned-Rows` y
+  `X-Truncated`. El frontend lee esos headers con un `HEAD` y avisa si la
+  descarga se truncó.
 - `confidence` acepta `low`, `nominal`, `high`; se puede repetir o separar por coma.
 - `vegetation=true` usa la misma logica que `v_vegetation_detections`.
+- La UI descarga hotspots con
+  `export.csv?bbox=...&from=...&to=...&sensor=...&vegetation=true&confidence=nominal&confidence=high&limit=50000`.
+  Esa combinacion equivale a la definicion de hotspot: vegetacion efectiva,
+  confianza nominal/alta y sin focos industriales. El CSV conserva las columnas
+  `industrial_mask` e `is_vegetation` para auditar cada fila.
 - `source` acepta `SP` o `NRT`.
 - `type` acepta 0-3.
 - `bbox` por defecto es Argentina para proteger la consulta.
@@ -148,6 +208,10 @@ Verificado:
 - GeoJSON con `limit=1`: 200, 0,11 s.
 - CSV de detecciones: `Content-Disposition` y cabecera correcta.
 - CSV semanal: 200, 0,08 s.
+- Export con `limit=10`: `X-Row-Limit: 10`, `X-Returned-Rows: 10`,
+  `X-Truncated: true`.
+- Export Delta 2012-2026: 200, `X-Truncated: true` y 50.000 filas.
+- Rango mayor a 10.000 días en export: 400 con el máximo en el mensaje.
 
 ### Fase 5 - alertas, AOIs y validacion
 
@@ -232,8 +296,8 @@ demo inicia en el Delta.
 | GET | `/api/meta` | `detections`, `grid_*`, `industrial_cells` | Cobertura y definiciones |
 | GET | `/api/calendar/weekly` | `grid_weekly_sensor`, `grid_weekly` | Titular semanal y anomalia |
 | GET | `/api/calendar/daily` | `grid_daily` | Serie diaria |
-| GET | `/api/calendar/heatmap` | `grid_daily` | Mapa de celdas 0,05° |
-| GET | `/api/calendar/monthly` | `grid_daily` | Agregacion mensual para la UI |
+| GET | `/api/calendar/heatmap` | `grid_daily`, `v_detections_analysis` | Mapa de celdas 0,05° con hotspots por sensor |
+| GET | `/api/calendar/monthly` | `grid_daily`, `v_detections_analysis` | Agregacion mensual con celdas y hotspots |
 | GET | `/api/calendar/trend` | `grid_weekly` | Serie anual |
 | GET | `/api/calendar/export.csv` | `grid_weekly` | Descarga semanal |
 | GET | `/api/alerts` | `v_detections_analysis` | Alertas NRT por celda |
@@ -246,47 +310,46 @@ demo inicia en el Delta.
 
 ---
 
-## 3. Adaptacion del frontend
+## 3. Frontend adaptado al contrato
 
-El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracion que la base no tiene. Debe adaptarse a este contrato.
+El frontend `frontend/ChronosFire` ya consume este contrato. La version
+anterior con backend Python/DuckDB, celdas de 1 km² y calibracion fue retirada
+y no forma parte del producto actual.
 
-| Frontend actual | Nuevo contrato |
+### 3.1. Estado actual
+
+| Componente | Implementacion |
+|---|---|
+| Calendario | Mensual, celdas de 0,05°, `fireCells` y hotspots |
+| Mapa | Leaflet, `/api/calendar/heatmap`, `hotspots` + `hotspotsBySensor` |
+| Comparacion | `baselineFireCells`, `anomaly`, `referenceYears`, `confidence` |
+| Detalle diario | Celdas y detecciones del mes |
+| Filtros | bbox por lat/lon, presets y rango de fechas |
+| Descargas | CSV de calendario y hotspots, con aviso de truncamiento |
+| Alertas / validacion | Paneles que consumen `/api/alerts` y `/api/validation` |
+| Sensor | La UI usa `ALL`; la API permite filtrar; selector pendiente (F-01) |
+
+### 3.2. Migracion aplicada (historico)
+
+| Version anterior (retirada) | Contrato actual |
 |---|---|
 | celda-dia de 1 km² | celda de 0,05° (~5 km) |
 | `active_cells_modis/viirs/union` | `fireCells` + `fireCellsBySensor` |
-| `calibrated` | **se elimina** |
-| `modis_equivalent_cells` | **se elimina** |
-| `paired_days`, `paired_modis`, `paired_viirs`, `paired_calibrated` | **se eliminan** |
+| `calibrated` | eliminado |
+| `modis_equivalent_cells` | eliminado |
+| `paired_days`, `paired_modis`, `paired_viirs`, `paired_calibrated` | eliminados |
 | `/api/calendar` mensual | `/api/calendar/weekly` + `/api/calendar/monthly` |
 | `/api/map` | `/api/calendar/heatmap` + `/api/detections/geojson` |
-| `/api/export` | `/api/calendar/export.csv` |
+| `/api/export` | `/api/calendar/export.csv` + `/api/detections/export.csv` |
 | 2003-2025 | 2000/2003-2026, con 2026 `provisional` |
 | mediana en cliente | `baselineFireCells`, `referenceYears`, `confidence` desde el backend |
 | `coverage_known: false` | `dataStatus` y `nDataYears` (hoy `null`/`unknown`) |
 
-### 3.1. Mapeo por componente
+### 3.3. Pendientes de frontend
 
-| Componente | Cambio |
-|---|---|
-| `src/data/types.ts` | Reemplazar `Metric`, `MonthCell`, `DailyRow`, `MapData` por los DTOs del OpenAPI |
-| `src/composables/useChronos.ts` | Nuevos endpoints y parametros |
-| `FireCalendar.vue` | Semanas ISO 1-53 o meses con `fireCells`; quitar calibracion |
-| `KpiStrip.vue` | `fireCells`, `nDetectionsBySensor`; no “celda-dia 1 km²” |
-| `MonthComparison.vue` | `baselineFireCells`, `anomaly`, `referenceYears`, `confidence` |
-| `DailyDetail.vue` | `fireDay`, `nDetections`, `sensors`, `frp` |
-| `FireMap.vue` | `/api/calendar/heatmap` o `/api/detections/geojson` |
-| `AreaOfInterest.vue` | `/api/aois`, bbox, fechas hasta 2026 |
-| `MethodologyPanel.vue` | Nueva metodologia: 0,05°, sin calibracion, sin cobertura real |
-| `tests/` | Reescribir contra el contrato Java |
-
-### 3.2. Funciones que se eliminan
-
-- `calibrated` y `serie_calibrada_2012_2025.csv`.
-- `modis_equivalent_cells`, `modis_pi90_low`, `modis_pi90_high`.
-- Comparacion pareada MODIS/VIIRS/calibrado.
-- Celdas-dia de 1 km².
-- `/api/map` con grupos de 5×5 km y 6.000 puntos.
-- `firms.ts` si no se usa; contiene una `MAP_KEY` hardcodeada.
+- Selector de sensor (F-01).
+- Rampa de anomalia accesible (F-05).
+- Limpieza de `src/data/firms.ts` y `sampleCalendar.ts` (F-11).
 
 ---
 
@@ -295,11 +358,20 @@ El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracio
 - `fire_day`: celda de 0,05° con al menos una deteccion de vegetacion nominal/alta en el dia UTC.
 - `fire_cells`: celdas con actividad en el periodo.
 - `n_detections`: detecciones FIRMS; no es cantidad de incendios.
+- `hotspots`: detecciones de vegetacion efectiva, confianza nominal/alta y
+  fuera de la mascara industrial; no es cantidad de incendios.
+- `hotspotsBySensor`: el mismo conteo desglosado por sensor; no se suma entre
+  sensores para presentar un promedio.
+- `baselineFireCells`: mediana multianual del mismo mes, misma metrica y era
+  del sensor, excluyendo el ano evaluado.
+- `anomaly`: cociente observado/baseline; no es un porcentaje ni una
+  prediccion.
+- `referenceYears` y `confidence`: cantidad de anos y calidad del baseline.
 - `anomaly = observedFireCells / baselineFireCells`.
 - `baselineFireCells`: mediana multianual por AOI, leave-one-out.
 - `confidence`: `high`, `low` o `insufficient`.
 - `dataStatus`: `observed`, `no_data` o `unknown`.
-- `nDataYears`: `null` porque `coverage_daily` esta vacia.
+- `nDataYears`: anios con cobertura proxy para la semana ISO y sensor.
 - `provisional`: `true` para 2026/NRT.
 - `null` no es `0`.
 - No sumar FRP ni detecciones entre sensores.
@@ -310,8 +382,8 @@ El frontend actual (`frontend/ChronosFire`) usa un modelo de 1 km² y calibracio
 
 | Limitacion | Efecto en la API |
 |---|---|
-| `coverage_daily` vacia | `nDataYears = null`, `dataStatus = unknown` |
-| `n_data_years` NULL | No usar como confianza |
+| `coverage_daily` es un proxy por dias con detecciones | `nDataYears` y `dataStatus` no equivalen a cobertura real por nubosidad/overpass |
+| `n_data_years` derivado de ese proxy | No usar como cobertura fisica ni como confianza |
 | `frp_p50/p90` NULL | No exponer percentiles |
 | Sin calibracion | No hay `calibrated` |
 | Grilla 0,05° | No hay celdas de 1 km² |
